@@ -12,6 +12,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Basketball draft roster (scanned cards, persists across sessions)
+    match /basketballRosters/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
     // Teams collection — owner can write, authenticated users can read
     match /teams/{teamId} {
       allow read: if request.auth != null;

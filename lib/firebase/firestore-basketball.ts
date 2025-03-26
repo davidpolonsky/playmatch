@@ -16,6 +16,7 @@ const BBALL_RECORDS          = 'basketballRecords';
 const BBALL_LEG_RECORDS      = 'legendaryBasketballRecords';
 const BBALL_HISTORY          = 'basketballHistory';
 const BBALL_SAVED_TEAMS      = 'savedBasketballTeams';
+const BBALL_ROSTERS          = 'basketballRosters';
 
 // ── Team Record ────────────────────────────────────────────────
 export interface BballRecord {
@@ -153,4 +154,34 @@ export const getBballHistory = async (teamId: string, maxResults = 10): Promise<
   );
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as BballHistoryEntry));
+};
+
+// ── Basketball Roster (draft player pool, persists across sessions) ─────────
+
+export const saveBasketballRoster = async (userId: string, players: BasketballPlayer[]): Promise<void> => {
+  try {
+    const q = query(collection(db, BBALL_ROSTERS), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    const data = { userId, players, updatedAt: serverTimestamp() };
+    if (snap.empty) {
+      await addDoc(collection(db, BBALL_ROSTERS), data);
+    } else {
+      await setDoc(snap.docs[0].ref, data);
+    }
+  } catch (error) {
+    console.error('Error saving basketball roster:', error);
+    throw error;
+  }
+};
+
+export const getBasketballRoster = async (userId: string): Promise<BasketballPlayer[]> => {
+  try {
+    const q = query(collection(db, BBALL_ROSTERS), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    if (snap.empty) return [];
+    return (snap.docs[0].data().players as BasketballPlayer[]) || [];
+  } catch (error) {
+    console.error('Error getting basketball roster:', error);
+    return [];
+  }
 };

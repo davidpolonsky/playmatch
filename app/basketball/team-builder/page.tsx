@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { BasketballPlayer, BasketballPosition, BASKETBALL_LINEUPS, BASKETBALL_POSITION_ORDER, BASKETBALL_ROSTER_REQUIREMENTS } from '@/lib/types-basketball';
-import { saveBasketballTeam } from '@/lib/firebase/firestore-basketball';
+import { saveBasketballTeam, saveBasketballRoster, getBasketballRoster } from '@/lib/firebase/firestore-basketball';
 
 // Camera-based card uploader wired to basketball API
 function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
@@ -157,6 +157,7 @@ export default function BasketballTeamBuilder() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [players, setPlayers] = useState<BasketballPlayer[]>([]);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
   const [selectedLineup, setSelectedLineup] = useState('Standard');
   const [teamName, setTeamName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -164,6 +165,21 @@ export default function BasketballTeamBuilder() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('error');
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
+
+  // Load saved draft roster on mount
+  useEffect(() => {
+    if (!user) return;
+    getBasketballRoster(user.uid).then(saved => {
+      if (saved.length > 0) setPlayers(saved);
+      setRosterLoaded(true);
+    }).catch(() => setRosterLoaded(true));
+  }, [user]);
+
+  // Persist draft roster whenever it changes (after initial load)
+  useEffect(() => {
+    if (!user || !rosterLoaded) return;
+    saveBasketballRoster(user.uid, players).catch(() => {});
+  }, [players, user, rosterLoaded]);
 
   const [pinnedLineup, setPinnedLineup] = useState<BasketballPlayer[] | null>(null);
 
