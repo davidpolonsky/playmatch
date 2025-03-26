@@ -722,7 +722,7 @@ export default function BasketballTeamsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
               <p className="mt-3 font-retro text-[8px] text-bball-orange/40 animate-pulse">Loading teams…</p>
             </div>
-          ) : activeTab === 'standings' ? null : activeTab === 'my-teams' ? (
+          ) : activeTab === 'my-teams' ? (
             <div className="space-y-3">
               {myTeams.length === 0 ? (
                 <div className="text-center py-12">
