@@ -63,6 +63,14 @@ const POS_COLORS: Record<BasketballPosition, string> = {
   PG: '#f97316', SG: '#fbbf24', SF: '#fb923c', PF: '#f59e0b', C: '#ef4444',
 };
 
+const inferPoints = (ev: BballPlayEvent): number => {
+  if (ev.points) return ev.points;
+  if (ev.type === 'three_made') return 3;
+  if (ev.type === 'free_throw') return 1;
+  if (['shot_made', 'dunk', 'layup', 'buzzer_beater'].includes(ev.type)) return 2;
+  return 0;
+};
+
 function RecordBadge({ record }: { record: BballRecord }) {
   return (
     <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
@@ -83,7 +91,7 @@ export default function BasketballTeamsPage() {
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, BballRecord>>({});
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'my-teams' | 'teams' | 'standings'>('my-teams');
+  const [activeTab, setActiveTab] = useState<'simulate' | 'my-teams' | 'teams' | 'standings'>('simulate');
   // Standings state
   const [standingsTeamIds, setStandingsTeamIds] = useState<Set<string>>(new Set());
   const [standingsMetric, setStandingsMetric] = useState<'winpct' | 'gb'>('winpct');
@@ -111,12 +119,18 @@ export default function BasketballTeamsPage() {
   const [addTeamLoading, setAddTeamLoading] = useState(false);
   const [addTeamError, setAddTeamError] = useState('');
 
-  // Invite
+  // Invite (nav)
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
+
+  // Challenge invite (from team card envelope)
+  const [challengeTeam, setChallengeTeam] = useState<AnyBballTeam | null>(null);
+  const [challengeEmail, setChallengeEmail] = useState('');
+  const [challengeSent, setChallengeSent] = useState(false);
+  const [challengeSending, setChallengeSending] = useState(false);
 
   // Geo label
   const [soccerLabel, setSoccerLabel] = useState('Football');
@@ -157,11 +171,14 @@ export default function BasketballTeamsPage() {
       const ev = events[i];
       setVisibleEvents(prev => [...prev, ev]);
       if (ev.quarter) setCurrentQuarter(ev.quarter);
-      if (ev.scoringTeam && ev.points) {
-        setLiveScore(prev => ({
-          home: prev.home + (ev.scoringTeam === 'team1' ? ev.points! : 0),
-          away: prev.away + (ev.scoringTeam === 'team2' ? ev.points! : 0),
-        }));
+      if (ev.scoringTeam) {
+        const pts = inferPoints(ev);
+        if (pts > 0) {
+          setLiveScore(prev => ({
+            home: prev.home + (ev.scoringTeam === 'team1' ? pts : 0),
+            away: prev.away + (ev.scoringTeam === 'team2' ? pts : 0),
+          }));
+        }
       }
       i++;
     }, msPerEvent);
@@ -171,6 +188,13 @@ export default function BasketballTeamsPage() {
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [visibleEvents]);
+
+  // Snap scoreboard to authoritative final score when animation finishes
+  useEffect(() => {
+    if (streamingDone && simResult) {
+      setLiveScore({ home: simResult.team1Score, away: simResult.team2Score });
+    }
+  }, [streamingDone, simResult]);
 
   useEffect(() => {
     if (!simulating) { setLoadingPhrase(''); return; }
@@ -327,6 +351,27 @@ export default function BasketballTeamsPage() {
     finally { setInviteSending(false); }
   };
 
+  const handleSendChallenge = async () => {
+    if (!challengeEmail.trim() || challengeSending || !challengeTeam) return;
+    setChallengeSending(true);
+    const t = challengeTeam as BballTeamDoc;
+    const teamId = t.shareId ? formatShareId(t.shareId) : t.id!;
+    try {
+      const res = await fetch('/api/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromName: user?.displayName || 'A friend',
+          toEmail: challengeEmail.trim(),
+          teamName: challengeTeam.name,
+          teamId,
+          sport: 'basketball',
+        }) });
+      if (!res.ok) throw new Error('Failed');
+      setChallengeSent(true);
+      setTimeout(() => { setChallengeSent(false); setChallengeEmail(''); setChallengeTeam(null); }, 3000);
+    } catch { alert('Failed to send challenge.'); }
+    finally { setChallengeSending(false); }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0a00' }}>
@@ -366,12 +411,7 @@ export default function BasketballTeamsPage() {
             <button onClick={() => router.push('/dashboard')}
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"
               style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-              ⚽ Switch to {soccerLabel}
-            </button>
-            <button onClick={() => router.push('/basketball/team-builder')}
-              className="font-retro text-[9px] py-1.5 px-3 rounded-lg transition-all"
-              style={{ background: '#f97316', color: '#0f0a00' }}>
-              + New Team
+              ⚽ {soccerLabel}
             </button>
             {/* Invite */}
             <div className="relative">
@@ -428,9 +468,30 @@ export default function BasketballTeamsPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* ── Tab bar (matches soccer) ── */}
+        <div className="flex gap-1 mb-6 flex-wrap" style={{ borderBottom: '1px solid #3d2c00', paddingBottom: 0 }}>
+          {([
+            { key: 'build-team', label: 'Build Team' },
+            { key: 'my-teams', label: `My Teams (${myTeams.length})` },
+            { key: 'simulate', label: 'Simulate' },
+            { key: 'standings', label: 'Standings' },
+          ] as const).map(({ key, label }) => (
+            <button key={key}
+              onClick={() => key === 'build-team' ? router.push('/basketball/team-builder') : setActiveTab(key)}
+              className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
+                activeTab === key ? 'border-bball-orange text-bball-orange' : 'border-transparent text-white/30 hover:text-white/60'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-6">
 
         {/* ── Game Simulator ── */}
+        {activeTab === 'simulate' && (
         <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
           <h2 className="font-retro text-[11px] mb-6 tracking-wider" style={{ color: '#f97316' }}>⚡ Game Simulator</h2>
 
@@ -463,18 +524,20 @@ export default function BasketballTeamsPage() {
                     <span className="font-headline text-[11px] text-white">{selectedHome.name}</span>
                     <RecordBadge record={getRecord(selectedHome)} />
                   </div>
-                  {BASKETBALL_POSITION_ORDER.map(pos => {
-                    const p = selectedHome.players.find(pl => pl.position === pos);
-                    return p ? (
-                      <div key={pos} className="flex items-center gap-1 text-xs">
-                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                  {selectedHome.players.map((p, idx) => {
+                    const slotPos = BASKETBALL_POSITION_ORDER[idx];
+                    const isOop = slotPos && p.position !== slotPos;
+                    return (
+                      <div key={idx} className="flex items-center gap-1 text-xs">
+                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[slotPos || p.position as BasketballPosition] }}>{slotPos || p.position}</span>
                         <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
+                        {isOop && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>oop</span>}
                         <span className="ml-auto font-headline text-[10px] font-bold"
                           style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
                           {p.rating}
                         </span>
                       </div>
-                    ) : null;
+                    );
                   })}
                 </div>
               )}
@@ -537,18 +600,20 @@ export default function BasketballTeamsPage() {
                     <span className="font-headline text-[11px] text-white">{selectedAway.name}</span>
                     <RecordBadge record={getRecord(selectedAway)} />
                   </div>
-                  {BASKETBALL_POSITION_ORDER.map(pos => {
-                    const p = selectedAway.players.find(pl => pl.position === pos);
-                    return p ? (
-                      <div key={pos} className="flex items-center gap-1 text-xs">
-                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                  {selectedAway.players.map((p, idx) => {
+                    const slotPos = BASKETBALL_POSITION_ORDER[idx];
+                    const isOop = slotPos && p.position !== slotPos;
+                    return (
+                      <div key={idx} className="flex items-center gap-1 text-xs">
+                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[slotPos || p.position as BasketballPosition] }}>{slotPos || p.position}</span>
                         <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
+                        {isOop && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>oop</span>}
                         <span className="ml-auto font-headline text-[10px] font-bold"
                           style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
                           {p.rating}
                         </span>
                       </div>
-                    ) : null;
+                    );
                   })}
                 </div>
               )}
@@ -647,20 +712,11 @@ export default function BasketballTeamsPage() {
             </div>
           )}
         </div>
+        )}
 
-        {/* ── Teams List ── */}
+        {/* ── Teams List (My Teams + Teams tabs) ── */}
+        {(activeTab === 'my-teams' || activeTab === 'teams') && (
         <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-          <div className="flex gap-1 mb-6 border-b pb-0" style={{ borderColor: '#3d2c00' }}>
-            {[{ key: 'my-teams', label: 'My Teams' }, { key: 'teams', label: 'Teams' }, { key: 'standings', label: 'Standings' }].map(({ key, label }) => (
-              <button key={key} onClick={() => setActiveTab(key as typeof activeTab)}
-                className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
-                  activeTab === key ? 'border-bball-orange text-bball-orange' : 'border-transparent text-white/30 hover:text-white/60'
-                }`}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           {loadingTeams ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
@@ -689,6 +745,7 @@ export default function BasketballTeamsPage() {
                     historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
                     matchHistories={matchHistories} loadingHistory={loadingHistory}
                     onDelete={async (id) => { if (!confirm('Delete this team?')) return; await deleteBasketballTeam(id); await loadTeams(); }}
+                    onChallenge={t => { setChallengeTeam(t); setChallengeEmail(''); setChallengeSent(false); }}
                   />
                 ))
               )}
@@ -737,8 +794,11 @@ export default function BasketballTeamsPage() {
             </div>
           )}
 
-          {/* ── Standings tab ── */}
-          {!loadingTeams && activeTab === 'standings' && (() => {
+        </div>
+        )}
+
+        {/* ── Standings tab ── */}
+        {!loadingTeams && activeTab === 'standings' && (() => {
             const allAvail: AnyBballTeam[] = [
               ...myTeams,
               ...savedTeams,
@@ -914,19 +974,58 @@ export default function BasketballTeamsPage() {
             );
           })()}
         </div>
+
+        {/* ── Challenge modal ── */}
+        {challengeTeam && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+            <div className="w-full max-w-sm rounded-xl p-6" style={{ background: '#0f0a00', border: '1px solid #3d2c00', boxShadow: '0 4px 24px rgba(0,0,0,0.8)' }}>
+              <h3 className="font-retro text-[10px] mb-1 tracking-wider" style={{ color: '#f97316' }}>Challenge a Friend</h3>
+              <p className="font-headline text-[11px] mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>Send your team ID so they can add you as a rival</p>
+              {challengeSent ? (
+                <p className="font-headline text-[11px] text-center py-4" style={{ color: '#f97316' }}>✓ Challenge sent!</p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="font-retro text-[7px] block mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Team</label>
+                    <p className="font-headline text-[12px] text-white">{challengeTeam.name}</p>
+                  </div>
+                  <div>
+                    <label className="font-retro text-[7px] block mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Friend's Email</label>
+                    <input type="email" value={challengeEmail} onChange={e => setChallengeEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSendChallenge()}
+                      placeholder="friend@example.com" autoFocus
+                      className="w-full px-3 py-2 rounded-lg font-headline text-[11px] focus:outline-none"
+                      style={{ background: '#1c1200', border: '1px solid #3d2c00', color: '#f1efe3' }} />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleSendChallenge} disabled={!challengeEmail.trim() || challengeSending}
+                      className="flex-1 py-2 rounded-lg font-retro text-[8px] disabled:opacity-30 transition-all"
+                      style={{ background: '#f97316', color: '#0f0a00' }}>
+                      {challengeSending ? 'Sending…' : 'Send Challenge 🏀'}
+                    </button>
+                    <button onClick={() => { setChallengeTeam(null); setChallengeEmail(''); }}
+                      className="py-2 px-3 rounded-lg font-retro text-[8px] border transition-colors"
+                      style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
 // ── TeamCard sub-component ──────────────────────────────────────
-function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpandedId, record, copiedId, setCopiedId, historyTeamId, onViewHistory, matchHistories, loadingHistory, onDelete, onRemoveSaved }: {
+function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpandedId, record, copiedId, setCopiedId, historyTeamId, onViewHistory, matchHistories, loadingHistory, onDelete, onRemoveSaved, onChallenge }: {
   team: AnyBballTeam; isOwn?: boolean; isSaved?: boolean;
   expandedId: string | null; setExpandedId: (id: string | null) => void;
   record: BballRecord; copiedId: string | null; setCopiedId: (id: string | null) => void;
   historyTeamId: string | null; onViewHistory: (id: string) => void;
   matchHistories: Record<string, BballHistoryEntry[]>; loadingHistory: boolean;
   onDelete?: (id: string) => void; onRemoveSaved?: (id: string) => void;
+  onChallenge?: (team: AnyBballTeam) => void;
 }) {
   const isLeg = 'isLegendary' in team && team.isLegendary;
   const isExpanded = expandedId === team.id;
@@ -963,6 +1062,15 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
           <div className="flex items-center gap-1 ml-2 flex-shrink-0">
             {isOwn && (
               <>
+                <button onClick={e => { e.stopPropagation(); onChallenge?.(team); }}
+                  title="Invite friend to challenge this team"
+                  className="p-1 transition-colors" style={{ color: 'rgba(255,255,255,0.3)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#f97316')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </button>
                 <button onClick={handleCopy} title="Copy Team ID" className="p-1 transition-colors" style={{ color: isCopied ? '#f97316' : 'rgba(255,255,255,0.3)' }}>
                   {isCopied ? <span className="font-retro text-[8px]">✓</span> : (
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
@@ -985,9 +1093,14 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
         {/* Players row + record */}
         <div className="flex justify-between items-center mt-2">
           <div className="flex gap-2 font-headline text-[10px] text-white/60">
-            {BASKETBALL_POSITION_ORDER.map(pos => {
-              const p = team.players.find(pl => pl.position === pos);
-              return <span key={pos}>{pos} {p ? 1 : 0}</span>;
+            {BASKETBALL_POSITION_ORDER.map((pos, idx) => {
+              const p = team.players[idx];
+              const isOop = p && p.position !== pos;
+              return (
+                <span key={pos} style={isOop ? { color: '#fbbf24' } : undefined}>
+                  {pos} {p ? 1 : 0}{isOop ? '*' : ''}
+                </span>
+              );
             })}
           </div>
           {!isLeg && team.id ? (
@@ -1006,14 +1119,15 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
       {/* Expanded roster */}
       {isExpanded && (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: '#3d2c00' }}>
-          {BASKETBALL_POSITION_ORDER.map(pos => {
-            const p = team.players.find(pl => pl.position === pos);
-            if (!p) return null;
+          {team.players.map((p, idx) => {
+            const slotPos = BASKETBALL_POSITION_ORDER[idx];
+            const isOop = slotPos && p.position !== slotPos;
             return (
-              <div key={pos} className="flex justify-between items-center py-1">
+              <div key={idx} className="flex justify-between items-center py-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-retro text-[7px] w-6" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                  <span className="font-retro text-[7px] w-6" style={{ color: POS_COLORS[slotPos || p.position as BasketballPosition] }}>{slotPos || p.position}</span>
                   <span className="text-sm" style={{ color: 'rgba(241,239,227,0.8)' }}>{p.name}</span>
+                  {isOop && <span className="font-retro text-[6px] px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>oop</span>}
                   {p.isHistorical && <span className="font-retro text-[6px] px-1 rounded" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}>{p.year}</span>}
                 </div>
                 <span className="font-headline text-[11px] font-bold"
