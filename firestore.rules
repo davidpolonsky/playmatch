@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read/write their own roster and team data
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // User preferences (Table / Standings saved selections)
+    match /userPreferences/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Teams collection — owner can write, authenticated users can read
+    match /teams/{teamId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Basketball teams
+    match /basketballTeams/{teamId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Team records (match history) — owner writes
+    match /teamRecords/{recordId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /legendaryRecords/{recordId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /basketballRecords/{recordId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /legendaryBballRecords/{recordId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Saved basketball team lists per user
+    match /savedBballTeams/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Basketball game history
+    match /bballHistory/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+  }
+}

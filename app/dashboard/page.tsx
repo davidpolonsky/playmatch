@@ -536,7 +536,7 @@ export default function Dashboard() {
                         setTimeout(() => setTableSaveState('idle'), 2000);
                       } catch { setTableSaveState('idle'); }
                     }}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-retro text-[9px] tracking-wider transition-all border-fifa-mint/30 hover:border-fifa-mint/60 hover:bg-fifa-mint/10"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-all hover:bg-fifa-mint/10"
                     style={{ color: tableSaveState === 'saved' ? '#4ade80' : 'rgba(74,222,128,0.5)' }}>
                     {tableSaveState === 'saved' ? (
                       '✓ SAVED'

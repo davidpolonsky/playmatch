@@ -169,33 +169,71 @@ export default function BasketballTeamBuilder() {
 
   const getStarting5 = (): BasketballPlayer[] => {
     if (pinnedLineup) return pinnedLineup;
-    const seen = new Set<string>();
+    const usedIds = new Set<string>();
     const result: BasketballPlayer[] = [];
+    // First pass: fill each slot with a position-matched player
     for (const pos of BASKETBALL_POSITION_ORDER) {
-      const p = players.find(pl => pl.position === pos && !seen.has(pl.id));
-      if (p) { result.push(p); seen.add(p.id); }
+      const p = players.find(pl => pl.position === pos && !usedIds.has(pl.id));
+      if (p) { result.push(p); usedIds.add(p.id); }
+      else result.push(null as unknown as BasketballPlayer); // placeholder
     }
-    return result;
+    // Second pass: fill null slots with best available (by rating), any position
+    const bench = [...players]
+      .filter(p => !usedIds.has(p.id))
+      .sort((a, b) => b.rating - a.rating);
+    for (let i = 0; i < result.length; i++) {
+      if (!result[i] && bench.length > 0) {
+        const fill = bench.shift()!;
+        result[i] = fill;
+        usedIds.add(fill.id);
+      }
+    }
+    return result.filter(Boolean);
   };
 
   const generateBestLineup = () => {
+    const usedIds = new Set<string>();
     const best: BasketballPlayer[] = [];
+    // First pass: best rated player per position
     for (const pos of BASKETBALL_POSITION_ORDER) {
-      const candidates = players.filter(pl => pl.position === pos);
-      if (candidates.length === 0) continue;
-      const top = candidates.sort((a, b) => b.rating - a.rating)[0];
-      best.push(top);
+      const candidates = players.filter(pl => pl.position === pos && !usedIds.has(pl.id));
+      if (candidates.length > 0) {
+        const top = [...candidates].sort((a, b) => b.rating - a.rating)[0];
+        best.push(top);
+        usedIds.add(top.id);
+      } else {
+        best.push(null as unknown as BasketballPlayer); // placeholder
+      }
     }
-    setPinnedLineup(best);
-    const avg = best.length > 0 ? Math.round(best.reduce((s, p) => s + p.rating, 0) / best.length) : 0;
-    setMessage(best.length === 5 ? `⚡ Best lineup generated! Avg rating: ${avg}` : `Partial lineup: ${best.length}/5 positions filled. Scan more cards!`);
-    setMessageType(best.length === 5 ? 'success' : 'error');
+    // Second pass: fill empty slots with best remaining
+    const bench = [...players]
+      .filter(p => !usedIds.has(p.id))
+      .sort((a, b) => b.rating - a.rating);
+    for (let i = 0; i < best.length; i++) {
+      if (!best[i] && bench.length > 0) {
+        const fill = bench.shift()!;
+        best[i] = fill;
+        usedIds.add(fill.id);
+      }
+    }
+    const lineup = best.filter(Boolean);
+    setPinnedLineup(lineup);
+    const avg = lineup.length > 0 ? Math.round(lineup.reduce((s, p) => s + p.rating, 0) / lineup.length) : 0;
+    const outOfPos = lineup.filter((p, idx) => p.position !== BASKETBALL_POSITION_ORDER[idx]).length;
+    if (lineup.length === 5 && outOfPos === 0) {
+      setMessage(`⚡ Best lineup generated! Avg rating: ${avg}`);
+    } else if (lineup.length === 5) {
+      setMessage(`⚡ Lineup generated! Avg: ${avg} — ${outOfPos} player${outOfPos > 1 ? 's' : ''} playing out of position`);
+    } else {
+      setMessage(`Partial lineup: ${lineup.length}/5 — scan more cards!`);
+    }
+    setMessageType(lineup.length === 5 ? 'success' : 'error');
   };
 
   const handleSave = async () => {
     if (!teamName.trim()) { setMessage('Enter a team name.'); setMessageType('error'); return; }
     const starting5 = getStarting5();
-    if (starting5.length < 5) { setMessage(`Need all 5 positions — missing ${5 - starting5.length}.`); setMessageType('error'); return; }
+    if (players.length < 5) { setMessage(`Need at least 5 players to build a starting 5.`); setMessageType('error'); return; }
     setSaving(true);
     try {
       await saveBasketballTeam({ name: teamName, userId: user!.uid, lineup: selectedLineup, players: starting5 });
@@ -351,13 +389,14 @@ export default function BasketballTeamBuilder() {
 
               {/* Position slots */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {BASKETBALL_POSITION_ORDER.map(pos => {
-                  const player = starting5.find(p => p.position === pos);
+                {BASKETBALL_POSITION_ORDER.map((pos, idx) => {
+                  const player = starting5[idx] ?? null;
+                  const isOutOfPos = player && player.position !== pos;
                   return (
                     <div key={pos} className="flex items-center gap-3 p-3 rounded-xl border transition-all"
                       style={{
                         background: player ? '#0f0a00' : 'rgba(15,10,0,0.4)',
-                        borderColor: player ? POS_COLORS[pos] + '60' : '#3d2c00',
+                        borderColor: isOutOfPos ? 'rgba(251,191,36,0.5)' : player ? POS_COLORS[pos] + '60' : '#3d2c00',
                       }}>
                       <div className="w-10 h-10 rounded-lg flex items-center justify-center font-retro text-[8px] flex-shrink-0"
                         style={{ background: player ? POS_COLORS[pos] + '20' : '#1c1200', color: POS_COLORS[pos], border: `1px solid ${POS_COLORS[pos]}40` }}>
@@ -365,7 +404,14 @@ export default function BasketballTeamBuilder() {
                       </div>
                       {player ? (
                         <div className="flex-1 min-w-0">
-                          <div className="font-headline text-[12px] text-white truncate">{player.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-headline text-[12px] text-white truncate">{player.name}</span>
+                            {isOutOfPos && (
+                              <span className="font-retro text-[7px] px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                                {player.position} oop
+                              </span>
+                            )}
+                          </div>
                           <div className="font-headline text-[10px] font-bold" style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
                             {player.rating}
                           </div>
@@ -379,6 +425,12 @@ export default function BasketballTeamBuilder() {
                   );
                 })}
               </div>
+              {/* Out-of-position warning */}
+              {starting5.some((p, idx) => p && p.position !== BASKETBALL_POSITION_ORDER[idx]) && (
+                <p className="mt-3 font-headline text-[10px] text-center" style={{ color: 'rgba(251,191,36,0.6)' }}>
+                  ⚠️ Out-of-position players hurt performance — but you can still save and play!
+                </p>
+              )}
             </div>
 
             {/* Save */}
@@ -390,10 +442,10 @@ export default function BasketballTeamBuilder() {
                   onKeyDown={e => e.key === 'Enter' && handleSave()}
                   className="w-full px-4 py-2.5 rounded-lg text-white font-headline text-sm focus:outline-none focus:ring-1"
                   style={{ background: '#0f0a00', border: '1px solid #3d2c00', outlineColor: '#f97316' }} />
-                <button onClick={handleSave} disabled={saving || starting5.length < 5}
+                <button onClick={handleSave} disabled={saving || players.length < 5}
                   className="w-full py-3 rounded-lg font-retro text-[9px] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
-                  {saving ? 'Saving…' : starting5.length < 5 ? `Need ${5 - starting5.length} more positions` : '✅ Save Team'}
+                  {saving ? 'Saving…' : players.length < 5 ? `Need ${5 - players.length} more players` : '✅ Save Team'}
                 </button>
               </div>
             </div>

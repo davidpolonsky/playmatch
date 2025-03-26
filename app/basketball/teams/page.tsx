@@ -806,7 +806,6 @@ export default function BasketballTeamsPage() {
                       }}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-all"
                       style={{
-                        border: '1px solid rgba(249,115,22,0.3)',
                         color: standingsSaveState === 'saved' ? '#4ade80' : 'rgba(249,115,22,0.5)',
                       }}>
                       {standingsSaveState === 'saved' ? (
