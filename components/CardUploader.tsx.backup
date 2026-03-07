@@ -1,0 +1,101 @@
+'use client';
+
+import { useState, useRef } from 'react';
+import { Player } from '@/lib/types';
+import { uploadCardImage } from '@/lib/firebase/storage';
+
+interface CardUploaderProps {
+  onPlayerAdded: (player: Player) => void;
+  userId: string;
+}
+
+export default function CardUploader({ onPlayerAdded, userId }: CardUploaderProps) {
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    await processCard(file);
+  };
+
+  const processCard = async (file: File) => {
+    setUploading(true);
+    try {
+      const imageUrl = await uploadCardImage(file, userId);
+      const base64 = await fileToBase64(file);
+
+      const response = await fetch('/api/analyze-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        alert(`Error: ${data.error}`);
+        return;
+      }
+
+      const player: Player = {
+        id: `${Date.now()}-${Math.random()}`,
+        name: data.name,
+        position: data.position,
+        rating: data.rating,
+        imageUrl: imageUrl,
+        isHistorical: data.isHistorical,
+        year: data.year,
+      };
+
+      onPlayerAdded(player);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Failed to process card.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+    });
+  };
+
+  return (
+    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+      {preview ? (
+        <div>
+          <img src={preview} alt="Preview" className="max-h-64 mx-auto rounded" />
+          {uploading && <p className="mt-2 text-blue-600">Processing...</p>}
+        </div>
+      ) : (
+        <div>
+          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+            Upload Player Card
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileChange}
+              disabled={uploading}
+            />
+          </label>
+          <p className="mt-2 text-sm text-gray-500">PNG, JPG up to 10MB</p>
+        </div>
+      )}
+    </div>
+  );
+}

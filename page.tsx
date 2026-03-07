@@ -1,0 +1,253 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
+import { signOut } from '@/lib/firebase/auth';
+import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
+import { uploadCardImage } from '@/lib/firebase/storage';
+import { saveTeam, getUserTeams } from '@/lib/firebase/firestore';
+import { Team } from '@/lib/firebase/firestore';
+import CardUploader from '@/components/CardUploader';
+import TeamBuilder from '@/components/TeamBuilder';
+import TeamList from '@/components/TeamList';
+import MatchSimulator from '@/components/MatchSimulator';
+
+export default function Dashboard() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [currentTeam, setCurrentTeam] = useState<Player[]>([]);
+  const [formation, setFormation] = useState('4-3-3');
+  const [teamName, setTeamName] = useState('');
+  const [savedTeams, setSavedTeams] = useState<Team[]>([]);
+  const [activeTab, setActiveTab] = useState<'build' | 'teams' | 'match'>('build');
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      loadUserTeams();
+    }
+  }, [user]);
+
+  const loadUserTeams = async () => {
+    if (!user) return;
+    try {
+      const teams = await getUserTeams(user.uid);
+      setSavedTeams(teams);
+    } catch (error) {
+      console.error('Error loading teams:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  const handlePlayerAdded = (player: Player) => {
+    setPlayers(prev => [...prev, player]);
+  };
+
+  const handleGenerateTeam = () => {
+    if (players.length < 11) {
+      alert('You need at least 11 players to generate a team!');
+      return;
+    }
+    const starting11 = selectBestStarting11(players, formation);
+    setCurrentTeam(starting11);
+  };
+
+  const handleSaveTeam = async () => {
+    if (!user || currentTeam.length !== 11 || !teamName.trim()) {
+      alert('Please provide a team name and ensure you have 11 players selected.');
+      return;
+    }
+
+    try {
+      await saveTeam({
+        name: teamName,
+        formation,
+        players: currentTeam,
+        userId: user.uid,
+      });
+      
+      alert('Team saved successfully!');
+      setTeamName('');
+      loadUserTeams();
+    } catch (error) {
+      console.error('Error saving team:', error);
+      alert('Failed to save team. Please try again.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-white text-2xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white">PlayMatch</h1>
+            <p className="text-white/80">Welcome, {user.displayName}!</p>
+          </div>
+          <button onClick={handleSignOut} className="btn-secondary">
+            Sign Out
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => setActiveTab('build')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+              activeTab === 'build'
+                ? 'bg-white text-purple-900'
+                : 'bg-white/20 text-white hover:bg-white/30'
+            }`}
+          >
+            Build Team
+          </button>
+          <button
+            onClick={() => setActiveTab('teams')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+              activeTab === 'teams'
+                ? 'bg-white text-purple-900'
+                : 'bg-white/20 text-white hover:bg-white/30'
+            }`}
+          >
+            My Teams ({savedTeams.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('match')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+              activeTab === 'match'
+                ? 'bg-white text-purple-900'
+                : 'bg-white/20 text-white hover:bg-white/30'
+            }`}
+          >
+            Simulate Match
+          </button>
+        </div>
+
+        {/* Content */}
+        {activeTab === 'build' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Card Upload Section */}
+            <div className="card">
+              <h2 className="text-2xl font-bold mb-4">Upload Player Cards</h2>
+              <CardUploader onPlayerAdded={handlePlayerAdded} userId={user.uid} />
+              
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-2">
+                  Uploaded Players ({players.length})
+                </h3>
+                {players.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                    {players.map((player, index) => (
+                      <div
+                        key={index}
+                        className="p-2 bg-gray-100 rounded text-sm"
+                      >
+                        <div className="font-semibold">{player.name}</div>
+                        <div className="text-gray-600">
+                          {player.position} - {player.rating}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No players uploaded yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* Team Builder Section */}
+            <div className="card">
+              <h2 className="text-2xl font-bold mb-4">Build Your Team</h2>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  Formation
+                </label>
+                <select
+                  value={formation}
+                  onChange={(e) => setFormation(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {Object.keys(FORMATIONS).map((form) => (
+                    <option key={form} value={form}>
+                      {form}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleGenerateTeam}
+                className="btn-primary w-full mb-4"
+                disabled={players.length < 11}
+              >
+                Generate Best Starting 11
+              </button>
+
+              {currentTeam.length > 0 && (
+                <>
+                  <TeamBuilder players={currentTeam} formation={formation} />
+                  
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium mb-2">
+                      Team Name
+                    </label>
+                    <input
+                      type="text"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="Enter team name"
+                      className="w-full p-2 border rounded mb-4"
+                    />
+                    <button
+                      onClick={handleSaveTeam}
+                      className="btn-primary w-full"
+                      disabled={!teamName.trim()}
+                    >
+                      Save Team
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'teams' && (
+          <TeamList teams={savedTeams} onTeamsChange={loadUserTeams} />
+        )}
+
+        {activeTab === 'match' && (
+          <MatchSimulator teams={savedTeams} userId={user.uid} />
+        )}
+      </div>
+    </div>
+  );
+}
