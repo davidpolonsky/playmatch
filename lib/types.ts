@@ -94,3 +94,22 @@ export const validateStarting11 = (
 
   return { valid: true };
 };
+
+export interface Team {
+  id: string;
+  name: string;
+  userId: string;
+  formation: string;
+  players: Player[];
+  createdAt?: unknown;
+}
+
+export interface GameResult {
+  homeTeam: Team;
+  awayTeam: Team;
+  homeScore: number;
+  awayScore: number;
+  narrative: string;
+  keyMoments: string[];
+  mvp: Player;
+}
