@@ -20,7 +20,7 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
   const startCamera = async () => {
     try {
       // Try more permissive constraints first
-      let constraints = {
+      let constraints: MediaStreamConstraints = {
         video: {
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
@@ -28,7 +28,7 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
         }
       };
 
-      let mediaStream;
+      let mediaStream: MediaStream;
 
       try {
         // First attempt with back camera preference
@@ -42,7 +42,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
             height: { ideal: 720, max: 1080 }
           }
         };
-
         try {
           mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (anyVideoError) {
@@ -52,13 +51,12 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
         }
       }
 
-      setStream(mediaStream);
+      setStream(mediaStream!);
       setUseCamera(true);
 
       // Set up video element
-      if (videoRef.current && mediaStream) {
-        videoRef.current.srcObject = mediaStream;
-
+      if (videoRef.current && mediaStream!) {
+        videoRef.current.srcObject = mediaStream!;
         // Add event listener for when metadata is loaded
         videoRef.current.addEventListener('loadedmetadata', () => {
           if (videoRef.current) {
@@ -72,7 +70,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
             });
           }
         });
-
         // Also try to play immediately in case metadata is already loaded
         setTimeout(() => {
           if (videoRef.current) {
@@ -147,14 +144,12 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     await analyzeCard(file);
   };
 
   // Analyze card with Gemini AI
   const analyzeCard = async (file: File) => {
     setUploading(true);
-
     try {
       // Convert image to base64
       const base64 = await fileToBase64(file);
@@ -183,7 +178,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
       if (result.error) {
         // Transform technical errors into user-friendly messages
         let userMessage = result.error;
-
         if (result.error.includes('basketball')) {
           userMessage = '🏀 That looks like a basketball card! Please upload a soccer/football player card instead.';
         } else if (result.error.includes('baseball')) {
@@ -195,7 +189,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
         } else if (result.error.includes('not a') && result.error.includes('card')) {
           userMessage = '🃏 Please upload a clear photo of a soccer/football player card.';
         }
-
         onError?.(userMessage);
         return;
       }
@@ -212,7 +205,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
 
       // Show success message
       onSuccess?.(`⚽ ${player.name} added to your roster! (${player.position} - Rating: ${player.rating})`);
-
     } catch (error) {
       console.error('Error analyzing card:', error);
       onError?.('Failed to analyze card. Please check your connection and try again.');
@@ -285,16 +277,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
               style={{ minHeight: '300px' }}
             />
             <canvas ref={canvasRef} className="hidden" />
-
-            {/* Loading indicator for camera */}
-            {stream && videoRef.current && videoRef.current.readyState === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                <div className="text-white text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                  <p>Starting camera...</p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Camera Controls */}
@@ -314,7 +296,6 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
               Cancel
             </button>
           </div>
-
           <p className="text-sm text-gray-600 text-center">
             Position the card in the frame and tap Capture
           </p>
