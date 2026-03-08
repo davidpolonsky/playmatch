@@ -6,6 +6,7 @@ export interface Player {
   imageUrl: string;
   isHistorical?: boolean;
   year?: string;
+  era?: string;
 }
 
 export interface Formation {
@@ -49,20 +50,16 @@ export const selectBestStarting11 = (
   if (!formationConfig) {
     throw new Error('Invalid formation');
   }
-
   const starting11: Player[] = [];
   const positions: Array<'GK' | 'DEF' | 'MID' | 'FWD'> = ['GK', 'DEF', 'MID', 'FWD'];
-
   positions.forEach(position => {
     const count = formationConfig.positions[position];
     const positionPlayers = players
       .filter(p => p.position === position)
       .sort((a, b) => b.rating - a.rating)
       .slice(0, count);
-    
     starting11.push(...positionPlayers);
   });
-
   return starting11;
 };
 
@@ -73,16 +70,12 @@ export const validateStarting11 = (
   if (players.length !== 11) {
     return { valid: false, message: 'Team must have exactly 11 players' };
   }
-
   const formationConfig = FORMATIONS[formation];
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-
   players.forEach(player => {
     counts[player.position]++;
   });
-
   const positions: Array<'GK' | 'DEF' | 'MID' | 'FWD'> = ['GK', 'DEF', 'MID', 'FWD'];
-  
   for (const position of positions) {
     if (counts[position] !== formationConfig.positions[position]) {
       return {
@@ -91,7 +84,6 @@ export const validateStarting11 = (
       };
     }
   }
-
   return { valid: true };
 };
 
@@ -102,7 +94,7 @@ export interface Team {
   formation: string;
   players: Player[];
   createdAt?: unknown;
-    updatedAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface GameResult {
