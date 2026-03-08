@@ -102,6 +102,7 @@ export interface Team {
   formation: string;
   players: Player[];
   createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 export interface GameResult {
