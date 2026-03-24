@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Team, GameResult } from '@/lib/types';
-import { getUserTeams, getAllTeams, deleteTeam } from '@/lib/firestore';
+import { getUserTeams, getAllTeams, deleteTeam } from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
 
 export default function TeamsPage() {
@@ -35,13 +35,21 @@ export default function TeamsPage() {
   const loadTeams = async () => {
     try {
       const [userTeams, teams] = await Promise.all([
-        getUserTeams(user!.uid),
-        getAllTeams(),
+        getUserTeams(user!.uid).catch(err => {
+          console.error('Error loading user teams:', err);
+          return [];
+        }),
+        getAllTeams().catch(err => {
+          console.error('Error loading all teams:', err);
+          return [];
+        }),
       ]);
       setMyTeams(userTeams);
       setAllTeams(teams);
     } catch (error) {
       console.error('Error loading teams:', error);
+      setMyTeams([]);
+      setAllTeams([]);
     } finally {
       setLoadingTeams(false);
     }

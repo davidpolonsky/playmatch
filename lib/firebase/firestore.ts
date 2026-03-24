@@ -122,6 +122,20 @@ export const deleteTeam = async (teamId: string) => {
   }
 };
 
+// Get all teams
+export const getAllTeams = async (): Promise<Team[]> => {
+  try {
+    const querySnapshot = await getDocs(collection(db, TEAMS_COLLECTION));
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Team));
+  } catch (error) {
+    console.error('Error getting all teams:', error);
+    throw error;
+  }
+};
+
 // Save match result
 export const saveMatchResult = async (match: Omit<MatchResult, 'id' | 'createdAt'>) => {
   try {
