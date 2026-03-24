@@ -16,7 +16,7 @@ import { db } from './config';
 export interface Player {
   id: string;
   name: string;
-  position: string;
+  position: 'GK' | 'DEF' | 'MID' | 'FWD';
   rating: number;
   imageUrl: string;
   isHistorical?: boolean;
