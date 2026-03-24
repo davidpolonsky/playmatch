@@ -5,18 +5,20 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Team, GameResult } from '@/lib/types';
 import { getUserTeams, getAllTeams, deleteTeam } from '@/lib/firestore';
+import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
 
 export default function TeamsPage() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const [myTeams, setMyTeams] = useState<Team[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [selectedHomeTeam, setSelectedHomeTeam] = useState<Team | null>(null);
-  const [selectedAwayTeam, setSelectedAwayTeam] = useState<Team | null>(null);
+  const [legendaryTeams] = useState<LegendaryTeam[]>(LEGENDARY_TEAMS);
+  const [selectedHomeTeam, setSelectedHomeTeam] = useState<Team | LegendaryTeam | null>(null);
+  const [selectedAwayTeam, setSelectedAwayTeam] = useState<Team | LegendaryTeam | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'my-teams' | 'all-teams'>('my-teams');
+  const [activeTab, setActiveTab] = useState<'my-teams' | 'all-teams' | 'legendary'>('my-teams');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -102,7 +104,8 @@ export default function TeamsPage() {
     );
   }
 
-  const displayTeams = activeTab === 'my-teams' ? myTeams : allTeams;
+  const displayTeams = activeTab === 'my-teams' ? myTeams : activeTab === 'legendary' ? legendaryTeams : allTeams;
+  const allTeamsForSimulation = [...allTeams, ...legendaryTeams];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -140,17 +143,33 @@ export default function TeamsPage() {
               <select
                 value={selectedHomeTeam?.id || ''}
                 onChange={(e) => {
-                  const team = allTeams.find((t) => t.id === e.target.value);
+                  const team = allTeamsForSimulation.find((t) => t.id === e.target.value);
                   setSelectedHomeTeam(team || null);
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="">Select home team...</option>
-                {allTeams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name} ({team.formation.name})
-                  </option>
-                ))}
+                <optgroup label="Your Teams">
+                  {myTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Legendary Teams">
+                  {legendaryTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="All Other Teams">
+                  {allTeams.filter(t => t.userId !== user?.uid).map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
@@ -171,17 +190,33 @@ export default function TeamsPage() {
               <select
                 value={selectedAwayTeam?.id || ''}
                 onChange={(e) => {
-                  const team = allTeams.find((t) => t.id === e.target.value);
+                  const team = allTeamsForSimulation.find((t) => t.id === e.target.value);
                   setSelectedAwayTeam(team || null);
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="">Select away team...</option>
-                {allTeams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name} ({team.formation.name})
-                  </option>
-                ))}
+                <optgroup label="Your Teams">
+                  {myTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Legendary Teams">
+                  {legendaryTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="All Other Teams">
+                  {allTeams.filter(t => t.userId !== user?.uid).map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.formation})
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -245,6 +280,16 @@ export default function TeamsPage() {
               My Teams ({myTeams.length})
             </button>
             <button
+              onClick={() => setActiveTab('legendary')}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeTab === 'legendary'
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Legendary Teams ({legendaryTeams.length})
+            </button>
+            <button
               onClick={() => setActiveTab('all-teams')}
               className={`px-4 py-2 font-semibold transition-colors ${
                 activeTab === 'all-teams'
@@ -268,41 +313,60 @@ export default function TeamsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayTeams.map((team) => (
-                <div
-                  key={team.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900">{team.name}</h3>
-                    {team.userId === user?.uid && (
-                      <button
-                        onClick={() => handleDeleteTeam(team.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Delete team"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+              {displayTeams.map((team) => {
+                const isLegendary = 'isLegendary' in team && team.isLegendary;
+                return (
+                  <div
+                    key={team.id}
+                    className={`border rounded-lg p-4 hover:shadow-lg transition-shadow ${
+                      isLegendary ? 'border-purple-300 bg-purple-50' : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          {team.name}
+                          {isLegendary && <span className="text-xl">⭐</span>}
+                        </h3>
+                        {isLegendary && 'description' in team && (
+                          <p className="text-xs text-purple-600 mt-1">{team.description}</p>
+                        )}
+                      </div>
+                      {!isLegendary && team.userId === user?.uid && (
+                        <button
+                          onClick={() => handleDeleteTeam(team.id!)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Delete team"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">
+                      Formation: {'formation' in team ? (typeof team.formation === 'string' ? team.formation : team.formation.name) : 'N/A'}
+                    </p>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>GK: {team.players.filter(p => p.position === 'GK').length}</p>
+                      <p>DEF: {team.players.filter(p => p.position === 'DEF').length}</p>
+                      <p>MID: {team.players.filter(p => p.position === 'MID').length}</p>
+                      <p>FWD: {team.players.filter(p => p.position === 'FWD').length}</p>
+                    </div>
+                    <div className="mt-3 text-xs">
+                      {isLegendary ? (
+                        <span className="inline-block px-2 py-1 bg-purple-200 text-purple-800 rounded font-semibold">
+                          Legendary Team
+                        </span>
+                      ) : team.players.some(p => p.isHistorical) && (
+                        <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                          Includes Legends
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Formation: {team.formation.name}</p>
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <p>GK: {team.players.filter(p => p.position === 'GK').length}</p>
-                    <p>DEF: {team.players.filter(p => p.position === 'DEF').length}</p>
-                    <p>MID: {team.players.filter(p => p.position === 'MID').length}</p>
-                    <p>FWD: {team.players.filter(p => p.position === 'FWD').length}</p>
-                  </div>
-                  <div className="mt-3 text-xs text-gray-400">
-                    {team.players.some(p => p.isHistorical) && (
-                      <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded">
-                        Includes Legends
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

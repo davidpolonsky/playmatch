@@ -82,7 +82,7 @@ export const validateStarting11 = (
   });
 
   const positions: Array<'GK' | 'DEF' | 'MID' | 'FWD'> = ['GK', 'DEF', 'MID', 'FWD'];
-  
+
   for (const position of positions) {
     if (counts[position] !== formationConfig.positions[position]) {
       return {
@@ -94,3 +94,24 @@ export const validateStarting11 = (
 
   return { valid: true };
 };
+
+export interface Team {
+  id?: string;
+  name: string;
+  formation: Formation | string;
+  players: Player[];
+  userId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface GameResult {
+  homeTeam: Team;
+  awayTeam: Team;
+  homeScore: number;
+  awayScore: number;
+  narrative: string;
+  keyMoments: string[];
+  mvp: Player;
+  timestamp?: string;
+}

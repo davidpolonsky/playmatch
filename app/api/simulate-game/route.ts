@@ -16,15 +16,19 @@ export async function POST(request: NextRequest) {
 
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+    // Handle both string and object formations
+    const homeFormation = typeof homeTeam.formation === 'string' ? homeTeam.formation : homeTeam.formation.name;
+    const awayFormation = typeof awayTeam.formation === 'string' ? awayTeam.formation : awayTeam.formation.name;
+
     const prompt = `You are a soccer match simulator. Generate an exciting, realistic match report between these two teams.
 
 HOME TEAM: ${homeTeam.name}
-Formation: ${homeTeam.formation.name}
+Formation: ${homeFormation}
 Players:
 ${homeTeam.players.map((p: any) => `- ${p.name} (${p.position}, Rating: ${p.rating}${p.isHistorical ? ', Historical: ' + p.era : ''})`).join('\n')}
 
 AWAY TEAM: ${awayTeam.name}
-Formation: ${awayTeam.formation.name}
+Formation: ${awayFormation}
 Players:
 ${awayTeam.players.map((p: any) => `- ${p.name} (${p.position}, Rating: ${p.rating}${p.isHistorical ? ', Historical: ' + p.era : ''})`).join('\n')}
 
