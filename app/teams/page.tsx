@@ -28,12 +28,26 @@ export default function TeamsPage() {
 
   useEffect(() => {
     if (user) {
+      console.log('User detected, loading teams for:', user.uid);
       loadTeams();
+
+      // Failsafe: stop loading after 5 seconds no matter what
+      const timeout = setTimeout(() => {
+        console.warn('Loading timeout reached, forcing page to render');
+        setLoadingTeams(false);
+      }, 5000);
+
+      return () => clearTimeout(timeout);
+    } else if (!loading) {
+      console.log('No user and not loading, setting loadingTeams to false');
+      setLoadingTeams(false);
     }
-  }, [user]);
+  }, [user, loading]);
 
   const loadTeams = async () => {
+    console.log('loadTeams called');
     try {
+      console.log('Fetching user teams and all teams...');
       const [userTeams, teams] = await Promise.all([
         getUserTeams(user!.uid).catch(err => {
           console.error('Error loading user teams:', err);
@@ -44,13 +58,15 @@ export default function TeamsPage() {
           return [];
         }),
       ]);
+      console.log('Teams loaded:', { userTeams: userTeams.length, allTeams: teams.length });
       setMyTeams(userTeams);
       setAllTeams(teams);
     } catch (error) {
-      console.error('Error loading teams:', error);
+      console.error('Fatal error loading teams:', error);
       setMyTeams([]);
       setAllTeams([]);
     } finally {
+      console.log('Setting loadingTeams to false');
       setLoadingTeams(false);
     }
   };
