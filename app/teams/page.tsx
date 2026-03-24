@@ -107,6 +107,11 @@ export default function TeamsPage() {
   const displayTeams = activeTab === 'my-teams' ? myTeams : activeTab === 'legendary' ? legendaryTeams : allTeams;
   const allTeamsForSimulation = [...allTeams, ...legendaryTeams];
 
+  // Helper to get formation string from either string or Formation object
+  const getFormationString = (formation: any): string => {
+    return typeof formation === 'string' ? formation : formation?.name || 'N/A';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm">
@@ -152,21 +157,21 @@ export default function TeamsPage() {
                 <optgroup label="Your Teams">
                   {myTeams.map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label="Legendary Teams">
                   {legendaryTeams.map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label="All Other Teams">
                   {allTeams.filter(t => t.userId !== user?.uid).map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
@@ -199,21 +204,21 @@ export default function TeamsPage() {
                 <optgroup label="Your Teams">
                   {myTeams.map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label="Legendary Teams">
                   {legendaryTeams.map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label="All Other Teams">
                   {allTeams.filter(t => t.userId !== user?.uid).map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.name} ({team.formation})
+                      {team.name} ({getFormationString(team.formation)})
                     </option>
                   ))}
                 </optgroup>
@@ -345,7 +350,7 @@ export default function TeamsPage() {
                       )}
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      Formation: {'formation' in team ? (typeof team.formation === 'string' ? team.formation : team.formation.name) : 'N/A'}
+                      Formation: {getFormationString(team.formation)}
                     </p>
                     <div className="text-xs text-gray-500 space-y-1">
                       <p>GK: {team.players.filter(p => p.position === 'GK').length}</p>
