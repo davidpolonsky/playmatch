@@ -1,4 +1,4 @@
-import { Player } from './firebase/firestore';
+import { Player } from './types';
 
 export interface LegendaryTeam {
   id: string;
