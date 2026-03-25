@@ -28,6 +28,7 @@ Build your dream soccer team from physical sports cards using AI! Scan your card
 - Node.js 18+ installed
 - Firebase account
 - Google AI (Gemini) API key
+- SendGrid account (for email invites)
 
 ### 1. Firebase Setup
 
@@ -45,7 +46,20 @@ Build your dream soccer team from physical sports cards using AI! Scan your card
 2. Get an API key
 3. Save it for the next step
 
-### 3. Installation
+### 3. SendGrid Setup (Email Invites)
+
+1. Go to [SendGrid](https://sendgrid.com/) and create a free account
+2. Navigate to Settings → API Keys and create a new API key with "Mail Send" permissions
+3. Go to Settings → Sender Authentication
+4. Click "Authenticate Your Domain" and follow the DNS verification steps for `playmatch.games`
+   - **Important**: Without domain authentication, emails will show "via sendgrid.net" and may be marked as spam
+   - Add the provided CNAME records to your domain's DNS settings
+   - Wait for verification (can take up to 48 hours)
+5. Once verified, set `SENDGRID_FROM_EMAIL=noreply@playmatch.games` in your environment variables
+
+**Note**: You can skip this step during development - the invite feature will show an error but the rest of the app will work fine.
+
+### 4. Installation
 
 ```bash
 # Clone the repository
@@ -55,10 +69,10 @@ cd sports-card-builder
 npm install
 
 # Create environment file
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
-### 4. Configure Environment Variables
+### 5. Configure Environment Variables
 
 Edit `.env.local` and add your keys:
 
@@ -73,9 +87,16 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 # Gemini API
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# SendGrid Email (optional - for invite feature)
+SENDGRID_API_KEY=your_sendgrid_api_key_here
+SENDGRID_FROM_EMAIL=noreply@playmatch.games
+
+# App URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### 5. Firebase Security Rules
+### 6. Firebase Security Rules
 
 Set up Firestore security rules in Firebase Console:
 
@@ -108,7 +129,7 @@ service firebase.storage {
 }
 ```
 
-### 6. Run Development Server
+### 7. Run Development Server
 
 ```bash
 npm run dev
@@ -192,6 +213,12 @@ After deployment, update your Firebase Authentication settings:
 - Check Firestore security rules
 - Verify user is authenticated
 - Check browser console for errors
+
+### Email Invites Not Working
+- Verify SENDGRID_API_KEY is set correctly in Vercel environment variables
+- Check that your domain is authenticated in SendGrid (Settings → Sender Authentication)
+- The "authorization required" banner means domain authentication is pending
+- For testing, you can temporarily use Single Sender Verification instead of domain authentication
 
 ## License
 

@@ -270,29 +270,37 @@ export default function Dashboard() {
               />
 
               <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-2">
-                  Uploaded Players ({players.length})
+                <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider mb-4">
+                  UPLOADED PLAYERS ({players.length})
                 </h3>
 
                 {/* Position breakdown */}
-                <div className="mb-4 p-3 bg-gray-100 rounded">
-                  <h4 className="font-medium text-sm mb-2">Position Breakdown:</h4>
-                  <div className="grid grid-cols-4 gap-2 text-sm">
-                    <div className={`text-center p-2 rounded ${positionCounts.GK >= formationConfig.positions.GK ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      <div className="font-bold">GK</div>
-                      <div>{positionCounts.GK}/{formationConfig.positions.GK}</div>
+                <div className="mb-4 p-3 bg-fifa-dark border border-fifa-border rounded-lg">
+                  <h4 className="font-retro text-[9px] text-fifa-mint/70 mb-3 tracking-wider">POSITION BREAKDOWN</h4>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className={`text-center p-2.5 rounded-lg border ${positionCounts.GK >= formationConfig.positions.GK ? 'bg-fifa-mint/10 border-fifa-mint/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                      <div className="font-retro text-[8px] text-fifa-amber">GK</div>
+                      <div className={`font-headline text-[13px] font-bold mt-0.5 ${positionCounts.GK >= formationConfig.positions.GK ? 'text-fifa-mint' : 'text-red-400'}`}>
+                        {positionCounts.GK}<span className="text-white/30 text-[10px]">/{formationConfig.positions.GK}</span>
+                      </div>
                     </div>
-                    <div className={`text-center p-2 rounded ${positionCounts.DEF >= formationConfig.positions.DEF ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      <div className="font-bold">DEF</div>
-                      <div>{positionCounts.DEF}/{formationConfig.positions.DEF}</div>
+                    <div className={`text-center p-2.5 rounded-lg border ${positionCounts.DEF >= formationConfig.positions.DEF ? 'bg-fifa-mint/10 border-fifa-mint/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                      <div className="font-retro text-[8px] text-blue-400">DEF</div>
+                      <div className={`font-headline text-[13px] font-bold mt-0.5 ${positionCounts.DEF >= formationConfig.positions.DEF ? 'text-fifa-mint' : 'text-red-400'}`}>
+                        {positionCounts.DEF}<span className="text-white/30 text-[10px]">/{formationConfig.positions.DEF}</span>
+                      </div>
                     </div>
-                    <div className={`text-center p-2 rounded ${positionCounts.MID >= formationConfig.positions.MID ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      <div className="font-bold">MID</div>
-                      <div>{positionCounts.MID}/{formationConfig.positions.MID}</div>
+                    <div className={`text-center p-2.5 rounded-lg border ${positionCounts.MID >= formationConfig.positions.MID ? 'bg-fifa-mint/10 border-fifa-mint/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                      <div className="font-retro text-[8px] text-fifa-mint">MID</div>
+                      <div className={`font-headline text-[13px] font-bold mt-0.5 ${positionCounts.MID >= formationConfig.positions.MID ? 'text-fifa-mint' : 'text-red-400'}`}>
+                        {positionCounts.MID}<span className="text-white/30 text-[10px]">/{formationConfig.positions.MID}</span>
+                      </div>
                     </div>
-                    <div className={`text-center p-2 rounded ${positionCounts.FWD >= formationConfig.positions.FWD ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      <div className="font-bold">FWD</div>
-                      <div>{positionCounts.FWD}/{formationConfig.positions.FWD}</div>
+                    <div className={`text-center p-2.5 rounded-lg border ${positionCounts.FWD >= formationConfig.positions.FWD ? 'bg-fifa-mint/10 border-fifa-mint/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                      <div className="font-retro text-[8px] text-red-400">FWD</div>
+                      <div className={`font-headline text-[13px] font-bold mt-0.5 ${positionCounts.FWD >= formationConfig.positions.FWD ? 'text-fifa-mint' : 'text-red-400'}`}>
+                        {positionCounts.FWD}<span className="text-white/30 text-[10px]">/{formationConfig.positions.FWD}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -302,18 +310,23 @@ export default function Dashboard() {
                     {players.map((player, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 bg-gray-100 rounded text-sm hover:bg-gray-200 transition-colors"
+                        className="flex items-center justify-between p-3 bg-fifa-dark border border-fifa-border rounded-lg hover:border-fifa-mint/30 transition-colors"
                       >
                         <div>
-                          <div className="font-semibold">{player.name}</div>
-                          <div className="text-gray-600">
-                            {player.position} - {player.rating}
-                            {player.isHistorical && <span className="text-amber-600 ml-1">★</span>}
+                          <div className="font-headline text-[12px] text-white">{player.name}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="font-retro text-[8px] text-fifa-mint/70">{player.position}</span>
+                            <span className={`font-headline text-[11px] font-bold ${
+                              player.rating >= 90 ? 'text-fifa-amber' :
+                              player.rating >= 80 ? 'text-fifa-mint' :
+                              'text-white/60'
+                            }`}>{player.rating}</span>
+                            {player.isHistorical && <span className="text-fifa-amber text-[11px]">★</span>}
                           </div>
                         </div>
                         <button
                           onClick={() => handleRemovePlayer(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                          className="p-2 text-white/20 hover:text-red-400 rounded-lg transition-colors flex-shrink-0"
                           title="Remove player"
                         >
                           <svg
@@ -334,7 +347,10 @@ export default function Dashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No players uploaded yet</p>
+                  <div className="text-center py-8">
+                    <p className="font-retro text-[9px] text-white/40">No players yet</p>
+                    <p className="font-headline text-[10px] text-white/25 mt-1">Scan cards to get started</p>
+                  </div>
                 )}
               </div>
             </div>
