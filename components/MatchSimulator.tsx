@@ -101,6 +101,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
   const [result, setResult] = useState<MatchResult | null>(null);
   const [visibleEvents, setVisibleEvents] = useState<PlayByPlayEvent[]>([]);
   const [streamingDone, setStreamingDone] = useState(false);
+  const [currentScore, setCurrentScore] = useState({ team1: 0, team2: 0 });
   const feedRef = useRef<HTMLDivElement>(null);
 
   // All selectable teams
@@ -133,13 +134,24 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
     if (!result?.playByPlay?.length) return;
     setVisibleEvents([]);
     setStreamingDone(false);
+    setCurrentScore({ team1: 0, team2: 0 });
     const events = result.playByPlay.filter(e => e && e.type && e.text);
     let i = 0;
     const interval = setInterval(() => {
       if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
-      setVisibleEvents(prev => [...prev, events[i]]);
+      const event = events[i];
+      setVisibleEvents(prev => [...prev, event]);
+
+      // Update score when goal event appears
+      if (event.type === 'goal' && 'scoringTeam' in event) {
+        setCurrentScore(prev => ({
+          team1: prev.team1 + ((event as any).scoringTeam === 'team1' ? 1 : 0),
+          team2: prev.team2 + ((event as any).scoringTeam === 'team2' ? 1 : 0),
+        }));
+      }
+
       i++;
-    }, 120);
+    }, 1800); // 90 seconds / ~50 events = 1800ms per event
     return () => clearInterval(interval);
   }, [result]);
 
@@ -185,6 +197,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
     setSimulating(true);
     setResult(null);
     setVisibleEvents([]);
+    setCurrentScore({ team1: 0, team2: 0 });
 
     try {
       const response = await fetch('/api/simulate-match', {
@@ -305,15 +318,15 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
           <div className="flex items-center justify-between text-center">
             <div className="flex-1">
               <div className="font-headline text-[11px] text-fifa-cream/60 mb-2 truncate">{team1?.name}</div>
-              <div className="font-retro text-5xl text-fifa-mint">{result.team1Score}</div>
+              <div className="font-retro text-5xl text-fifa-mint">{currentScore.team1}</div>
             </div>
             <div className="px-6">
-              <div className="font-retro text-[9px] text-white/20 tracking-widest">FULL TIME</div>
+              <div className="font-retro text-[9px] text-white/20 tracking-widest">{streamingDone ? 'FULL TIME' : 'LIVE'}</div>
               <div className="font-retro text-lg text-white/30 mt-1">—</div>
             </div>
             <div className="flex-1">
               <div className="font-headline text-[11px] text-fifa-cream/60 mb-2 truncate">{team2?.name}</div>
-              <div className="font-retro text-5xl text-fifa-mint">{result.team2Score}</div>
+              <div className="font-retro text-5xl text-fifa-mint">{currentScore.team2}</div>
             </div>
           </div>
           {streamingDone && (
