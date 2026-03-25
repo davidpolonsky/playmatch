@@ -9,7 +9,8 @@ import { uploadCardImage } from '@/lib/firebase/storage';
 import { saveTeam, getUserTeams, saveUserRoster, getUserRoster } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
-import TeamBuilder from '@/components/TeamBuilder';
+import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
+import InteractivePlayerList from '@/components/InteractivePlayerList';
 import TeamList from '@/components/TeamList';
 import MatchSimulator from '@/components/MatchSimulator';
 import Footer from '@/components/Footer';
@@ -94,9 +95,11 @@ export default function Dashboard() {
     }
   };
 
-  const handleRemovePlayer = async (playerIndex: number) => {
-    const newPlayers = players.filter((_, index) => index !== playerIndex);
+  const handleRemovePlayerFromRoster = async (playerId: string) => {
+    const newPlayers = players.filter((p) => p.id !== playerId);
     setPlayers(newPlayers);
+    // Also remove from current team if present
+    setCurrentTeam(prev => prev.filter(p => p.id !== playerId));
 
     // Save to Firebase
     if (user) {
@@ -106,6 +109,26 @@ export default function Dashboard() {
         console.error('Error saving roster:', error);
       }
     }
+  };
+
+  const handleAddToTeam = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Check if we can add more of this position
+    const currentCount = currentTeam.filter(p => p.position === player.position).length;
+    const formationConfig = FORMATIONS[formation];
+    const maxCount = formationConfig.positions[player.position];
+
+    if (currentCount < maxCount) {
+      setCurrentTeam(prev => [...prev, player]);
+    } else {
+      showNotification(`Maximum ${player.position} players for this formation: ${maxCount}`, 'info');
+    }
+  };
+
+  const handleRemoveFromTeam = (playerId: string) => {
+    setCurrentTeam(prev => prev.filter(p => p.id !== playerId));
   };
 
   const handleGenerateTeam = () => {
@@ -356,13 +379,13 @@ export default function Dashboard() {
               <h2 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">⚽ Build Your Team</h2>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
+                <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">
                   Formation
                 </label>
                 <select
                   value={formation}
                   onChange={(e) => setFormation(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
                 >
                   {Object.keys(FORMATIONS).map((form) => (
                     <option key={form} value={form}>
@@ -392,10 +415,16 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <TeamBuilder players={currentTeam} formation={formation} />
+                  <InteractiveTeamDisplay
+                    players={currentTeam}
+                    allPlayers={players}
+                    formation={FORMATIONS[formation]}
+                    onRemoveFromTeam={handleRemoveFromTeam}
+                    onAddToTeam={handleAddToTeam}
+                  />
 
                   <div className="mt-4">
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">
                       Team Name
                     </label>
                     <input
@@ -403,7 +432,7 @@ export default function Dashboard() {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       placeholder="Enter team name"
-                      className="w-full p-2 border rounded mb-4"
+                      className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm placeholder:text-white/25 focus:ring-1 focus:ring-fifa-mint focus:outline-none mb-4"
                     />
                     <button
                       onClick={handleSaveTeam}
