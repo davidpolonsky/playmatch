@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,20 +8,38 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a2f1b 0%, #1a1a1a 100%);
-  color: #f7f3e3;
-  font-family: 'Press Start 2P', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing: 0.01em;
+  background: linear-gradient(160deg, #060f09 0%, #0a2f1b 60%, #060f09 100%);
+  color: #f1efe3;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Retro scanline overlay on headers */
+.retro-header {
+  position: relative;
 }
 
 @layer components {
+  /* Primary CTA button — mint on dark */
   .btn-primary {
-    @apply bg-fifa-mint hover:bg-fifa-gold text-fifa-dark font-headline py-2 px-4 rounded-lg transition-colors shadow-retro border-2 border-fifa-green;
+    @apply bg-fifa-mint text-fifa-dark font-retro text-[10px] py-2 px-4 rounded
+           border-2 border-fifa-mint shadow-glow
+           hover:bg-transparent hover:text-fifa-mint
+           transition-all duration-200;
   }
+  /* Secondary button — outline only */
   .btn-secondary {
-    @apply bg-fifa-dark hover:bg-fifa-green text-fifa-cream font-headline py-2 px-4 rounded-lg transition-colors border-2 border-fifa-mint;
+    @apply bg-transparent text-fifa-cream font-retro text-[10px] py-2 px-4 rounded
+           border-2 border-fifa-border
+           hover:border-fifa-mint hover:text-fifa-mint
+           transition-all duration-200;
   }
+  /* Dark card panel */
   .card {
-    @apply bg-fifa-cream/80 rounded-lg shadow-retro p-6 border-2 border-fifa-green backdrop-blur-sm;
+    @apply bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6;
+  }
+  /* Pill label */
+  .pill {
+    @apply inline-block px-2 py-0.5 rounded text-[10px] font-headline
+           bg-fifa-border text-fifa-mint;
   }
 }

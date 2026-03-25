@@ -96,6 +96,7 @@ PLAY-BY-PLAY RULES:
 - Goals must include a running scoreline e.g. "[Team1] 1 - 0 [Team2]"
 - Halftime event at minute 45 must state the score
 - Fulltime event at minute 90 must state the final score
+- Every goal event MUST include a "scoringTeam" field: "team1" if ${team1Name} scored, "team2" if ${team2Name} scored
 
 Return ONLY this JSON (no markdown, no extra text):
 {
@@ -107,7 +108,7 @@ Return ONLY this JSON (no markdown, no extra text):
     { "minute": 1, "type": "kickoff", "text": "<event description>" },
     { "minute": 4, "type": "action", "text": "<event description>" },
     { "minute": 12, "type": "shot", "text": "<event description>" },
-    { "minute": 18, "type": "goal", "text": "GOAL! <description> | ${team1Name} X - Y ${team2Name}" },
+    { "minute": 18, "type": "goal", "scoringTeam": "team1", "text": "GOAL! <description> | ${team1Name} X - Y ${team2Name}" },
     { "minute": 45, "type": "halftime", "text": "HALF TIME — <score summary>" },
     { "minute": 90, "type": "fulltime", "text": "FULL TIME! ${team1Name} X - Y ${team2Name}" }
   ]

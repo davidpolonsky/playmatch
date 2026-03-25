@@ -8,11 +8,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'fifa-green': '#0a2f1b',
-        'fifa-mint': '#76e5a2',
-        'fifa-cream': '#f7f3e3',
-        'fifa-gold': '#e6c15b',
-        'fifa-dark': '#1a1a1a',
+        'fifa-green':  '#0a2f1b',   // dark green — primary bg
+        'fifa-mid':    '#14532d',   // mid green — card bg
+        'fifa-mint':   '#4ade80',   // bright mint — accent on dark only
+        'fifa-cream':  '#f1efe3',   // off-white — text on dark, light bg
+        'fifa-amber':  '#f59e0b',   // amber/gold — only on dark backgrounds
+        'fifa-dark':   '#060f09',   // near-black green
+        'fifa-border': '#1e5c33',   // subtle border on dark
       },
       fontFamily: {
         retro: [
@@ -30,9 +32,16 @@ module.exports = {
           'system-ui',
           'sans-serif',
         ],
+        body: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
       },
       boxShadow: {
-        retro: '0 2px 8px 0 rgba(10,47,27,0.25)',
+        retro:  '0 2px 12px 0 rgba(0,0,0,0.45)',
+        glow:   '0 0 12px rgba(74,222,128,0.4)',
       },
     },
   },

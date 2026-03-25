@@ -18,13 +18,13 @@ export default function TeamDisplay({ players, formation }: TeamDisplayProps) {
   const renderPlayerCard = (player: Player) => (
     <div
       key={player.id}
-      className="bg-fifa-green/90 border-2 border-fifa-mint rounded-lg p-3 shadow-retro hover:scale-105 hover:border-fifa-gold transition-all text-center font-retro text-fifa-cream"
+      className="bg-fifa-dark border border-fifa-border rounded-lg p-3 shadow-retro hover:scale-105 hover:border-fifa-mint hover:shadow-glow transition-all text-center"
     >
-      <div className="font-headline text-xs mb-1 truncate text-fifa-mint drop-shadow">{player.name}</div>
-      <div className="text-[10px] text-fifa-gold uppercase tracking-widest">{player.position}</div>
-      <div className="mt-1 text-xs font-bold text-fifa-gold">{player.rating}</div>
+      <div className="font-headline text-[11px] mb-1 truncate text-fifa-cream leading-tight">{player.name}</div>
+      <div className="text-[9px] font-retro text-fifa-mint uppercase tracking-widest">{player.position}</div>
+      <div className="mt-1 text-sm font-bold text-fifa-amber">{player.rating}</div>
       {player.isHistorical && (
-        <div className="mt-1 text-[10px] text-fifa-mint italic">{player.era}</div>
+        <div className="mt-1 text-[9px] text-fifa-mint/70 italic">{player.era}</div>
       )}
     </div>
   );
