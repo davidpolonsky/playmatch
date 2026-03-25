@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { signOut } from '@/lib/firebase/auth';
 import { useState } from 'react';
 
@@ -65,7 +66,7 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
           onClick={() => router.push('/dashboard')}
           className="font-retro text-[11px] text-fifa-mint tracking-wider hover:text-fifa-cream transition-colors flex items-center gap-2"
         >
-          <img src="/soccer.png" alt="" className="w-4 h-4" style={{ imageRendering: 'pixelated' }} />
+          <Image src="/soccer.png" alt="" width={16} height={16} style={{ imageRendering: 'pixelated' }} unoptimized />
           PlayMatch
         </button>
 

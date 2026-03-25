@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -154,7 +155,7 @@ export default function TeamBuilder() {
             {/* Scan Cards */}
             <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
               <h3 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider flex items-center gap-2">
-                <img src="/camera.png" alt="" className="w-4 h-4" style={{ imageRendering: 'pixelated' }} />
+                <Image src="/camera.png" alt="" width={16} height={16} style={{ imageRendering: 'pixelated' }} unoptimized />
                 Scan Player Cards
               </h3>
               <CardUploader
