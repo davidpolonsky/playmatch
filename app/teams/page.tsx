@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/components/AuthProvider';
+import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Team, GameResult } from '@/lib/types';
 import { getUserTeams, getAllTeams, deleteTeam } from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
 
 export default function TeamsPage() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [myTeams, setMyTeams] = useState<Team[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
