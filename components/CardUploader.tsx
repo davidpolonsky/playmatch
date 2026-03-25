@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 
 interface CardUploaderProps {
   onPlayerAdded: (player: any) => void;
@@ -135,14 +136,17 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
   if (!cameraActive) {
     return (
       <div className="text-center py-6">
-        <div className="text-5xl mb-4">📷</div>
+        <div className="mb-4 flex justify-center">
+          <Image src="/camera.png" alt="Camera" width={80} height={80} style={{ imageRendering: 'pixelated' }} unoptimized />
+        </div>
         <p className="font-headline text-[11px] text-fifa-cream/70 mb-1">Scan a player card with your camera</p>
         <p className="font-headline text-[10px] text-white/30 mb-5">Point camera at a soccer player card</p>
         <button
           onClick={startCamera}
-          className="btn-primary w-full py-3"
+          className="btn-primary w-full py-3 flex items-center justify-center gap-2"
         >
-          📷 Open Camera
+          <Image src="/camera.png" alt="" width={16} height={16} style={{ imageRendering: 'pixelated' }} unoptimized />
+          Open Camera
         </button>
       </div>
     );
