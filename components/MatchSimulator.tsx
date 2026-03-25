@@ -41,10 +41,10 @@ const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
 function RecordBadge({ record }: { record: TeamRecord | undefined }) {
   const r = record ?? { wins: 0, losses: 0, ties: 0 };
   return (
-    <span className="inline-flex gap-2 text-xs font-semibold">
-      <span className="text-green-600">{r.wins}W</span>
-      <span className="text-red-500">{r.losses}L</span>
-      <span className="text-gray-400">{r.ties}T</span>
+    <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
+      <span className="text-fifa-mint">{r.wins}W</span>
+      <span className="text-red-400">{r.losses}L</span>
+      <span className="text-white/60">{r.ties}T</span>
     </span>
   );
 }
@@ -54,17 +54,17 @@ function RosterPreview({ team, record }: { team: AnyTeam; record?: TeamRecord })
   const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
   team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
   return (
-    <div className={`mt-2 rounded-lg border p-3 text-sm ${isLegendary ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
+    <div className="mt-2 rounded-lg border border-fifa-border bg-fifa-dark p-3">
       <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-gray-700">{isLegendary ? '⭐ ' : ''}{team.name}</span>
+        <span className="font-headline text-[11px] text-fifa-cream">{isLegendary ? '⭐ ' : ''}{team.name}</span>
         <RecordBadge record={record} />
       </div>
       {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
-        <div key={pos} className="mb-1 leading-snug">
-          <span className="text-xs font-bold text-gray-400 uppercase mr-2">{pos}</span>
+        <div key={pos} className="mb-1">
+          <span className="text-[9px] font-retro text-fifa-mint uppercase mr-2">{pos}</span>
           {grouped[pos].map((p, i) => (
-            <span key={i} className="inline-block mr-3 text-gray-700">
-              {p.name} <span className="text-xs text-gray-400">({p.rating})</span>
+            <span key={i} className="inline-block mr-3 text-fifa-cream/80 text-xs">
+              {p.name} <span className="text-fifa-amber">({p.rating})</span>
             </span>
           ))}
         </div>
@@ -79,13 +79,13 @@ const EVENT_ICONS: Record<string, string> = {
   freekick: '💨', halftime: '🔔', fulltime: '🏆',
 };
 const EVENT_COLORS: Record<string, string> = {
-  goal:     'bg-green-50 border-l-4 border-green-500',
-  halftime: 'bg-blue-50 border-l-4 border-blue-400',
-  fulltime: 'bg-purple-50 border-l-4 border-purple-500',
-  card:     'bg-yellow-50 border-l-4 border-yellow-400',
-  save:     'bg-orange-50 border-l-4 border-orange-400',
-  shot:     'bg-gray-50 border-l-4 border-gray-300',
-  default:  'bg-white border-l-4 border-transparent',
+  goal:     'bg-fifa-mint/10 border-l-4 border-fifa-mint',
+  halftime: 'bg-white/5 border-l-4 border-white/30',
+  fulltime: 'bg-fifa-mint/20 border-l-4 border-fifa-mint',
+  card:     'bg-fifa-amber/10 border-l-4 border-fifa-amber',
+  save:     'bg-white/5 border-l-4 border-white/20',
+  shot:     'border-l-4 border-transparent',
+  default:  'border-l-4 border-transparent',
 };
 
 // ── Component ─────────────────────────────────────────────────
@@ -235,15 +235,15 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
   const team2 = getTeamById(team2Id);
 
   return (
-    <div className="card max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-2">⚽ Match Simulator</h2>
-      <p className="text-sm text-gray-500 mb-6">Pick any two teams — including rivals' teams. Records update for both sides.</p>
+    <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6 max-w-4xl mx-auto">
+      <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">⚽ MATCH SIMULATOR</h2>
+      <p className="font-headline text-[10px] text-white/50 mb-6">Pick any two teams — including rivals' teams. Records update for both sides.</p>
 
       {/* Team selectors */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start mb-2">
         <div>
-          <label className="block text-sm font-medium mb-1">Home Team</label>
-          <select value={team1Id} onChange={e => setTeam1Id(e.target.value)} className="w-full p-2 border rounded">
+          <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Home Team</label>
+          <select value={team1Id} onChange={e => setTeam1Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Home Team</option>
             <optgroup label="My Teams">
               {teams.map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
@@ -261,27 +261,27 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
         </div>
 
         <div className="flex flex-col items-center justify-start pt-6">
-          <div className="text-3xl font-bold text-gray-300 mb-3">VS</div>
+          <div className="font-retro text-[11px] text-white/20 mb-4 tracking-widest">VS</div>
           <button
             onClick={handleSimulate}
             disabled={!team1Id || !team2Id || simulating}
-            className="btn-primary w-full"
+            className="btn-primary w-full py-3 disabled:opacity-30"
           >
             {simulating ? (
               <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                 </svg>
                 Simulating…
               </span>
-            ) : '▶ Kick Off'}
+            ) : '⚽ Kick Off'}
           </button>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Away Team</label>
-          <select value={team2Id} onChange={e => setTeam2Id(e.target.value)} className="w-full p-2 border rounded">
+          <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Away Team</label>
+          <select value={team2Id} onChange={e => setTeam2Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Away Team</option>
             <optgroup label="My Teams">
               {teams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
@@ -301,21 +301,24 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
       {/* Scoreboard */}
       {result && (
-        <div className="mt-6 bg-gradient-to-r from-purple-900 to-blue-900 text-white rounded-xl p-6 mb-4">
+        <div className="mt-6 bg-fifa-dark border border-fifa-border rounded-xl p-6 mb-4">
           <div className="flex items-center justify-between text-center">
             <div className="flex-1">
-              <div className="text-sm font-medium opacity-75">{team1?.name}</div>
-              <div className="text-6xl font-black mt-1">{result.team1Score}</div>
+              <div className="font-headline text-[11px] text-fifa-cream/60 mb-2 truncate">{team1?.name}</div>
+              <div className="font-retro text-5xl text-fifa-mint">{result.team1Score}</div>
             </div>
-            <div className="text-2xl opacity-40 px-4">—</div>
+            <div className="px-6">
+              <div className="font-retro text-[9px] text-white/20 tracking-widest">FULL TIME</div>
+              <div className="font-retro text-lg text-white/30 mt-1">—</div>
+            </div>
             <div className="flex-1">
-              <div className="text-sm font-medium opacity-75">{team2?.name}</div>
-              <div className="text-6xl font-black mt-1">{result.team2Score}</div>
+              <div className="font-headline text-[11px] text-fifa-cream/60 mb-2 truncate">{team2?.name}</div>
+              <div className="font-retro text-5xl text-fifa-mint">{result.team2Score}</div>
             </div>
           </div>
           {streamingDone && (
-            <p className="mt-3 text-center text-sm opacity-70">
-              ⭐ Man of the Match: <span className="font-semibold">{result.manOfTheMatch}</span>
+            <p className="mt-3 text-center font-headline text-[10px] text-fifa-amber">
+              ⭐ {result.manOfTheMatch}
             </p>
           )}
         </div>
@@ -323,20 +326,21 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
       {/* Play-by-play feed */}
       {visibleEvents.length > 0 && (
-        <div ref={feedRef} className="rounded-xl border border-gray-200 overflow-y-auto" style={{ maxHeight: '480px' }}>
-          <div className="divide-y divide-gray-100">
+        <div ref={feedRef} className="rounded-xl border border-fifa-border bg-fifa-dark overflow-y-auto" style={{ maxHeight: '380px' }}>
+          <div className="divide-y divide-fifa-border/50">
             {visibleEvents.filter(event => event && event.type).map((event, idx) => {
               const colorClass = EVENT_COLORS[event.type] || EVENT_COLORS.default;
               const icon = EVENT_ICONS[event.type] || '⚽';
+              const isGoal = event.type === 'goal';
+              const isMilestone = event.type === 'halftime' || event.type === 'fulltime';
               return (
-                <div key={idx} className={`flex items-start gap-3 px-4 py-3 ${colorClass}`}>
-                  <div className="flex-shrink-0 w-10 text-center">
-                    <span className="text-xs font-bold text-gray-500">{event.minute}'</span>
-                  </div>
-                  <div className="flex-shrink-0 text-lg leading-tight">{icon}</div>
-                  <p className={`text-sm leading-snug flex-1 ${
-                    event.type === 'goal' ? 'font-bold text-green-800' :
-                    event.type === 'halftime' || event.type === 'fulltime' ? 'font-semibold' : 'text-gray-700'
+                <div key={idx} className={`flex items-start gap-3 px-4 py-2.5 ${colorClass}`}>
+                  <span className="flex-shrink-0 w-7 font-retro text-[8px] text-white/30 pt-0.5">{event.minute}'</span>
+                  <span className="flex-shrink-0 text-sm">{icon}</span>
+                  <p className={`text-sm flex-1 leading-snug ${
+                    isGoal ? 'font-bold text-fifa-mint' :
+                    isMilestone ? 'font-headline text-[11px] text-fifa-amber' :
+                    'text-fifa-cream/70'
                   }`}>
                     {event.text}
                   </p>
@@ -349,9 +353,9 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
       {/* Match summary */}
       {streamingDone && result && (
-        <div className="mt-4 bg-gray-50 rounded-xl p-5">
-          <h4 className="font-bold text-lg mb-2">📋 Match Report</h4>
-          <p className="text-gray-700 leading-relaxed">{result.summary}</p>
+        <div className="mt-4 bg-fifa-dark border border-fifa-border rounded-xl p-4">
+          <h4 className="font-retro text-[9px] text-fifa-mint mb-2">📋 MATCH REPORT</h4>
+          <p className="text-sm text-fifa-cream/80 leading-relaxed">{result.summary}</p>
         </div>
       )}
     </div>
