@@ -23,6 +23,29 @@ interface MatchSimulatorProps {
   userId: string;
 }
 
+const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
+
+function RosterPreview({ team }: { team: Team | LegendaryTeam }) {
+  const isLegendary = 'isLegendary' in team && team.isLegendary;
+  const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
+  team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
+  return (
+    <div className={`mt-2 rounded-lg border p-3 text-sm ${isLegendary ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
+      <div className="font-semibold text-gray-700 mb-2">{isLegendary ? '⭐ ' : ''}{team.name}</div>
+      {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
+        <div key={pos} className="mb-1 leading-snug">
+          <span className="text-xs font-bold text-gray-400 uppercase mr-2">{pos}</span>
+          {grouped[pos].map((p, i) => (
+            <span key={i} className="inline-block mr-3 text-gray-700">
+              {p.name} <span className="text-xs text-gray-400">({p.rating})</span>
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const EVENT_ICONS: Record<string, string> = {
   kickoff:  '🏁',
   action:   '⚽',
@@ -165,6 +188,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
               ))}
             </optgroup>
           </select>
+          {team1 && <RosterPreview team={team1} />}
         </div>
 
         <div className="text-center">
@@ -205,6 +229,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
               ))}
             </optgroup>
           </select>
+          {team2 && <RosterPreview team={team2} />}
         </div>
       </div>
 
