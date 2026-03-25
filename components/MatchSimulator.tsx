@@ -83,19 +83,20 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
   // Stream events one by one after result arrives
   useEffect(() => {
-    if (!result) return;
+    if (!result?.playByPlay?.length) return;
     setVisibleEvents([]);
     setStreamingDone(false);
+    const events = result.playByPlay.filter(e => e && e.type && e.text);
     let i = 0;
     const interval = setInterval(() => {
-      if (i >= result.playByPlay.length) {
+      if (i >= events.length) {
         clearInterval(interval);
         setStreamingDone(true);
         return;
       }
-      setVisibleEvents(prev => [...prev, result.playByPlay[i]]);
+      setVisibleEvents(prev => [...prev, events[i]]);
       i++;
-    }, 120); // one event every 120ms ≈ ~6 seconds for 50 events
+    }, 120);
     return () => clearInterval(interval);
   }, [result]);
 
@@ -134,8 +135,11 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
         }),
       });
 
-      const matchResult: MatchResult = await response.json();
-      setResult(matchResult);
+      const matchResult = await response.json();
+      if (!response.ok || matchResult.error) throw new Error(matchResult.error || 'Simulation failed');
+      if (!Array.isArray(matchResult.playByPlay)) throw new Error('Invalid response format');
+      matchResult.playByPlay = matchResult.playByPlay.filter((e: any) => e && typeof e.type === 'string' && typeof e.text === 'string');
+      setResult(matchResult as MatchResult);
 
       // Save to Firebase only for user teams (not legendary)
       const isLegendary1 = 'isLegendary' in team1 && team1.isLegendary;
@@ -263,7 +267,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
           style={{ maxHeight: '480px' }}
         >
           <div className="divide-y divide-gray-100">
-            {visibleEvents.map((event, idx) => {
+            {visibleEvents.filter(event => event && event.type).map((event, idx) => {
               const colorClass = EVENT_COLORS[event.type] || EVENT_COLORS.default;
               const icon = EVENT_ICONS[event.type] || '⚽';
               return (

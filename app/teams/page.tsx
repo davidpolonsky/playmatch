@@ -99,13 +99,14 @@ export default function TeamsPage() {
 
   // Stream play-by-play events
   useEffect(() => {
-    if (!simResult) return;
+    if (!simResult?.playByPlay?.length) return;
     setVisibleEvents([]);
     setStreamingDone(false);
+    const events = simResult.playByPlay.filter(e => e && e.type && e.text);
     let i = 0;
     const interval = setInterval(() => {
-      if (i >= simResult.playByPlay.length) { clearInterval(interval); setStreamingDone(true); return; }
-      setVisibleEvents(prev => [...prev, simResult.playByPlay[i]]);
+      if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
+      setVisibleEvents(prev => [...prev, events[i]]);
       i++;
     }, 120);
     return () => clearInterval(interval);
@@ -152,11 +153,15 @@ export default function TeamsPage() {
           team2Players: selectedAway.players,
         }),
       });
-      const data: SimResult = await res.json();
-      setSimResult(data);
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Simulation failed');
+      if (!Array.isArray(data.playByPlay)) throw new Error('Invalid response: missing playByPlay');
+      // Filter out any null/undefined events Gemini may have returned
+      data.playByPlay = data.playByPlay.filter((e: any) => e && typeof e.type === 'string' && typeof e.text === 'string');
+      setSimResult(data as SimResult);
     } catch (e) {
       console.error(e);
-      alert('Failed to simulate match');
+      alert('Failed to simulate match. Please try again.');
     } finally {
       setSimulating(false);
     }
@@ -291,7 +296,7 @@ export default function TeamsPage() {
           {visibleEvents.length > 0 && (
             <div ref={feedRef} className="mt-4 rounded-xl border border-gray-200 overflow-y-auto" style={{ maxHeight: 400 }}>
               <div className="divide-y divide-gray-100">
-                {visibleEvents.map((ev, i) => {
+                {visibleEvents.filter(ev => ev && ev.type).map((ev, i) => {
                   const color = EVENT_COLORS[ev.type] || 'bg-white border-l-4 border-transparent';
                   const icon = EVENT_ICONS[ev.type] || '⚽';
                   return (
