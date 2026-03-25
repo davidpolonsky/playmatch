@@ -37,6 +37,10 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [inviteTeamId, setInviteTeamId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState('');
 
   // Load all teams (to check if opponents still exist)
   useEffect(() => {
@@ -105,6 +109,45 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
     }
   };
 
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim() || !inviteTeamId) return;
+
+    const team = teams.find(t => t.id === inviteTeamId);
+    if (!team) return;
+
+    setSendingInvite(true);
+    setInviteMessage('');
+
+    try {
+      const response = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          teamName: team.name,
+          teamId: team.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setInviteMessage(`✅ Invite sent to ${inviteEmail}!`);
+        setInviteEmail('');
+        setTimeout(() => {
+          setInviteTeamId(null);
+          setInviteMessage('');
+        }, 2000);
+      } else {
+        setInviteMessage(data.error || 'Failed to send invite');
+      }
+    } catch (error) {
+      setInviteMessage('Failed to send invite. Please try again.');
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
   if (teams.length === 0) {
     return (
       <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
@@ -142,6 +185,18 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
                     <p className="font-headline text-[11px] text-fifa-mint/60 mt-1">{team.formation}</p>
                   </div>
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInviteTeamId(team.id!);
+                      }}
+                      className="text-white/20 hover:text-fifa-mint p-1 transition-colors"
+                      title="Invite friend to challenge this team"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -245,6 +300,59 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
           );
         })}
       </div>
+
+      {/* Invite Modal */}
+      {inviteTeamId && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-fifa-mid border border-fifa-border rounded-xl p-6 max-w-md w-full shadow-retro">
+            <h3 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider uppercase">
+              Invite Friend to Challenge
+            </h3>
+            <p className="font-headline text-[11px] text-fifa-cream/80 mb-4">
+              Challenge: {teams.find(t => t.id === inviteTeamId)?.name}
+            </p>
+
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendInvite()}
+              placeholder="Friend's email"
+              className="w-full px-4 py-2.5 bg-fifa-dark border border-fifa-border rounded-lg text-white font-headline text-sm placeholder:text-white/25 focus:ring-1 focus:ring-fifa-mint focus:outline-none mb-4"
+              disabled={sendingInvite}
+            />
+
+            {inviteMessage && (
+              <p className={`font-headline text-[10px] mb-3 ${
+                inviteMessage.startsWith('✅') ? 'text-fifa-mint' : 'text-red-400'
+              }`}>
+                {inviteMessage}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSendInvite}
+                disabled={!inviteEmail.trim() || sendingInvite}
+                className="flex-1 btn-primary py-2.5 disabled:opacity-30"
+              >
+                {sendingInvite ? 'Sending…' : 'Send Invite'}
+              </button>
+              <button
+                onClick={() => {
+                  setInviteTeamId(null);
+                  setInviteEmail('');
+                  setInviteMessage('');
+                }}
+                className="px-4 py-2.5 bg-fifa-dark border border-fifa-border rounded-lg font-retro text-[9px] text-white/60 hover:text-white transition-colors"
+                disabled={sendingInvite}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
