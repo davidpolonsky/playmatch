@@ -324,53 +324,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {players.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                    {players.map((player, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-fifa-dark border border-fifa-border rounded-lg hover:border-fifa-mint/30 transition-colors"
-                      >
-                        <div>
-                          <div className="font-headline text-[12px] text-white">{player.name}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="font-retro text-[8px] text-fifa-mint/70">{player.position}</span>
-                            <span className={`font-headline text-[11px] font-bold ${
-                              player.rating >= 90 ? 'text-fifa-amber' :
-                              player.rating >= 80 ? 'text-fifa-mint' :
-                              'text-white/60'
-                            }`}>{player.rating}</span>
-                            {player.isHistorical && <span className="text-fifa-amber text-[11px]">★</span>}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleRemovePlayer(index)}
-                          className="p-2 text-white/20 hover:text-red-400 rounded-lg transition-colors flex-shrink-0"
-                          title="Remove player"
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="font-retro text-[9px] text-white/40">No players yet</p>
-                    <p className="font-headline text-[10px] text-white/25 mt-1">Scan cards to get started</p>
-                  </div>
-                )}
+                <InteractivePlayerList
+                  allPlayers={players}
+                  teamPlayers={currentTeam}
+                  onAdd={handleAddToTeam}
+                  onRemove={handleRemovePlayerFromRoster}
+                />
               </div>
             </div>
 
