@@ -48,28 +48,9 @@ export default function Home() {
     <>
       <main className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 bg-fifa-dark">
         <div className="max-w-4xl w-full text-center px-4">
-          {/* Logo - Pixelated soccer ball */}
-          <div className="mb-8 inline-block" style={{ imageRendering: 'pixelated' }}>
-            <svg width="100" height="100" viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
-              {/* White ball base */}
-              <rect x="3" y="2" width="10" height="12" fill="#f5f5dc"/>
-              <rect x="2" y="4" width="12" height="8" fill="#f5f5dc"/>
-              <rect x="4" y="1" width="8" height="1" fill="#f5f5dc"/>
-              <rect x="4" y="14" width="8" height="1" fill="#f5f5dc"/>
-
-              {/* Black pentagons/hexagons pattern */}
-              <rect x="6" y="3" width="4" height="2" fill="#1a1a1a"/>
-              <rect x="5" y="5" width="2" height="2" fill="#1a1a1a"/>
-              <rect x="9" y="5" width="2" height="2" fill="#1a1a1a"/>
-              <rect x="3" y="7" width="3" height="3" fill="#1a1a1a"/>
-              <rect x="10" y="7" width="3" height="3" fill="#1a1a1a"/>
-              <rect x="6" y="10" width="4" height="3" fill="#1a1a1a"/>
-
-              {/* Green border/shadow */}
-              <rect x="2" y="3" width="1" height="10" fill="#4ade80" opacity="0.5"/>
-              <rect x="13" y="3" width="1" height="10" fill="#4ade80" opacity="0.5"/>
-              <rect x="3" y="13" width="10" height="1" fill="#4ade80" opacity="0.5"/>
-            </svg>
+          {/* Logo - Soccer ball */}
+          <div className="mb-8 inline-block">
+            <img src="/soccer.png" alt="Soccer Ball" className="w-24 h-24 mx-auto" style={{ imageRendering: 'pixelated' }} />
           </div>
 
           <h1 className="font-headline text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-fifa-cream mb-4 tracking-tight break-words">

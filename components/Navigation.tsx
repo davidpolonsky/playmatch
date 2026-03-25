@@ -63,9 +63,10 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center gap-4 flex-wrap">
         <button
           onClick={() => router.push('/dashboard')}
-          className="font-retro text-[11px] text-fifa-mint tracking-wider hover:text-fifa-cream transition-colors"
+          className="font-retro text-[11px] text-fifa-mint tracking-wider hover:text-fifa-cream transition-colors flex items-center gap-2"
         >
-          ⚽ PlayMatch
+          <img src="/soccer.png" alt="" className="w-4 h-4" style={{ imageRendering: 'pixelated' }} />
+          PlayMatch
         </button>
 
         <div className="flex gap-2 items-center flex-wrap">

@@ -153,7 +153,10 @@ export default function TeamBuilder() {
 
             {/* Scan Cards */}
             <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
-              <h3 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">📷 Scan Player Cards</h3>
+              <h3 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider flex items-center gap-2">
+                <img src="/camera.png" alt="" className="w-4 h-4" style={{ imageRendering: 'pixelated' }} />
+                Scan Player Cards
+              </h3>
               <CardUploader
                 onPlayerAdded={handleCardAnalyzed}
                 onError={msg => { setMessage(msg); setMessageType('error'); }}
