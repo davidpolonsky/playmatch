@@ -129,6 +129,45 @@ export default function TeamsPage() {
     if (!loading && !user) router.push('/');
   }, [user, loading, router]);
 
+  // Handle challenge URL parameter
+  useEffect(() => {
+    if (!user || loadingTeams) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const challengeTeamId = params.get('challenge');
+
+    if (challengeTeamId) {
+      // Auto-add the challenged team
+      const addChallengedTeam = async () => {
+        try {
+          const raw = parseShareId(challengeTeamId);
+          if (raw.length !== 7) return;
+
+          const team = await getTeamByShareId(raw);
+          if (!team || team.userId === user.uid) return;
+
+          // Check if already added
+          if (myTeams.some(t => t.id === team.id) || savedTeams.some(t => t.id === team.id)) {
+            return;
+          }
+
+          await addSavedTeam(user.uid, team.id!);
+          setSavedTeams(prev => [...prev, team]);
+
+          const recs = await getTeamRecords([team.id!]).catch(() => ({} as Record<string, TeamRecord>));
+          setTeamRecords(prev => ({ ...prev, ...recs }));
+
+          // Clear the URL parameter
+          window.history.replaceState({}, '', '/teams');
+        } catch (err) {
+          console.error('Failed to auto-add challenged team:', err);
+        }
+      };
+
+      addChallengedTeam();
+    }
+  }, [user, loadingTeams, myTeams, savedTeams]);
+
   useEffect(() => {
     if (user) {
       loadTeams();

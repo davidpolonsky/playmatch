@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const senderName = (fromName || 'A friend').trim();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://playmatch.games';
+    const challengeUrl = `${appUrl}?challenge=${encodeURIComponent(teamId)}`;
 
     await sgMail.send({
       to: toEmail.trim(),
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
         name: 'PlayMatch',
       },
       subject: `${senderName} challenged you to play their ${teamName} team! ⚽`,
-      text: `Hey!\n\n${senderName} challenges you to a match on PlayMatch!\n\nTheir Team: ${teamName}\nFormation: ${formation}\n\nTo accept this challenge:\n1. Go to ${appUrl}\n2. Add their team using ID: ${teamId}\n3. Challenge them to a match!\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`,
+      text: `Hey!\n\n${senderName} challenges you to a match on PlayMatch!\n\nTheir Team: ${teamName}\nFormation: ${formation}\n\nTo accept this challenge:\n1. Go to ${challengeUrl}\n2. Build your team and challenge them back!\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -75,22 +76,22 @@ export async function POST(req: NextRequest) {
               <!-- Instructions -->
               <div style="background:#1e5c33;border-radius:8px;padding:16px;margin-bottom:24px;">
                 <p style="margin:0 0 12px;color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">How to Accept</p>
-                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;">1. Sign up at PlayMatch</p>
-                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;">2. Add their team using ID: <strong style="color:#fbbf24;">${teamId}</strong></p>
-                <p style="margin:0;color:#e5e7eb;font-size:14px;">3. Challenge them to a match!</p>
+                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;">1. Click the button below to sign up</p>
+                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;">2. Their team will be automatically added</p>
+                <p style="margin:0;color:#e5e7eb;font-size:14px;">3. Build your team and challenge them back!</p>
               </div>
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 16px;">
-                    <a href="${appUrl}" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
+                    <a href="${challengeUrl}" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
                       Accept Challenge →
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">
-                Or visit <a href="${appUrl}" style="color:#4ade80;">${appUrl}</a>
+                Or copy this link: <a href="${challengeUrl}" style="color:#4ade80;">${challengeUrl}</a>
               </p>
             </td>
           </tr>
