@@ -35,76 +35,79 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
-        <div className="text-white text-2xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-fifa-dark">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-fifa-mint mx-auto" />
+          <p className="mt-4 font-retro text-[9px] text-fifa-mint/50">Loading…</p>
+        </div>
       </div>
     );
   }
 
   return (
     <>
-      <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
+      <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-fifa-dark">
         <div className="max-w-4xl w-full text-center">
-        {/* Simple Logo */}
-        <div className="mb-8 text-8xl">⚽</div>
-        
-        <h1 className="text-7xl font-bold text-white mb-4 tracking-tight">
-          PlayMatch
-        </h1>
-        <p className="text-xl text-white/90 mb-8">
-          Turn your soccer cards into dream teams with AI
-        </p>
-        
-        <div className="bg-white/10 backdrop-blur-lg p-8 rounded-xl mb-8 max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold text-white mb-4">How It Works</h2>
-          <ol className="text-left space-y-4 text-white/90">
-            <li className="flex items-start">
-              <span className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center mr-3 font-bold">
-                1
-              </span>
-              <span>
-                <strong className="text-white">Scan Your Cards:</strong> Upload photos of your soccer player cards
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center mr-3 font-bold">
-                2
-              </span>
-              <span>
-                <strong className="text-white">Build Your Team:</strong> AI analyzes your cards and helps you create your best starting 11
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center mr-3 font-bold">
-                3
-              </span>
-              <span>
-                <strong className="text-white">Save & Share:</strong> Save your teams to the cloud
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center mr-3 font-bold">
-                4
-              </span>
-              <span>
-                <strong className="text-white">Simulate Matches:</strong> Watch AI simulate matches with detailed commentary
-              </span>
-            </li>
-          </ol>
+          {/* Logo */}
+          <div className="mb-8 text-8xl">⚽</div>
+
+          <h1 className="font-headline text-7xl text-fifa-cream mb-4 tracking-tight">
+            PlayMatch
+          </h1>
+          <p className="font-headline text-[15px] text-fifa-mint/80 mb-8">
+            Turn your soccer cards into dream teams with AI
+          </p>
+
+          <div className="bg-fifa-mid border border-fifa-border rounded-xl p-8 mb-8 max-w-2xl mx-auto shadow-retro">
+            <h2 className="font-retro text-[11px] text-fifa-mint mb-6 tracking-wider uppercase">How It Works</h2>
+            <ol className="text-left space-y-4">
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-8 h-8 bg-fifa-mint text-fifa-dark rounded-full flex items-center justify-center mr-3 font-retro text-[10px]">
+                  1
+                </span>
+                <span className="font-headline text-[12px] text-fifa-cream/90 pt-1">
+                  <strong className="text-fifa-amber">Scan Your Cards:</strong> Upload photos of your soccer player cards
+                </span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-8 h-8 bg-fifa-mint text-fifa-dark rounded-full flex items-center justify-center mr-3 font-retro text-[10px]">
+                  2
+                </span>
+                <span className="font-headline text-[12px] text-fifa-cream/90 pt-1">
+                  <strong className="text-fifa-amber">Build Your Team:</strong> AI analyzes your cards and helps you create your best starting 11
+                </span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-8 h-8 bg-fifa-mint text-fifa-dark rounded-full flex items-center justify-center mr-3 font-retro text-[10px]">
+                  3
+                </span>
+                <span className="font-headline text-[12px] text-fifa-cream/90 pt-1">
+                  <strong className="text-fifa-amber">Save & Share:</strong> Save your teams to the cloud
+                </span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-8 h-8 bg-fifa-mint text-fifa-dark rounded-full flex items-center justify-center mr-3 font-retro text-[10px]">
+                  4
+                </span>
+                <span className="font-headline text-[12px] text-fifa-cream/90 pt-1">
+                  <strong className="text-fifa-amber">Simulate Matches:</strong> Watch AI simulate matches with detailed commentary
+                </span>
+              </li>
+            </ol>
+          </div>
+
+          <button
+            onClick={handleSignIn}
+            className="btn-primary px-8 py-4 text-[13px] shadow-retro"
+          >
+            🔐 Sign in with Google to Get Started
+          </button>
+
+          <p className="font-headline text-[11px] text-white/40 mt-4">
+            Mix current stars with legendary historical players!
+          </p>
         </div>
-
-        <button
-          onClick={handleSignIn}
-          className="bg-white text-blue-900 px-8 py-4 rounded-lg font-bold text-xl hover:bg-gray-100 transition-all shadow-xl hover:shadow-2xl transform hover:scale-105"
-        >
-          🔐 Sign in with Google to Get Started
-        </button>
-
-        <p className="text-white/70 mt-4 text-sm">
-          Mix current stars with legendary historical players!
-        </p>
-      </div>
-    </main>
+      </main>
 
       <Footer />
     </>
