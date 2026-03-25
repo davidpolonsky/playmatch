@@ -66,7 +66,16 @@ export default function Dashboard() {
     if (!user) return;
     try {
       const roster = await getUserRoster(user.uid);
-      setPlayers(roster);
+      // Ensure all players have IDs (fix for legacy data without IDs)
+      const rosterWithIds = roster.map(player =>
+        player.id ? player : { ...player, id: crypto.randomUUID() }
+      );
+      setPlayers(rosterWithIds);
+
+      // Save back to Firebase if any IDs were added
+      if (rosterWithIds.some((p, i) => !roster[i].id)) {
+        await saveUserRoster(user.uid, rosterWithIds);
+      }
     } catch (error) {
       console.error('Error loading roster:', error);
     }
