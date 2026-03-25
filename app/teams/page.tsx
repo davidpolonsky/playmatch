@@ -123,6 +123,7 @@ export default function TeamsPage() {
   const [challengeEmail, setChallengeEmail] = useState('');
   const [sendingChallenge, setSendingChallenge] = useState(false);
   const [challengeError, setChallengeError] = useState('');
+  const [challengeSentTeamId, setChallengeSentTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/');
@@ -282,10 +283,15 @@ export default function TeamsPage() {
         throw new Error(data.error || 'Failed to send challenge');
       }
 
-      // Success - close modal
+      // Success - close modal and show success animation on card
       setChallengeTeamId(null);
       setChallengeEmail('');
-      alert('Challenge sent! 🎉');
+      setChallengeSentTeamId(team.id!);
+
+      // Flip back after 2 seconds
+      setTimeout(() => {
+        setChallengeSentTeamId(null);
+      }, 2000);
     } catch (err: any) {
       console.error('Challenge error:', err);
       setChallengeError(err.message || 'Failed to send challenge. Please try again.');
@@ -422,9 +428,22 @@ export default function TeamsPage() {
       ? (legendaryRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
       : (teamRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 });
     const isCopied = copiedId === team.id;
+    const showingSent = challengeSentTeamId === team.id;
 
     const cardBorder = isLegendary ? 'border-fifa-amber/40' : isSaved ? 'border-fifa-mint/30' : 'border-fifa-border';
     const cardBg = isExpanded ? 'bg-fifa-dark' : 'bg-fifa-mid hover:bg-fifa-dark';
+
+    // Show "SENT!" overlay
+    if (showingSent) {
+      return (
+        <div className={`border rounded-xl transition-all duration-200 ${cardBorder} bg-fifa-dark flex items-center justify-center`} style={{ minHeight: '200px' }}>
+          <div className="text-center animate-pulse">
+            <p className="font-retro text-2xl text-fifa-mint tracking-widest mb-2">SENT!</p>
+            <p className="font-headline text-sm text-fifa-cream/60">Challenge delivered ⚽</p>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className={`border rounded-xl transition-all duration-200 ${cardBorder} ${cardBg}`}>
