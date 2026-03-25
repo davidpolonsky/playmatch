@@ -578,7 +578,7 @@ export default function TeamsPage() {
                     }
                   }
                 }}
-                className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
+                className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
               >
                 <option value="">Select home team…</option>
                 <optgroup label="Your Teams">
@@ -617,7 +617,7 @@ export default function TeamsPage() {
               <select
                 value={selectedAway?.id || ''}
                 onChange={e => setSelectedAway(awayOptions.find(t => t.id === e.target.value) || null)}
-                className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
+                className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
               >
                 <option value="">Select away team…</option>
                 {isHomeLegendary ? (
