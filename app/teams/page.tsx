@@ -117,12 +117,12 @@ export default function TeamsPage() {
     }
   };
 
-  if (loading || loadingTeams) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading teams...</p>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -330,7 +330,12 @@ export default function TeamsPage() {
             </button>
           </div>
 
-          {displayTeams.length === 0 ? (
+          {loadingTeams && activeTab !== 'legendary' ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading teams...</p>
+            </div>
+          ) : displayTeams.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <p className="text-lg">No teams yet</p>
               <button
