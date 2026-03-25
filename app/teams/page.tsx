@@ -120,6 +120,7 @@ export default function TeamsPage() {
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviteSending, setInviteSending] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -535,16 +536,24 @@ export default function TeamsPage() {
   ];
   const displayTeams = activeTab === 'my-teams' ? myTeams : browseTeams;
 
-  const handleSendInvite = () => {
-    if (!inviteEmail.trim()) return;
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim() || inviteSending) return;
     const name = inviteName.trim() || user?.displayName || 'A friend';
-    const subject = encodeURIComponent(`${name} challenged you to PlayMatch ⚽`);
-    const body = encodeURIComponent(
-      `Hey!\n\n${name} wants to challenge you on PlayMatch — a game where you scan soccer player cards, build your dream team, and simulate matches.\n\nSign up here: ${window.location.origin}\n\nSee you on the pitch! ⚽`
-    );
-    window.open(`mailto:${inviteEmail.trim()}?subject=${subject}&body=${body}`, '_blank');
-    setInviteSent(true);
-    setTimeout(() => { setInviteSent(false); setInviteEmail(''); setShowInvite(false); }, 2500);
+    setInviteSending(true);
+    try {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromName: name, toEmail: inviteEmail.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setInviteSent(true);
+      setTimeout(() => { setInviteSent(false); setInviteEmail(''); setShowInvite(false); }, 3000);
+    } catch {
+      alert('Failed to send invite. Please try again.');
+    } finally {
+      setInviteSending(false);
+    }
   };
 
   return (
@@ -595,10 +604,10 @@ export default function TeamsPage() {
                       <div className="flex gap-2 pt-1">
                         <button
                           onClick={handleSendInvite}
-                          disabled={!inviteEmail.trim()}
+                          disabled={!inviteEmail.trim() || inviteSending}
                           className="flex-1 btn-primary text-[8px] py-2 disabled:opacity-30"
                         >
-                          Send Invite ⚽
+                          {inviteSending ? 'Sending…' : 'Send Invite ⚽'}
                         </button>
                         <button onClick={() => setShowInvite(false)} className="btn-secondary text-[8px] py-2 px-3">
                           ✕
