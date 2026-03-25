@@ -2,6 +2,7 @@
 
 import { Player, Formation } from '@/lib/types';
 import { useState } from 'react';
+import PixelAvatar from './PixelAvatar';
 
 interface InteractiveTeamDisplayProps {
   players: Player[];
@@ -98,15 +99,25 @@ export default function InteractiveTeamDisplay({
         ✕
       </button>
 
-      <div className="font-headline text-[10px] mb-1 text-fifa-amber font-bold truncate leading-tight">
+      {/* Pixel avatar */}
+      <div className="flex justify-center mb-1">
+        <PixelAvatar
+          skinTone={player.skinTone}
+          hairColor={player.hairColor}
+          hairStyle={player.hairStyle}
+          size={32}
+        />
+      </div>
+
+      <div className="font-headline text-[10px] mb-0.5 text-fifa-amber font-bold truncate leading-tight">
         {formatPlayerName(player.name)}
       </div>
       <div className="text-[8px] font-retro text-gray-600 uppercase tracking-widest">
         {player.position}
       </div>
-      <div className="mt-1 text-sm font-bold text-blue-600">{player.rating}</div>
+      <div className="mt-0.5 text-sm font-bold text-blue-600">{player.rating}</div>
       {player.isHistorical && (
-        <div className="mt-1 text-[7px] text-purple-600">★</div>
+        <div className="mt-0.5 text-[7px] text-purple-600">★</div>
       )}
     </div>
   );

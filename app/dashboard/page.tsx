@@ -8,6 +8,7 @@ import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
 import { saveTeam, getUserTeams, saveUserRoster, getUserRoster } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
+import { migrateRosterAppearance } from '@/lib/migrate-players';
 import CardUploader from '@/components/CardUploader';
 import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
 import InteractivePlayerList from '@/components/InteractivePlayerList';
@@ -67,14 +68,20 @@ export default function Dashboard() {
     try {
       const roster = await getUserRoster(user.uid);
       // Ensure all players have IDs (fix for legacy data without IDs)
-      const rosterWithIds = roster.map(player =>
+      let rosterWithIds = roster.map(player =>
         player.id ? player : { ...player, id: crypto.randomUUID() }
       );
-      setPlayers(rosterWithIds);
 
-      // Save back to Firebase if any IDs were added
-      if (rosterWithIds.some((p, i) => !roster[i].id)) {
-        await saveUserRoster(user.uid, rosterWithIds);
+      // Migrate players without appearance data
+      const rosterWithAppearance = migrateRosterAppearance(rosterWithIds);
+      setPlayers(rosterWithAppearance);
+
+      // Save back to Firebase if any IDs or appearance data were added
+      const hadIdsMissing = rosterWithIds.some((p, i) => !roster[i].id);
+      const hadAppearanceMissing = rosterWithAppearance.some(p => !p.skinTone);
+
+      if (hadIdsMissing || hadAppearanceMissing) {
+        await saveUserRoster(user.uid, rosterWithAppearance);
       }
     } catch (error) {
       console.error('Error loading roster:', error);

@@ -12,7 +12,10 @@ export const analyzePlayerCard = async (imageBase64: string) => {
       "position": "position (GK, DEF, MID, FWD)",
       "rating": number between 1-99,
       "isHistorical": boolean (true if retired/historical player),
-      "year": "year or era if historical"
+      "year": "year or era if historical",
+      "skinTone": "light, medium, tan, or dark",
+      "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
+      "hairStyle": "short, long, bald, or curly"
     }
 
     For the rating field:
@@ -21,12 +24,17 @@ export const analyzePlayerCard = async (imageBase64: string) => {
     - Use knowledge of actual FIFA ratings if available, or estimate based on the player's real-world performance
     - Examples: Prime Messi (2010-2015) = 94-96, Prime Ronaldo = 94-96, World-class players = 85-93, Good players = 75-84, Average = 65-74
 
+    For appearance fields (skinTone, hairColor, hairStyle):
+    - Describe what you see in the photo on the card
+    - Use simple categories that work for pixel art representation
+    - If player is bald, use hairColor: "none" and hairStyle: "bald"
+
     If you cannot read the card clearly or it's not a soccer player card, return:
     {
       "error": "description of the issue"
     }
 
-    IMPORTANT: Always provide a numeric rating, never null or undefined. Only return valid JSON, no additional text.`;
+    IMPORTANT: Always provide a numeric rating and appearance data, never null or undefined. Only return valid JSON, no additional text.`;
 
     const result = await model.generateContent([
       prompt,

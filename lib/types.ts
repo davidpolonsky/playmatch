@@ -7,6 +7,10 @@ export interface Player {
   isHistorical?: boolean;
   year?: string;
   era?: string;
+  // Pixel avatar appearance
+  skinTone?: 'light' | 'medium' | 'tan' | 'dark';
+  hairColor?: 'blonde' | 'brown' | 'black' | 'red' | 'gray' | 'none';
+  hairStyle?: 'short' | 'long' | 'bald' | 'curly';
 }
 
 export interface Formation {

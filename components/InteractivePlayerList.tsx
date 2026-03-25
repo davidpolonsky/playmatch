@@ -2,6 +2,7 @@
 
 import { Player } from '@/lib/types';
 import { useState } from 'react';
+import PixelAvatar from './PixelAvatar';
 
 interface InteractivePlayerListProps {
   allPlayers: Player[];
@@ -63,12 +64,20 @@ export default function InteractivePlayerList({
             draggable
             onDragStart={() => handleDragStart(player.id)}
             onDragEnd={handleDragEnd}
-            className={`flex items-center justify-between px-3 py-2.5 bg-fifa-dark border rounded-lg transition-colors cursor-move ${
+            className={`flex items-center gap-3 px-3 py-2.5 bg-fifa-dark border rounded-lg transition-colors cursor-move ${
               isInTeam
                 ? 'border-fifa-mint/50 bg-fifa-mint/5'
                 : 'border-fifa-border hover:border-fifa-mint/30'
             }`}
           >
+            {/* Pixel Avatar */}
+            <PixelAvatar
+              skinTone={player.skinTone}
+              hairColor={player.hairColor}
+              hairStyle={player.hairStyle}
+              size={32}
+            />
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-headline text-[12px] text-white truncate">
