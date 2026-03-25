@@ -263,6 +263,12 @@ export default function Dashboard() {
           >
             Simulate Match
           </button>
+          <button
+            onClick={() => router.push('/teams')}
+            className="px-6 py-3 rounded-lg font-semibold transition-colors bg-white/20 text-white hover:bg-white/30"
+          >
+            ⭐ Legendary Teams
+          </button>
         </div>
 
         {/* Content */}

@@ -66,37 +66,60 @@ export const simulateMatch = async (
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    const prompt = `You are a soccer match simulator. Simulate a realistic match between two teams.
+    const team1AvgRating = Math.round(team1Players.reduce((sum: number, p: any) => sum + (p.rating || 75), 0) / team1Players.length);
+    const team2AvgRating = Math.round(team2Players.reduce((sum: number, p: any) => sum + (p.rating || 75), 0) / team2Players.length);
+    const ratingGap = Math.abs(team1AvgRating - team2AvgRating);
+    const favorite = team1AvgRating >= team2AvgRating ? team1Name : team2Name;
 
-Team 1: ${team1Name}
-Formation & Players:
-${team1Players.map((p, i) => `${i + 1}. ${p.name} (${p.position}, Rating: ${p.rating}${p.isHistorical ? ', Historical' : ''})`).join('\n')}
+    const prompt = `You are an elite soccer match commentator. Simulate a FULL 90-minute match with live play-by-play commentary between these two teams.
 
-Team 2: ${team2Name}
-Formation & Players:
-${team2Players.map((p, i) => `${i + 1}. ${p.name} (${p.position}, Rating: ${p.rating}${p.isHistorical ? ', Historical' : ''})`).join('\n')}
+TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating})
+${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
 
-Simulate a complete match and provide results in the following JSON format:
+TEAM 2: ${team2Name} (Average Rating: ${team2AvgRating})
+${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
+
+SIMULATION RULES:
+- Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
+- Rating gap 0-3: Toss-up — either team equally likely to win, draw is common
+- Rating gap 4-8: Favorite wins ~65% of the time, underdog wins ~20%, draw ~15%
+- Rating gap 9+: Favorite wins ~75% of the time, underdog wins ~10%, draw ~15%
+- DO NOT always let the higher-rated team win. Upsets happen. Make the outcome feel earned.
+- Use ACTUAL player names from the rosters above — never invent players.
+- High-rated players should make more impactful plays but can still make mistakes.
+
+PLAY-BY-PLAY RULES:
+- Generate exactly 45-55 events covering the full 90 minutes
+- Minutes should be roughly chronological (small jumps, e.g. 1, 3, 6, 9, 12...)
+- Include a mix of: possession play, passes, dribbles, shots saved, shots missed, goals (with 2-3 events of buildup before each goal), fouls, corners, free kicks, yellow cards occasionally, halftime, and fulltime
+- Each goal MUST be preceded by at least 2 buildup events
+- Goals must include a running scoreline e.g. "[Team1] 1 - 0 [Team2]"
+- Halftime event at minute 45 must state the score
+- Fulltime event at minute 90 must state the final score
+
+Return ONLY this JSON (no markdown, no extra text):
 {
-  "team1Score": number,
-  "team2Score": number,
-  "summary": "A detailed, exciting 200-300 word match summary including key moments, goals, standout players, and how the match unfolded. Make it narrative and engaging like a sports commentator.",
-  "keyMoments": [
-    "Notable moment or goal description",
-    "Another key moment"
-  ],
-  "manOfTheMatch": "Player name and brief reason"
+  "team1Score": <number>,
+  "team2Score": <number>,
+  "summary": "<2-3 exciting sentences summarizing the match>",
+  "manOfTheMatch": "<Player name> — <one sentence reason>",
+  "playByPlay": [
+    { "minute": 1, "type": "kickoff", "text": "<event description>" },
+    { "minute": 4, "type": "action", "text": "<event description>" },
+    { "minute": 12, "type": "shot", "text": "<event description>" },
+    { "minute": 18, "type": "goal", "text": "GOAL! <description> | ${team1Name} X - Y ${team2Name}" },
+    { "minute": 45, "type": "halftime", "text": "HALF TIME — <score summary>" },
+    { "minute": 90, "type": "fulltime", "text": "FULL TIME! ${team1Name} X - Y ${team2Name}" }
+  ]
 }
 
-Consider player ratings and positions when determining the outcome. Historical players should be evaluated at their peak performance. Make the match realistic and entertaining. Only return valid JSON.`;
+Valid event types: kickoff, action, shot, goal, save, foul, card, corner, freekick, halftime, fulltime`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    
-    // Remove markdown code blocks if present
+
     const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    
     return JSON.parse(cleanText);
   } catch (error) {
     console.error('Error simulating match:', error);

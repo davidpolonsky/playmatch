@@ -144,6 +144,12 @@ export default function TeamsPage() {
           <h1 className="text-2xl font-bold text-gray-900">My Teams </h1>
           <div className="flex gap-4 items-center">
             <button
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
+            >
+              ← Dashboard
+            </button>
+            <button
               onClick={() => router.push('/team-builder')}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
             >
