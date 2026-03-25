@@ -6,6 +6,7 @@ import {
   deleteTeam,
   getTeamRecords,
   getMatchHistory,
+  getAllTeams,
   TeamRecord,
   MatchHistoryEntry,
 } from '@/lib/firebase/firestore';
@@ -34,6 +35,20 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
   const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+
+  // Load all teams (to check if opponents still exist)
+  useEffect(() => {
+    const loadAllTeams = async () => {
+      try {
+        const all = await getAllTeams();
+        setAllTeams(all);
+      } catch (e) {
+        console.error('Failed to load all teams', e);
+      }
+    };
+    loadAllTeams();
+  }, []);
 
   // Load team records
   useEffect(() => {
@@ -204,10 +219,17 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
                         const rc = entry.result === 'win' ? 'text-fifa-mint' : entry.result === 'loss' ? 'text-red-400' : 'text-white/30';
                         const rl = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
 
+                        // Check if opponent team still exists
+                        const opponentExists = entry.opponentId === 'legendary' ||
+                          allTeams.some(t => t.id === entry.opponentId);
+                        const opponentDisplay = opponentExists
+                          ? entry.opponentName
+                          : `${entry.opponentName} - Retired`;
+
                         return (
                           <div key={i} className="flex items-center gap-2 text-xs">
                             <span className="font-retro text-[7px] text-white/25 w-16 flex-shrink-0">{date}</span>
-                            <span className="flex-1 truncate text-fifa-cream/60">vs {entry.opponentName}</span>
+                            <span className="flex-1 truncate text-fifa-cream/60">vs {opponentDisplay}</span>
                             <span className="font-headline text-[10px] text-white/40">{entry.teamScore}–{entry.opponentScore}</span>
                             <span className={`font-retro text-[9px] w-4 text-right ${rc}`}>{rl}</span>
                           </div>
