@@ -2,23 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+
 body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0a2f1b 0%, #1a1a1a 100%);
+  color: #f7f3e3;
+  font-family: 'Press Start 2P', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.01em;
 }
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Press+Start+2P&display=swap');
 
 @layer components {
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+    @apply bg-fifa-mint hover:bg-fifa-gold text-fifa-dark font-headline py-2 px-4 rounded-lg transition-colors shadow-retro border-2 border-fifa-green;
   }
-  
   .btn-secondary {
-    @apply bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+    @apply bg-fifa-dark hover:bg-fifa-green text-fifa-cream font-headline py-2 px-4 rounded-lg transition-colors border-2 border-fifa-mint;
   }
-  
   .card {
-    @apply bg-white rounded-lg shadow-lg p-6;
+    @apply bg-fifa-cream/80 rounded-lg shadow-retro p-6 border-2 border-fifa-green backdrop-blur-sm;
   }
 }
