@@ -6,7 +6,7 @@ import { signOut } from '@/lib/firebase/auth';
 interface NavigationProps {
   user?: {
     displayName: string | null;
-  };
+  } | null;
   currentPage?: 'dashboard' | 'teams' | 'team-builder';
 }
 
