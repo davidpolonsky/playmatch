@@ -354,10 +354,14 @@ export interface MatchHistoryEntry {
 
 // Save a match history entry for one side
 export const saveMatchHistory = async (entry: Omit<MatchHistoryEntry, 'id'>): Promise<void> => {
-  await addDoc(collection(db, MATCH_HISTORY_COLLECTION), {
+  console.log('saveMatchHistory called with:', entry);
+  const docData = {
     ...entry,
     date: serverTimestamp(),
-  });
+  };
+  console.log('Saving to Firestore:', docData);
+  const docRef = await addDoc(collection(db, MATCH_HISTORY_COLLECTION), docData);
+  console.log('Match history saved with ID:', docRef.id);
 };
 
 // Get last N match history entries for a team
@@ -365,12 +369,21 @@ export const getMatchHistory = async (
   teamId: string,
   maxResults = 10
 ): Promise<MatchHistoryEntry[]> => {
-  const q = query(
-    collection(db, MATCH_HISTORY_COLLECTION),
-    where('teamId', '==', teamId),
-    orderBy('date', 'desc'),
-    limit(maxResults)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as MatchHistoryEntry));
+  console.log('getMatchHistory called for teamId:', teamId);
+  try {
+    const q = query(
+      collection(db, MATCH_HISTORY_COLLECTION),
+      where('teamId', '==', teamId),
+      orderBy('date', 'desc'),
+      limit(maxResults)
+    );
+    const snap = await getDocs(q);
+    console.log(`Found ${snap.docs.length} match history entries for team ${teamId}`);
+    const results = snap.docs.map(d => ({ id: d.id, ...d.data() } as MatchHistoryEntry));
+    console.log('Match history results:', results);
+    return results;
+  } catch (error) {
+    console.error('Error getting match history:', error);
+    throw error;
+  }
 };

@@ -39,9 +39,12 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   useEffect(() => {
     const loadRecords = async () => {
       const teamIds = teams.map(t => t.id!).filter(Boolean);
+      console.log('TeamList - Loading records for team IDs:', teamIds);
+      console.log('TeamList - Teams data:', teams);
       if (teamIds.length === 0) return;
       try {
         const records = await getTeamRecords(teamIds);
+        console.log('TeamList - Loaded records:', records);
         setTeamRecords(records);
       } catch (e) {
         console.error('Failed to load team records', e);
@@ -69,17 +72,23 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   };
 
   const handleViewHistory = async (teamId: string) => {
+    console.log('handleViewHistory clicked for teamId:', teamId);
     if (historyTeamId === teamId) {
       setHistoryTeamId(null);
       return;
     }
 
     setHistoryTeamId(teamId);
-    if (matchHistories[teamId]) return; // Already loaded
+    if (matchHistories[teamId]) {
+      console.log('Using cached history for:', teamId);
+      return; // Already loaded
+    }
 
     setLoadingHistory(true);
+    console.log('Loading history for team:', teamId);
     try {
       const history = await getMatchHistory(teamId, 10);
+      console.log('Loaded history:', history);
       setMatchHistories(prev => ({ ...prev, [teamId]: history }));
     } catch (e) {
       console.error('getMatchHistory failed:', e);

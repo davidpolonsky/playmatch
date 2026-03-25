@@ -231,6 +231,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
       // Save history for team1 if not legendary
       if (!isLeg1 && team1.id) {
+        console.log('Saving match history for team1:', team1.id, team1.name);
         saveMatchHistory({
           teamId: team1.id,
           teamName: team1.name,
@@ -240,11 +241,16 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
           opponentScore: matchResult.team2Score,
           result: t1wins ? 'win' : tied ? 'tie' : 'loss',
           date: null,
-        }).catch(() => {});
+        }).then(() => {
+          console.log('✓ Match history saved for team1:', team1.id);
+        }).catch((err) => {
+          console.error('✗ Failed to save match history for team1:', err);
+        });
       }
 
       // Save history for team2 if not legendary
       if (!isLeg2 && team2.id) {
+        console.log('Saving match history for team2:', team2.id, team2.name);
         saveMatchHistory({
           teamId: team2.id,
           teamName: team2.name,
@@ -254,7 +260,11 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
           opponentScore: matchResult.team1Score,
           result: t2wins ? 'win' : tied ? 'tie' : 'loss',
           date: null,
-        }).catch(() => {});
+        }).then(() => {
+          console.log('✓ Match history saved for team2:', team2.id);
+        }).catch((err) => {
+          console.error('✗ Failed to save match history for team2:', err);
+        });
       }
     } catch (e) {
       console.error('Error:', e);
