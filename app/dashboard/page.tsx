@@ -13,6 +13,7 @@ import TeamBuilder from '@/components/TeamBuilder';
 import TeamList from '@/components/TeamList';
 import MatchSimulator from '@/components/MatchSimulator';
 import Footer from '@/components/Footer';
+import Navigation from '@/components/Navigation';
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -188,74 +189,68 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 relative">
-      <div className="max-w-7xl mx-auto">
-        {/* Notification Toast */}
-        {notification.show && (
-          <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
-            <div className={`max-w-md p-4 rounded-lg shadow-lg border-l-4 ${
-              notification.type === 'success'
-                ? 'bg-green-50 border-green-400 text-green-800'
-                : notification.type === 'error'
-                ? 'bg-red-50 border-red-400 text-red-800'
-                : 'bg-blue-50 border-blue-400 text-blue-800'
-            }`}>
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{notification.message}</p>
+    <div className="min-h-screen">
+      <Navigation user={user} currentPage="dashboard" />
+
+      <main className="p-4 md:p-8 relative">
+        <div className="max-w-7xl mx-auto">
+          {/* Notification Toast */}
+          {notification.show && (
+            <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+              <div className={`max-w-md p-4 rounded-lg shadow-lg border-l-4 ${
+                notification.type === 'success'
+                  ? 'bg-green-50 border-green-400 text-green-800'
+                  : notification.type === 'error'
+                  ? 'bg-red-50 border-red-400 text-red-800'
+                  : 'bg-blue-50 border-blue-400 text-blue-800'
+              }`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{notification.message}</p>
+                  </div>
+                  <button
+                    onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                    className={`ml-3 text-lg font-bold ${
+                      notification.type === 'success'
+                        ? 'text-green-600 hover:text-green-800'
+                        : notification.type === 'error'
+                        ? 'text-red-600 hover:text-red-800'
+                        : 'text-blue-600 hover:text-blue-800'
+                    }`}
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  onClick={() => setNotification(prev => ({ ...prev, show: false }))}
-                  className={`ml-3 text-lg font-bold ${
-                    notification.type === 'success'
-                      ? 'text-green-600 hover:text-green-800'
-                      : notification.type === 'error'
-                      ? 'text-red-600 hover:text-red-800'
-                      : 'text-blue-600 hover:text-blue-800'
-                  }`}
-                >
-                  ×
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="font-retro text-[13px] text-fifa-mint tracking-wider">⚽ PlayMatch</h1>
-            <p className="font-headline text-[10px] text-white/40 mt-1">Welcome, {user.displayName}</p>
+          {/* Header */}
+          <div className="mb-6">
+            <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">DASHBOARD</h2>
+            <p className="font-headline text-[10px] text-white/40">Welcome, {user.displayName}</p>
           </div>
-          <button onClick={handleSignOut} className="btn-secondary">Sign Out</button>
-        </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-fifa-border pb-0 flex-wrap">
-          {[
-            { key: 'build', label: 'Build Team' },
-            { key: 'teams', label: `My Teams (${savedTeams.length})` },
-            { key: 'match', label: 'Simulate Match' },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key as typeof activeTab)}
-              className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
-                activeTab === key
-                  ? 'text-fifa-mint border-fifa-mint'
-                  : 'text-white/30 border-transparent hover:text-white/60'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            onClick={() => router.push('/teams')}
-            className="px-4 py-2.5 font-retro text-[9px] tracking-wider text-white/30 border-b-2 border-transparent hover:text-fifa-amber hover:border-fifa-amber transition-all -mb-px"
-          >
-            ⭐ Teams
-          </button>
-        </div>
+          {/* Tabs */}
+          <div className="flex gap-1 mb-6 border-b border-fifa-border pb-0 flex-wrap">
+            {[
+              { key: 'build', label: 'Build Team' },
+              { key: 'teams', label: `My Teams (${savedTeams.length})` },
+              { key: 'match', label: 'Simulate Match' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key as typeof activeTab)}
+                className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
+                  activeTab === key
+                    ? 'text-fifa-mint border-fifa-mint'
+                    : 'text-white/30 border-transparent hover:text-white/60'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
         {/* Content */}
         {activeTab === 'build' && (
@@ -431,7 +426,8 @@ export default function Dashboard() {
         {activeTab === 'match' && (
           <MatchSimulator teams={savedTeams} userId={user.uid} />
         )}
-      </div>
+        </div>
+      </main>
 
       <Footer />
     </div>

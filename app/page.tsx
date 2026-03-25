@@ -42,8 +42,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
-      <div className="max-w-4xl w-full text-center">
+    <>
+      <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
+        <div className="max-w-4xl w-full text-center">
         {/* Simple Logo */}
         <div className="mb-8 text-8xl">⚽</div>
         
@@ -105,6 +106,7 @@ export default function Home() {
       </div>
     </main>
 
-    <Footer />
+      <Footer />
+    </>
   );
 }

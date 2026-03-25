@@ -10,6 +10,7 @@ import CardUploader from '@/components/CardUploader';
 import EditableTeamDisplay from '@/components/EditableTeamDisplay';
 import PlayerList from '@/components/PlayerList';
 import Footer from '@/components/Footer';
+import Navigation from '@/components/Navigation';
 
 const POSITION_ORDER = { GK: 0, DEF: 1, MID: 2, FWD: 3 } as const;
 
@@ -94,18 +95,7 @@ export default function TeamBuilder() {
 
   return (
     <div className="min-h-screen">
-      {/* Nav */}
-      <nav className="bg-fifa-dark border-b border-fifa-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center gap-4 flex-wrap">
-          <h1 className="font-retro text-[11px] text-fifa-mint tracking-wider">⚽ PlayMatch</h1>
-          <div className="flex gap-2 items-center flex-wrap">
-            <button onClick={() => router.push('/teams')} className="btn-secondary text-[9px] py-1.5 px-3">← My Teams</button>
-            <button onClick={() => router.push('/dashboard')} className="btn-secondary text-[9px] py-1.5 px-3">Dashboard</button>
-            <span className="font-headline text-[10px] text-fifa-cream/50 hidden sm:block">{user?.displayName}</span>
-            <button onClick={signOut} className="btn-secondary text-[9px] py-1.5 px-3">Sign Out</button>
-          </div>
-        </div>
-      </nav>
+      <Navigation user={user} currentPage="team-builder" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h2 className="font-retro text-[13px] text-fifa-mint mb-6 tracking-wider">🏗 Team Builder</h2>
