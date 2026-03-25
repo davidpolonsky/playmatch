@@ -6,9 +6,10 @@ import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Team } from '@/lib/types';
 import {
-  getUserTeams, getAllTeams, deleteTeam,
+  getUserTeams, getAllTeams, deleteTeam, getTeam,
   updateTeamRecord, updateLegendaryRecord,
   getTeamRecords, getUserLegendaryRecords,
+  addSavedTeam, getSavedTeamIds, removeSavedTeam,
   TeamRecord,
 } from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
@@ -97,9 +98,19 @@ export default function TeamsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, TeamRecord>>({});
+  const [savedTeams, setSavedTeams] = useState<Team[]>([]);
+  const [addTeamIdInput, setAddTeamIdInput] = useState('');
+  const [addTeamLoading, setAddTeamLoading] = useState(false);
+  const [addTeamError, setAddTeamError] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  const allTeamsForSim: AnyTeam[] = [...myTeams, ...legendaryTeams, ...allTeams.filter(t => t.userId !== user?.uid)];
+  const allTeamsForSim: AnyTeam[] = [
+    ...myTeams,
+    ...legendaryTeams,
+    ...savedTeams,
+    ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)),
+  ];
 
   useEffect(() => {
     if (!loading && !user) router.push('/');
@@ -136,16 +147,26 @@ export default function TeamsPage() {
 
   const loadTeams = async () => {
     try {
-      const [userTeams, teams, legRecs] = await Promise.all([
+      const [userTeams, teams, legRecs, savedIds] = await Promise.all([
         getUserTeams(user!.uid).catch(() => [] as Team[]),
         getAllTeams().catch(() => [] as Team[]),
         getUserLegendaryRecords(user!.uid).catch(() => ({} as Record<string, TeamRecord>)),
+        getSavedTeamIds(user!.uid).catch(() => [] as string[]),
       ]);
       setMyTeams(userTeams);
       setAllTeams(teams);
       setLegendaryRecords(legRecs);
+
+      // Resolve saved team IDs → full team objects (filter out own teams)
+      const myTeamIds = new Set(userTeams.map(t => t.id));
+      const savedRaw = await Promise.all(
+        savedIds.filter(id => !myTeamIds.has(id)).map(id => getTeam(id).catch(() => null))
+      );
+      const savedFull = savedRaw.filter(t => t != null) as Team[];
+      setSavedTeams(savedFull);
+
       // Load W/L/T records for all teams
-      const ids = [...userTeams, ...teams].map(t => t.id!).filter(Boolean);
+      const ids = [...userTeams, ...teams, ...savedFull].map(t => t.id).filter((id): id is string => !!id);
       const recs = await getTeamRecords(ids).catch(() => ({} as Record<string, TeamRecord>));
       setTeamRecords(recs);
     } catch {
@@ -153,6 +174,44 @@ export default function TeamsPage() {
     } finally {
       setLoadingTeams(false);
     }
+  };
+
+  const handleAddTeamById = async () => {
+    const teamId = addTeamIdInput.trim();
+    if (!teamId) return;
+    setAddTeamLoading(true);
+    setAddTeamError('');
+    try {
+      // Check not already added or own team
+      if (myTeams.some(t => t.id === teamId) || savedTeams.some(t => t.id === teamId)) {
+        setAddTeamError('You already have this team.');
+        return;
+      }
+      const team = await getTeam(teamId);
+      if (!team) { setAddTeamError('Team not found. Double-check the ID.'); return; }
+      if (team.userId === user!.uid) { setAddTeamError("That's your own team!"); return; }
+      await addSavedTeam(user!.uid, teamId);
+      setSavedTeams(prev => [...prev, team]);
+      // Load its record too
+      const recs = await getTeamRecords([teamId]).catch(() => ({} as Record<string, TeamRecord>));
+      setTeamRecords(prev => ({ ...prev, ...recs }));
+      setAddTeamIdInput('');
+    } catch {
+      setAddTeamError('Something went wrong. Try again.');
+    } finally {
+      setAddTeamLoading(false);
+    }
+  };
+
+  const handleRemoveSavedTeam = async (teamId: string) => {
+    await removeSavedTeam(user!.uid, teamId).catch(() => {});
+    setSavedTeams(prev => prev.filter(t => t.id !== teamId));
+  };
+
+  const handleCopyId = (teamId: string) => {
+    navigator.clipboard.writeText(teamId).catch(() => {});
+    setCopiedId(teamId);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const getRecord = (team: AnyTeam): TeamRecord => {
@@ -228,6 +287,114 @@ export default function TeamsPage() {
 
   const getFormation = (f: any) => typeof f === 'string' ? f : f?.name || 'N/A';
 
+  // ── Inner TeamCard ──────────────────────────────────────────────
+  const TeamCard = ({ team, isOwn = false, isSaved = false }: { team: AnyTeam; isOwn?: boolean; isSaved?: boolean }) => {
+    const isLegendary = 'isLegendary' in team && team.isLegendary;
+    const isExpanded = expandedId === team.id;
+    const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
+    team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
+    const record = isLegendary
+      ? (legendaryRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
+      : (teamRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 });
+    const isCopied = copiedId === team.id;
+
+    return (
+      <div className={`border rounded-xl transition-shadow ${isLegendary ? 'border-purple-300 bg-purple-50' : isSaved ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-white'} ${isExpanded ? 'shadow-md' : 'hover:shadow-md'}`}>
+        {/* Card header */}
+        <button className="w-full text-left p-4" onClick={() => setExpandedId(isExpanded ? null : team.id!)}>
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-1 flex-wrap">
+                {team.name}
+                {isLegendary && <span>⭐</span>}
+                {isSaved && <span className="text-xs font-normal text-orange-500 ml-1">⚔️ rival</span>}
+              </h3>
+              {isLegendary && 'description' in team && (
+                <p className="text-xs text-purple-600 mt-0.5">{(team as any).description}</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">Formation: {getFormation(team.formation)}</p>
+            </div>
+            <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+              {isOwn && team.id && (
+                <button
+                  onClick={e => { e.stopPropagation(); handleCopyId(team.id!); }}
+                  title="Copy Team ID to share"
+                  className="text-gray-400 hover:text-blue-500 p-1 rounded transition-colors"
+                >
+                  {isCopied
+                    ? <span className="text-xs text-green-500 font-semibold">Copied!</span>
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  }
+                </button>
+              )}
+              {isOwn && (
+                <button
+                  onClick={e => { e.stopPropagation(); handleDeleteTeam(team.id!); }}
+                  className="text-red-400 hover:text-red-600 p-1"
+                  title="Delete team"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+              {isSaved && (
+                <button
+                  onClick={e => { e.stopPropagation(); handleRemoveSavedTeam(team.id!); }}
+                  className="text-gray-400 hover:text-red-500 p-1 text-xs font-semibold"
+                  title="Remove from Other Teams"
+                >✕</button>
+              )}
+              <span className="text-gray-400 text-xs ml-1">{isExpanded ? '▲' : '▼'}</span>
+            </div>
+          </div>
+
+          {/* Record + position breakdown */}
+          <div className="flex justify-between items-center mt-2">
+            <div className="flex gap-3 text-xs text-gray-500">
+              {POSITION_ORDER.map(pos => (
+                <span key={pos}><span className="font-medium">{pos}</span> {grouped[pos].length}</span>
+              ))}
+            </div>
+            <RecordBadge record={record} />
+          </div>
+
+          {/* Show team ID on own cards (truncated) */}
+          {isOwn && team.id && (
+            <p className="text-xs text-gray-400 mt-1 font-mono truncate">ID: {team.id}</p>
+          )}
+        </button>
+
+        {/* Expanded roster */}
+        {isExpanded && (
+          <div className={`border-t px-4 pb-4 pt-3 ${isLegendary ? 'border-purple-200' : isSaved ? 'border-orange-100' : 'border-gray-100'}`}>
+            {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
+              <div key={pos} className="mb-2">
+                <span className="text-xs font-bold text-gray-400 uppercase block mb-1">{pos}</span>
+                <div className="space-y-1">
+                  {grouped[pos].map((p, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-gray-800">{p.name}</span>
+                      <span className={`font-bold ${p.rating >= 90 ? 'text-yellow-600' : p.rating >= 80 ? 'text-green-600' : 'text-gray-500'}`}>
+                        {p.rating}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {isLegendary && (
+              <span className="inline-block mt-2 px-2 py-0.5 bg-purple-200 text-purple-800 rounded text-xs font-semibold">Legendary Team</span>
+            )}
+            {isSaved && team.id && (
+              <p className="text-xs text-gray-400 mt-2 font-mono">ID: {team.id}</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -279,8 +446,13 @@ export default function TeamsPage() {
                 <optgroup label="⭐ Legendary Teams">
                   {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
                 </optgroup>
+                {savedTeams.length > 0 && (
+                  <optgroup label="⚔️ Rival Teams">
+                    {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                  </optgroup>
+                )}
                 <optgroup label="All Other Teams">
-                  {allTeams.filter(t => t.userId !== user?.uid).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
               </select>
               {selectedHome && <RosterPanel team={selectedHome} record={getRecord(selectedHome)} />}
@@ -321,8 +493,13 @@ export default function TeamsPage() {
                 <optgroup label="⭐ Legendary Teams">
                   {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
                 </optgroup>
+                {savedTeams.length > 0 && (
+                  <optgroup label="⚔️ Rival Teams">
+                    {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                  </optgroup>
+                )}
                 <optgroup label="All Other Teams">
-                  {allTeams.filter(t => t.userId !== user?.uid).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
               </select>
               {selectedAway && <RosterPanel team={selectedAway} record={getRecord(selectedAway)} />}
@@ -408,101 +585,73 @@ export default function TeamsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto" />
               <p className="mt-4 text-gray-500">Loading teams…</p>
             </div>
-          ) : displayTeams.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-lg">No teams yet</p>
-              <button onClick={() => router.push('/team-builder')} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-                Create Your First Team
-              </button>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayTeams.map(team => {
-                const isLegendary = 'isLegendary' in team && team.isLegendary;
-                const isExpanded = expandedId === team.id;
-                const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
-                team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
-
-                return (
-                  <div
-                    key={team.id}
-                    className={`border rounded-xl transition-shadow ${isLegendary ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-white'} ${isExpanded ? 'shadow-md' : 'hover:shadow-md'}`}
-                  >
-                    {/* Card header — always visible */}
-                    <button
-                      className="w-full text-left p-4"
-                      onClick={() => setExpandedId(isExpanded ? null : team.id!)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 flex items-center gap-1 flex-wrap">
-                            {team.name}
-                            {isLegendary && <span>⭐</span>}
-                          </h3>
-                          {isLegendary && 'description' in team && (
-                            <p className="text-xs text-purple-600 mt-0.5">{team.description}</p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">Formation: {getFormation(team.formation)}</p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                          {!isLegendary && team.userId === user?.uid && (
-                            <span
-                              role="button"
-                              onClick={e => { e.stopPropagation(); handleDeleteTeam(team.id!); }}
-                              className="text-red-400 hover:text-red-600 p-1"
-                              title="Delete team"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </span>
-                          )}
-                          <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
-                        </div>
-                      </div>
-
-                      {/* Record + position breakdown */}
-                      <div className="flex justify-between items-center mt-2">
-                        <div className="flex gap-3 text-xs text-gray-500">
-                          {POSITION_ORDER.map(pos => (
-                            <span key={pos}><span className="font-medium">{pos}</span> {grouped[pos].length}</span>
-                          ))}
-                        </div>
-                        <RecordBadge record={
-                          isLegendary
-                            ? (legendaryRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
-                            : (teamRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
-                        } />
-                      </div>
-                    </button>
-
-                    {/* Expanded roster */}
-                    {isExpanded && (
-                      <div className={`border-t px-4 pb-4 pt-3 ${isLegendary ? 'border-purple-200' : 'border-gray-100'}`}>
-                        {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
-                          <div key={pos} className="mb-2">
-                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1">{pos}</span>
-                            <div className="space-y-1">
-                              {grouped[pos].map((p, i) => (
-                                <div key={i} className="flex justify-between text-sm">
-                                  <span className="text-gray-800">{p.name}</span>
-                                  <span className={`font-bold ${p.rating >= 90 ? 'text-yellow-600' : p.rating >= 80 ? 'text-green-600' : 'text-gray-500'}`}>
-                                    {p.rating}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                        {isLegendary && (
-                          <span className="inline-block mt-2 px-2 py-0.5 bg-purple-200 text-purple-800 rounded text-xs font-semibold">Legendary Team</span>
-                        )}
-                      </div>
-                    )}
+            <>
+              {/* ── My Teams: add-by-ID + other teams ── */}
+              {activeTab === 'my-teams' && (
+                <>
+                  {/* Add by Team ID */}
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-sm font-semibold text-blue-800 mb-2">⚔️ Add a Friend's Team by ID</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={addTeamIdInput}
+                        onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+                        onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+                        placeholder="Paste Team ID here…"
+                        className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                      />
+                      <button
+                        onClick={handleAddTeamById}
+                        disabled={addTeamLoading || !addTeamIdInput.trim()}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        {addTeamLoading ? '…' : 'Add'}
+                      </button>
+                    </div>
+                    {addTeamError && <p className="text-xs text-red-500 mt-1">{addTeamError}</p>}
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* My Teams grid */}
+                  {myTeams.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-lg">No teams yet</p>
+                      <button onClick={() => router.push('/team-builder')} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                        Create Your First Team
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {myTeams.map(team => <TeamCard key={team.id} team={team} isOwn />)}
+                    </div>
+                  )}
+
+                  {/* Other Teams section */}
+                  {savedTeams.length > 0 && (
+                    <div className="mt-8">
+                      <h3 className="text-lg font-bold text-gray-700 mb-3">⚔️ Other Teams</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {savedTeams.map(team => <TeamCard key={team.id} team={team} isSaved />)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Legendary + All Teams tabs ── */}
+              {activeTab !== 'my-teams' && (
+                displayTeams.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p className="text-lg">No teams found</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {displayTeams.map(team => <TeamCard key={team.id} team={team} />)}
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
       </main>

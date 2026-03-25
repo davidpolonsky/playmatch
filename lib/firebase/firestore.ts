@@ -103,6 +103,28 @@ export interface MatchResult {
 
 const TEAMS_COLLECTION = 'teams';
 const MATCHES_COLLECTION = 'matches';
+const SAVED_TEAMS_COLLECTION = 'savedTeams';
+
+// ── Saved / followed teams ─────────────────────────────────────
+
+// Save a reference to another user's team (docId = userId_teamId)
+export const addSavedTeam = async (userId: string, teamId: string): Promise<void> => {
+  const docId = `${userId}_${teamId}`;
+  await setDoc(doc(db, SAVED_TEAMS_COLLECTION, docId), { userId, teamId }, { merge: true });
+};
+
+// Get all saved team IDs for a user
+export const getSavedTeamIds = async (userId: string): Promise<string[]> => {
+  const q = query(collection(db, SAVED_TEAMS_COLLECTION), where('userId', '==', userId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.data().teamId as string);
+};
+
+// Remove a saved team reference
+export const removeSavedTeam = async (userId: string, teamId: string): Promise<void> => {
+  const docId = `${userId}_${teamId}`;
+  await deleteDoc(doc(db, SAVED_TEAMS_COLLECTION, docId));
+};
 
 // Save a team to Firestore
 export const saveTeam = async (team: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>) => {
