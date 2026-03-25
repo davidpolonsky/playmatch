@@ -121,6 +121,8 @@ export default function TeamsPage() {
   const feedRef = useRef<HTMLDivElement>(null);
   const [challengeTeamId, setChallengeTeamId] = useState<string | null>(null);
   const [challengeEmail, setChallengeEmail] = useState('');
+  const [sendingChallenge, setSendingChallenge] = useState(false);
+  const [challengeError, setChallengeError] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/');
@@ -256,27 +258,40 @@ export default function TeamsPage() {
     setChallengeEmail('');
   };
 
-  const sendChallenge = (team: Team, email: string) => {
+  const sendChallenge = async (team: Team, email: string) => {
     const teamId = team.shareId ? formatShareId(team.shareId) : team.id!;
-    const subject = `Challenge: Play against my ${team.name} team on PlayMatch!`;
-    const body = `Hey!
+    setSendingChallenge(true);
+    setChallengeError('');
 
-I challenge you to a match on PlayMatch!
+    try {
+      const res = await fetch('/api/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: email.trim(),
+          teamName: team.name,
+          teamId: teamId,
+          formation: getFormation(team.formation),
+          fromName: user?.displayName || user?.email?.split('@')[0] || 'A PlayMatch user',
+        }),
+      });
 
-My Team: ${team.name}
-Formation: ${getFormation(team.formation)}
+      const data = await res.json();
 
-To accept this challenge:
-1. Go to playmatch.app
-2. Add my team using ID: ${teamId}
-3. Challenge me to a match!
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send challenge');
+      }
 
-See you on the pitch!`;
-
-    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
-    setChallengeTeamId(null);
-    setChallengeEmail('');
+      // Success - close modal
+      setChallengeTeamId(null);
+      setChallengeEmail('');
+      alert('Challenge sent! 🎉');
+    } catch (err: any) {
+      console.error('Challenge error:', err);
+      setChallengeError(err.message || 'Failed to send challenge. Please try again.');
+    } finally {
+      setSendingChallenge(false);
+    }
   };
 
   const handleViewHistory = async (teamId: string) => {
@@ -909,12 +924,16 @@ See you on the pitch!`;
                   <input
                     type="email"
                     value={challengeEmail}
-                    onChange={e => setChallengeEmail(e.target.value)}
+                    onChange={e => { setChallengeEmail(e.target.value); setChallengeError(''); }}
                     placeholder="friend@example.com"
                     className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none placeholder:text-white/20"
                     autoFocus
-                    onKeyDown={e => e.key === 'Enter' && challengeEmail.trim() && sendChallenge(team, challengeEmail)}
+                    disabled={sendingChallenge}
+                    onKeyDown={e => e.key === 'Enter' && challengeEmail.trim() && !sendingChallenge && sendChallenge(team, challengeEmail)}
                   />
+                  {challengeError && (
+                    <p className="mt-2 font-headline text-[10px] text-red-400">{challengeError}</p>
+                  )}
                 </div>
 
                 <div className="bg-fifa-dark border border-fifa-border rounded-lg p-3">
@@ -927,17 +946,18 @@ See you on the pitch!`;
 
                 <div className="flex gap-2 pt-2">
                   <button
-                    onClick={() => setChallengeTeamId(null)}
-                    className="flex-1 btn-secondary py-2"
+                    onClick={() => { setChallengeTeamId(null); setChallengeError(''); }}
+                    disabled={sendingChallenge}
+                    className="flex-1 btn-secondary py-2 disabled:opacity-30"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => sendChallenge(team, challengeEmail)}
-                    disabled={!challengeEmail.trim()}
+                    disabled={!challengeEmail.trim() || sendingChallenge}
                     className="flex-1 btn-primary py-2 disabled:opacity-30"
                   >
-                    Send Challenge
+                    {sendingChallenge ? 'Sending...' : 'Send Challenge'}
                   </button>
                 </div>
               </div>
