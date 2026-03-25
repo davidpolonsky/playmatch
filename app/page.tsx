@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase/config';
 import { signInWithGoogle } from '@/lib/firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
+import Footer from '@/components/Footer';
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -103,5 +104,7 @@ export default function Home() {
         </p>
       </div>
     </main>
+
+    <Footer />
   );
 }

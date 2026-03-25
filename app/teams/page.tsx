@@ -15,6 +15,7 @@ import {
   TeamRecord, MatchHistoryEntry,
 } from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
+import Footer from '@/components/Footer';
 
 type AnyTeam = Team | LegendaryTeam;
 
@@ -876,10 +877,11 @@ export default function TeamsPage() {
 
                   {/* My Teams grid */}
                   {myTeams.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="font-headline text-[11px] text-white/40 mb-4">No teams yet</p>
-                      <button onClick={() => router.push('/team-builder')} className="btn-primary">
-                        + Build Your First Team
+                    <div className="text-center py-12 bg-fifa-dark border border-fifa-border rounded-xl">
+                      <p className="font-retro text-[9px] text-white/40 tracking-wider mb-1">NO TEAMS YET</p>
+                      <p className="font-headline text-[10px] text-white/25 mb-6">Build and save your first team</p>
+                      <button onClick={() => router.push('/team-builder')} className="btn-primary py-2.5 px-6">
+                        + Build Your Team
                       </button>
                     </div>
                   ) : (
@@ -916,6 +918,8 @@ export default function TeamsPage() {
           )}
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }

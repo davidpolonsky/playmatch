@@ -12,6 +12,7 @@ import CardUploader from '@/components/CardUploader';
 import TeamBuilder from '@/components/TeamBuilder';
 import TeamList from '@/components/TeamList';
 import MatchSimulator from '@/components/MatchSimulator';
+import Footer from '@/components/Footer';
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -431,6 +432,8 @@ export default function Dashboard() {
           <MatchSimulator teams={savedTeams} userId={user.uid} />
         )}
       </div>
+
+      <Footer />
     </div>
   );
 }

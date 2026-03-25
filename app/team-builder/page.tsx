@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { Player, Formation, FORMATIONS } from '@/lib/types';
 import { saveTeam } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
-import TeamDisplay from '@/components/TeamDisplay';
+import EditableTeamDisplay from '@/components/EditableTeamDisplay';
 import PlayerList from '@/components/PlayerList';
+import Footer from '@/components/Footer';
 
 const POSITION_ORDER = { GK: 0, DEF: 1, MID: 2, FWD: 3 } as const;
 
@@ -32,6 +33,12 @@ export default function TeamBuilder() {
 
   const handleRemovePlayer = (playerId: string) => {
     setPlayers(prev => prev.filter(p => p.id !== playerId));
+  };
+
+  const handleAddPlayer = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    if (!player) return;
+    // Player is already in the list, no need to add
   };
 
   const getStarting11 = (): Player[] => {
@@ -174,7 +181,13 @@ export default function TeamBuilder() {
                   ))}
                 </select>
               </div>
-              <TeamDisplay players={starting11} formation={selectedFormation} />
+              <EditableTeamDisplay
+                players={starting11}
+                allPlayers={players}
+                formation={selectedFormation}
+                onRemovePlayer={handleRemovePlayer}
+                onAddPlayer={handleAddPlayer}
+              />
             </div>
 
             {/* Save Team */}
@@ -202,6 +215,8 @@ export default function TeamBuilder() {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
