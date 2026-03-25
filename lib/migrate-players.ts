@@ -10,22 +10,17 @@ export function generateAppearanceForPlayer(player: Player): Player {
     return player;
   }
 
-  // Simple heuristics based on common knowledge
+  // Generate varied appearance based on player ID for consistency
   // In production, you'd want to call Gemini API to analyze stored card images
-  const name = player.name.toLowerCase();
+  const hash = player.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-  let skinTone: Player['skinTone'] = 'medium';
-  let hairColor: Player['hairColor'] = 'brown';
-  let hairStyle: Player['hairStyle'] = 'short';
+  const skinTones: Player['skinTone'][] = ['light', 'medium', 'tan', 'dark', 'brown', 'ebony', 'pale', 'olive'];
+  const hairColors: Player['hairColor'][] = ['blonde', 'lightbrown', 'brown', 'darkbrown', 'black', 'red', 'auburn', 'gray'];
+  const hairStyles: Player['hairStyle'][] = ['short', 'long', 'bald', 'curly'];
 
-  // Very basic defaults - in real implementation, this should call Gemini
-  // with the stored card image to get accurate appearance data
-
-  // For now, use reasonable defaults
-  if (player.isHistorical) {
-    // Historical players often have varied styles
-    hairStyle = Math.random() > 0.5 ? 'short' : 'long';
-  }
+  const skinTone = skinTones[hash % skinTones.length];
+  const hairColor = hairColors[(hash * 7) % hairColors.length];
+  const hairStyle = hairStyles[(hash * 13) % hairStyles.length];
 
   return {
     ...player,

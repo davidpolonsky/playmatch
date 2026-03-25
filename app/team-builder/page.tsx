@@ -5,12 +5,13 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Player, Formation, FORMATIONS } from '@/lib/types';
-import { saveTeam } from '@/lib/firebase/firestore';
+import { saveTeam, getUserRoster, saveUserRoster } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
 import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
 import InteractivePlayerList from '@/components/InteractivePlayerList';
 import Footer from '@/components/Footer';
 import Navigation from '@/components/Navigation';
+import { migrateRosterAppearance } from '@/lib/migrate-players';
 
 const POSITION_ORDER = { GK: 0, DEF: 1, MID: 2, FWD: 3 } as const;
 
@@ -29,10 +30,46 @@ export default function TeamBuilder() {
     if (!loading && !user) router.push('/');
   }, [user, loading, router]);
 
-  const handleCardAnalyzed = (player: Player) => {
+  // Load user's roster from Firebase
+  useEffect(() => {
+    const loadRoster = async () => {
+      if (!user) return;
+      try {
+        const roster = await getUserRoster(user.uid);
+        // Ensure IDs and appearance data
+        let rosterWithIds = roster.map(player =>
+          player.id ? player : { ...player, id: crypto.randomUUID() }
+        );
+        const rosterWithAppearance = migrateRosterAppearance(rosterWithIds);
+        setPlayers(rosterWithAppearance);
+
+        // Save if migrations were applied
+        const hadIdsMissing = roster.some(p => !p.id);
+        const hadAppearanceMissing = rosterWithAppearance.some(p => !p.skinTone);
+        if (hadIdsMissing || hadAppearanceMissing) {
+          await saveUserRoster(user.uid, rosterWithAppearance);
+        }
+      } catch (error) {
+        console.error('Error loading roster:', error);
+      }
+    };
+    if (user) loadRoster();
+  }, [user]);
+
+  const handleCardAnalyzed = async (player: Player) => {
     // Generate unique ID for the player
     const playerWithId = { ...player, id: crypto.randomUUID() };
-    setPlayers(prev => [...prev, playerWithId]);
+    const newPlayers = [...players, playerWithId];
+    setPlayers(newPlayers);
+
+    // Save to Firebase
+    if (user) {
+      try {
+        await saveUserRoster(user.uid, newPlayers);
+      } catch (error) {
+        console.error('Error saving roster:', error);
+      }
+    }
   };
 
   const handleRemovePlayerFromRoster = (playerId: string) => {

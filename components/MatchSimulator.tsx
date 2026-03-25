@@ -276,7 +276,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start mb-2">
         <div>
           <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Home Team</label>
-          <select value={team1Id} onChange={e => setTeam1Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
+          <select value={team1Id} onChange={e => setTeam1Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Home Team</option>
             <optgroup label="My Teams">
               {teams.map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
@@ -314,7 +314,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
 
         <div>
           <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Away Team</label>
-          <select value={team2Id} onChange={e => setTeam2Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
+          <select value={team2Id} onChange={e => setTeam2Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Away Team</option>
             <optgroup label="My Teams">
               {teams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}

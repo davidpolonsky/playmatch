@@ -8,8 +8,8 @@ export interface Player {
   year?: string;
   era?: string;
   // Pixel avatar appearance
-  skinTone?: 'light' | 'medium' | 'tan' | 'dark';
-  hairColor?: 'blonde' | 'brown' | 'black' | 'red' | 'gray' | 'none';
+  skinTone?: 'light' | 'medium' | 'tan' | 'dark' | 'brown' | 'ebony' | 'pale' | 'olive';
+  hairColor?: 'blonde' | 'lightbrown' | 'brown' | 'darkbrown' | 'black' | 'red' | 'auburn' | 'gray' | 'platinum' | 'none';
   hairStyle?: 'short' | 'long' | 'bald' | 'curly';
 }
 
