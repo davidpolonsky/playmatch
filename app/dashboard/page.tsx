@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import CardUploader from '@/components/CardUploader';
@@ -98,18 +98,27 @@ export default function Dashboard() {
   };
 
   const handlePlayerAdded = async (player: Player) => {
+    if (!user) return;
+
+    // Check rate limits before adding
+    const limitCheck = await checkCardUploadLimit(user.uid, 1);
+    if (!limitCheck.allowed) {
+      alert(limitCheck.reason || 'Upload limit reached');
+      return;
+    }
+
     // Generate unique ID for the player
     const playerWithId = { ...player, id: crypto.randomUUID() };
     const newPlayers = [...players, playerWithId];
     setPlayers(newPlayers);
 
-    // Save to Firebase
-    if (user) {
-      try {
-        await saveUserRoster(user.uid, newPlayers);
-      } catch (error) {
-        console.error('Error saving roster:', error);
-      }
+    // Save to Firebase and increment count
+    try {
+      await saveUserRoster(user.uid, newPlayers);
+      await incrementCardUploadCount(user.uid, 1);
+    } catch (error) {
+      console.error('Error saving roster:', error);
+      alert('Failed to save card');
     }
   };
 

@@ -289,13 +289,82 @@ export interface UserRoster {
 }
 
 const ROSTERS_COLLECTION = 'rosters';
+const RATE_LIMITS_COLLECTION = 'rateLimits';
+
+// Rate limiting constants
+const MAX_CARDS_PER_DAY = 50;
+const MAX_TOTAL_CARDS = 75;
+const MAX_SIMULATIONS_PER_DAY = 12;
+
+// Rate limiting helpers
+const getTodayDateString = (): string => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+export const checkCardUploadLimit = async (userId: string, newCardCount: number): Promise<{ allowed: boolean; reason?: string }> => {
+  const today = getTodayDateString();
+  const rateLimitRef = doc(db, RATE_LIMITS_COLLECTION, `${userId}_${today}`);
+
+  try {
+    const rateLimitDoc = await getDoc(rateLimitRef);
+    const currentUploads = rateLimitDoc.exists() ? (rateLimitDoc.data().cardUploads || 0) : 0;
+
+    // Check daily limit
+    if (currentUploads + newCardCount > MAX_CARDS_PER_DAY) {
+      return { allowed: false, reason: `Daily limit reached. You can upload ${MAX_CARDS_PER_DAY} cards per day. Try again tomorrow!` };
+    }
+
+    // Check total cards limit
+    const roster = await getUserRoster(userId);
+    if (roster.length + newCardCount > MAX_TOTAL_CARDS) {
+      return { allowed: false, reason: `Card limit reached. Maximum ${MAX_TOTAL_CARDS} total cards allowed.` };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    console.error('Error checking card upload limit:', error);
+    return { allowed: true }; // Allow on error to not block users
+  }
+};
+
+export const incrementCardUploadCount = async (userId: string, count: number = 1): Promise<void> => {
+  const today = getTodayDateString();
+  const rateLimitRef = doc(db, RATE_LIMITS_COLLECTION, `${userId}_${today}`);
+  await setDoc(rateLimitRef, { cardUploads: increment(count), date: today }, { merge: true });
+};
+
+export const checkSimulationLimit = async (userId: string): Promise<{ allowed: boolean; reason?: string }> => {
+  const today = getTodayDateString();
+  const rateLimitRef = doc(db, RATE_LIMITS_COLLECTION, `${userId}_${today}`);
+
+  try {
+    const rateLimitDoc = await getDoc(rateLimitRef);
+    const currentSimulations = rateLimitDoc.exists() ? (rateLimitDoc.data().simulations || 0) : 0;
+
+    if (currentSimulations >= MAX_SIMULATIONS_PER_DAY) {
+      return { allowed: false, reason: `Daily simulation limit reached. You can run ${MAX_SIMULATIONS_PER_DAY} simulations per day. Try again tomorrow!` };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    console.error('Error checking simulation limit:', error);
+    return { allowed: true }; // Allow on error to not block users
+  }
+};
+
+export const incrementSimulationCount = async (userId: string): Promise<void> => {
+  const today = getTodayDateString();
+  const rateLimitRef = doc(db, RATE_LIMITS_COLLECTION, `${userId}_${today}`);
+  await setDoc(rateLimitRef, { simulations: increment(1), date: today }, { merge: true });
+};
 
 // Save user's roster (uploaded players)
 export const saveUserRoster = async (userId: string, players: Player[]) => {
   try {
     const q = query(collection(db, ROSTERS_COLLECTION), where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
-    
+
     const rosterData = {
       userId,
       players,
