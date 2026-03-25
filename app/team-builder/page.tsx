@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation';
 import { Player, Formation, FORMATIONS } from '@/lib/types';
 import { saveTeam } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
-import TeamDisplay from '@/components/TeamDisplay';
-import PlayerList from '@/components/PlayerList';
+import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
+import InteractivePlayerList from '@/components/InteractivePlayerList';
 import Footer from '@/components/Footer';
 import Navigation from '@/components/Navigation';
 
@@ -17,7 +17,8 @@ const POSITION_ORDER = { GK: 0, DEF: 1, MID: 2, FWD: 3 } as const;
 export default function TeamBuilder() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]); // All scanned players
+  const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]); // Manually selected for starting 11
   const [selectedFormation, setSelectedFormation] = useState<Formation>(Object.values(FORMATIONS)[0]);
   const [teamName, setTeamName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -32,34 +33,47 @@ export default function TeamBuilder() {
     setPlayers(prev => [...prev, player]);
   };
 
-  const handleRemovePlayer = (playerId: string) => {
+  const handleRemovePlayerFromRoster = (playerId: string) => {
     setPlayers(prev => prev.filter(p => p.id !== playerId));
+    setSelectedPlayers(prev => prev.filter(p => p.id !== playerId));
   };
 
-  const getStarting11 = (): Player[] => {
-    const groups: Record<string, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-    players.forEach(p => { if (groups[p.position]) groups[p.position].push(p); });
-    Object.keys(groups).forEach(pos => groups[pos].sort((a, b) => b.rating - a.rating));
-    const fp = selectedFormation.positions;
-    return [
-      ...groups.GK.slice(0, fp.GK),
-      ...groups.DEF.slice(0, fp.DEF),
-      ...groups.MID.slice(0, fp.MID),
-      ...groups.FWD.slice(0, fp.FWD),
-    ];
+  const handleAddToTeam = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Check if we can add more of this position
+    const currentCount = selectedPlayers.filter(p => p.position === player.position).length;
+    const maxCount = selectedFormation.positions[player.position];
+
+    if (currentCount < maxCount) {
+      setSelectedPlayers(prev => [...prev, player]);
+    }
+  };
+
+  const handleRemoveFromTeam = (playerId: string) => {
+    setSelectedPlayers(prev => prev.filter(p => p.id !== playerId));
   };
 
   const handleSaveTeam = async () => {
-    if (!teamName.trim()) { setMessage('Enter a team name first.'); setMessageType('error'); return; }
-    const starting11 = getStarting11();
-    if (starting11.length < 11) {
-      setMessage(`Need 11 players — you have ${starting11.length}.`);
+    if (!teamName.trim()) {
+      setMessage('Enter a team name first.');
+      setMessageType('error');
+      return;
+    }
+    if (selectedPlayers.length < 11) {
+      setMessage(`Need 11 players — you have ${selectedPlayers.length}.`);
       setMessageType('error');
       return;
     }
     setSaving(true);
     try {
-      await saveTeam({ name: teamName, userId: user!.uid, formation: selectedFormation.name, players: starting11 });
+      await saveTeam({
+        name: teamName,
+        userId: user!.uid,
+        formation: selectedFormation.name,
+        players: selectedPlayers
+      });
       setMessage('Team saved!');
       setMessageType('success');
       setTimeout(() => router.push('/teams'), 1500);
@@ -82,7 +96,6 @@ export default function TeamBuilder() {
     );
   }
 
-  const starting11 = getStarting11();
   const grouped: Record<string, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   players.forEach(p => { if (grouped[p.position] !== undefined) grouped[p.position]++; });
   const fp = selectedFormation.positions;
@@ -136,7 +149,12 @@ export default function TeamBuilder() {
                 </div>
               )}
 
-              <PlayerList players={players} onRemove={handleRemovePlayer} />
+              <InteractivePlayerList
+                allPlayers={players}
+                teamPlayers={selectedPlayers}
+                onAdd={handleAddToTeam}
+                onRemove={handleRemovePlayerFromRoster}
+              />
             </div>
           </div>
 
@@ -149,8 +167,8 @@ export default function TeamBuilder() {
                 <div className="flex justify-between items-center gap-3 flex-wrap mb-2">
                   <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider">
                     Starting 11
-                    <span className={`ml-2 ${starting11.length === 11 ? 'text-fifa-mint' : 'text-white/30'}`}>
-                      ({starting11.length}/11)
+                    <span className={`ml-2 ${selectedPlayers.length === 11 ? 'text-fifa-mint' : 'text-white/30'}`}>
+                      ({selectedPlayers.length}/11)
                     </span>
                   </h3>
                 <select
@@ -167,12 +185,15 @@ export default function TeamBuilder() {
                 </select>
                 </div>
                 <p className="font-headline text-[9px] text-white/40 mb-4">
-                  ℹ️ Auto-selects your best players by position and rating. Remove players from roster below to change lineup.
+                  ℹ️ Click + on roster or empty slots. Drag & drop players. Click X to remove.
                 </p>
               </div>
-              <TeamDisplay
-                players={starting11}
+              <InteractiveTeamDisplay
+                players={selectedPlayers}
+                allPlayers={players}
                 formation={selectedFormation}
+                onRemoveFromTeam={handleRemoveFromTeam}
+                onAddToTeam={handleAddToTeam}
               />
             </div>
 
@@ -190,10 +211,10 @@ export default function TeamBuilder() {
                 />
                 <button
                   onClick={handleSaveTeam}
-                  disabled={saving || starting11.length < 11}
+                  disabled={saving || selectedPlayers.length < 11}
                   className="w-full btn-primary py-3 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  {saving ? 'Saving…' : starting11.length < 11 ? `Need ${11 - starting11.length} more players` : '✅ Save Team'}
+                  {saving ? 'Saving…' : selectedPlayers.length < 11 ? `Need ${11 - selectedPlayers.length} more players` : '✅ Save Team'}
                 </button>
               </div>
             </div>

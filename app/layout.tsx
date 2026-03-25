@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   title: 'PlayMatch - Build Your Dream Team',
   description: 'Turn your soccer cards into dream teams with AI',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico' },
+    ],
   },
 }
 
