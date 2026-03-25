@@ -221,53 +221,38 @@ export default function Dashboard() {
         )}
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-4xl font-bold text-white">⚽ Team Builder</h1>
-            <p className="text-white/80">Welcome, {user.displayName}!</p>
+            <h1 className="font-retro text-[13px] text-fifa-mint tracking-wider">⚽ PlayMatch</h1>
+            <p className="font-headline text-[10px] text-white/40 mt-1">Welcome, {user.displayName}</p>
           </div>
-          <button onClick={handleSignOut} className="btn-secondary">
-            Sign Out
-          </button>
+          <button onClick={handleSignOut} className="btn-secondary">Sign Out</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setActiveTab('build')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-              activeTab === 'build'
-                ? 'bg-white text-purple-900'
-                : 'bg-white/20 text-white hover:bg-white/30'
-            }`}
-          >
-            Build Team
-          </button>
-          <button
-            onClick={() => setActiveTab('teams')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-              activeTab === 'teams'
-                ? 'bg-white text-purple-900'
-                : 'bg-white/20 text-white hover:bg-white/30'
-            }`}
-          >
-            My Teams ({savedTeams.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('match')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-              activeTab === 'match'
-                ? 'bg-white text-purple-900'
-                : 'bg-white/20 text-white hover:bg-white/30'
-            }`}
-          >
-            Simulate Match
-          </button>
+        <div className="flex gap-1 mb-6 border-b border-fifa-border pb-0 flex-wrap">
+          {[
+            { key: 'build', label: 'Build Team' },
+            { key: 'teams', label: `My Teams (${savedTeams.length})` },
+            { key: 'match', label: 'Simulate Match' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key as typeof activeTab)}
+              className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
+                activeTab === key
+                  ? 'text-fifa-mint border-fifa-mint'
+                  : 'text-white/30 border-transparent hover:text-white/60'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
           <button
             onClick={() => router.push('/teams')}
-            className="px-6 py-3 rounded-lg font-semibold transition-colors bg-white/20 text-white hover:bg-white/30"
+            className="px-4 py-2.5 font-retro text-[9px] tracking-wider text-white/30 border-b-2 border-transparent hover:text-fifa-amber hover:border-fifa-amber transition-all -mb-px"
           >
-            ⭐ Legendary Teams
+            ⭐ Teams
           </button>
         </div>
 
@@ -276,7 +261,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Card Upload Section */}
             <div className="card">
-              <h2 className="text-2xl font-bold mb-4">Upload Player Cards</h2>
+              <h2 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">📷 Scan Player Cards</h2>
               <CardUploader
                 onPlayerAdded={handlePlayerAdded}
                 onError={(message) => showNotification(message, 'error')}
@@ -356,7 +341,7 @@ export default function Dashboard() {
 
             {/* Team Builder Section */}
             <div className="card">
-              <h2 className="text-2xl font-bold mb-4">Build Your Team</h2>
+              <h2 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">⚽ Build Your Team</h2>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">

@@ -111,13 +111,6 @@ export default function TeamsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  const allTeamsForSim: AnyTeam[] = [
-    ...myTeams,
-    ...legendaryTeams,
-    ...savedTeams,
-    ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)),
-  ];
-
   useEffect(() => {
     if (!loading && !user) router.push('/');
   }, [user, loading, router]);
@@ -371,7 +364,7 @@ export default function TeamsPage() {
         <button className="w-full text-left p-4" onClick={() => setExpandedId(isExpanded ? null : team.id!)}>
           <div className="flex justify-between items-start">
             <div className="flex-1 min-w-0">
-              <h3 className="font-headline text-[12px] text-fifa-cream flex items-center gap-2 flex-wrap">
+              <h3 className="font-headline text-[13px] text-white flex items-center gap-2 flex-wrap">
                 {team.name}
                 {isLegendary && <span className="text-[9px] font-retro text-fifa-amber">LEGEND</span>}
                 {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">RIVAL</span>}
@@ -379,7 +372,7 @@ export default function TeamsPage() {
               {isLegendary && 'description' in team && (
                 <p className="font-body text-[10px] text-fifa-amber/70 mt-0.5">{(team as any).description}</p>
               )}
-              <p className="font-headline text-[10px] text-white/30 mt-1">{getFormation(team.formation)}</p>
+              <p className="font-headline text-[11px] text-fifa-mint/60 mt-1">{getFormation(team.formation)}</p>
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {isOwn && team.id && (
@@ -539,13 +532,30 @@ export default function TeamsPage() {
           <h2 className="font-retro text-[11px] text-fifa-mint mb-6 tracking-wider">⚡ Match Simulator</h2>
 
           {/* Team selectors */}
+          {(() => {
+            const isHomeLegendary = selectedHome && 'isLegendary' in selectedHome && (selectedHome as any).isLegendary;
+            const homeOptions: AnyTeam[] = [...myTeams, ...legendaryTeams];
+            const awayOptions: AnyTeam[] = isHomeLegendary
+              ? legendaryTeams
+              : [...myTeams, ...legendaryTeams, ...savedTeams,
+                 ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))];
+            return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
             {/* Home */}
             <div>
               <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Home Team</label>
               <select
                 value={selectedHome?.id || ''}
-                onChange={e => setSelectedHome(allTeamsForSim.find(t => t.id === e.target.value) || null)}
+                onChange={e => {
+                  const team = homeOptions.find(t => t.id === e.target.value) || null;
+                  setSelectedHome(team);
+                  // If new home is legendary, clear away if it's not legendary
+                  if (team && 'isLegendary' in team && (team as any).isLegendary) {
+                    if (selectedAway && !('isLegendary' in selectedAway && (selectedAway as any).isLegendary)) {
+                      setSelectedAway(null);
+                    }
+                  }
+                }}
                 className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
               >
                 <option value="">Select home team…</option>
@@ -554,14 +564,6 @@ export default function TeamsPage() {
                 </optgroup>
                 <optgroup label="⭐ Legendary Teams">
                   {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
-                </optgroup>
-                {savedTeams.length > 0 && (
-                  <optgroup label="⚔️ Rival Teams">
-                    {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
-                  </optgroup>
-                )}
-                <optgroup label="All Other Teams">
-                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
               </select>
               {selectedHome && <RosterPanel team={selectedHome} record={getRecord(selectedHome)} />}
@@ -592,28 +594,38 @@ export default function TeamsPage() {
               <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Away Team</label>
               <select
                 value={selectedAway?.id || ''}
-                onChange={e => setSelectedAway(allTeamsForSim.find(t => t.id === e.target.value) || null)}
+                onChange={e => setSelectedAway(awayOptions.find(t => t.id === e.target.value) || null)}
                 className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
               >
                 <option value="">Select away team…</option>
-                <optgroup label="Your Teams">
-                  {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
-                </optgroup>
-                <optgroup label="⭐ Legendary Teams">
-                  {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
-                </optgroup>
-                {savedTeams.length > 0 && (
-                  <optgroup label="⚔️ Rival Teams">
-                    {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                {isHomeLegendary ? (
+                  <optgroup label="⭐ Legendary Teams">
+                    {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
                   </optgroup>
+                ) : (
+                  <>
+                    <optgroup label="Your Teams">
+                      {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                    </optgroup>
+                    <optgroup label="⭐ Legendary Teams">
+                      {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
+                    </optgroup>
+                    {savedTeams.length > 0 && (
+                      <optgroup label="⚔️ Rival Teams">
+                        {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                      </optgroup>
+                    )}
+                    <optgroup label="All Other Teams">
+                      {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                    </optgroup>
+                  </>
                 )}
-                <optgroup label="All Other Teams">
-                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
-                </optgroup>
               </select>
               {selectedAway && <RosterPanel team={selectedAway} record={getRecord(selectedAway)} />}
             </div>
           </div>
+            );
+          })()}
 
           {/* Live Scoreboard */}
           {(simResult || simulating) && (
