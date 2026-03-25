@@ -119,6 +119,8 @@ export default function TeamsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingPhrase, setLoadingPhrase] = useState('');
   const feedRef = useRef<HTMLDivElement>(null);
+  const [challengeTeamId, setChallengeTeamId] = useState<string | null>(null);
+  const [challengeEmail, setChallengeEmail] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/');
@@ -247,6 +249,34 @@ export default function TeamsPage() {
     navigator.clipboard.writeText(display).catch(() => {});
     setCopiedId(team.id!);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleEmailChallenge = (team: Team) => {
+    setChallengeTeamId(team.id!);
+    setChallengeEmail('');
+  };
+
+  const sendChallenge = (team: Team, email: string) => {
+    const teamId = team.shareId ? formatShareId(team.shareId) : team.id!;
+    const subject = `Challenge: Play against my ${team.name} team on PlayMatch!`;
+    const body = `Hey!
+
+I challenge you to a match on PlayMatch!
+
+My Team: ${team.name}
+Formation: ${getFormation(team.formation)}
+
+To accept this challenge:
+1. Go to playmatch.app
+2. Add my team using ID: ${teamId}
+3. Challenge me to a match!
+
+See you on the pitch!`;
+
+    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+    setChallengeTeamId(null);
+    setChallengeEmail('');
   };
 
   const handleViewHistory = async (teamId: string) => {
@@ -399,16 +429,27 @@ export default function TeamsPage() {
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {isOwn && team.id && (
-                <button
-                  onClick={e => { e.stopPropagation(); handleCopyId(team as Team); }}
-                  title="Copy Team ID to share"
-                  className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
-                >
-                  {isCopied
-                    ? <span className="font-retro text-[8px] text-fifa-mint">✓</span>
-                    : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                  }
-                </button>
+                <>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleEmailChallenge(team as Team); }}
+                    title="Challenge someone by email"
+                    className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleCopyId(team as Team); }}
+                    title="Copy Team ID to share"
+                    className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
+                  >
+                    {isCopied
+                      ? <span className="font-retro text-[8px] text-fifa-mint">✓</span>
+                      : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    }
+                  </button>
+                </>
               )}
               {isOwn && (
                 <button
@@ -838,6 +879,72 @@ export default function TeamsPage() {
           )}
         </div>
       </main>
+
+      {/* Email Challenge Modal */}
+      {challengeTeamId && (() => {
+        const team = myTeams.find(t => t.id === challengeTeamId);
+        if (!team) return null;
+        return (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setChallengeTeamId(null)}>
+            <div className="bg-fifa-mid border border-fifa-border rounded-xl shadow-retro p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-retro text-[11px] text-fifa-mint tracking-wider mb-1">⚡ EMAIL CHALLENGE</h3>
+                  <p className="font-headline text-sm text-fifa-cream">{team.name}</p>
+                </div>
+                <button onClick={() => setChallengeTeamId(null)} className="text-white/30 hover:text-white transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="font-headline text-[11px] text-fifa-cream/60 mb-4">
+                Send an email challenge to invite someone to play against this team.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Recipient Email</label>
+                  <input
+                    type="email"
+                    value={challengeEmail}
+                    onChange={e => setChallengeEmail(e.target.value)}
+                    placeholder="friend@example.com"
+                    className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none placeholder:text-white/20"
+                    autoFocus
+                    onKeyDown={e => e.key === 'Enter' && challengeEmail.trim() && sendChallenge(team, challengeEmail)}
+                  />
+                </div>
+
+                <div className="bg-fifa-dark border border-fifa-border rounded-lg p-3">
+                  <p className="font-retro text-[8px] text-fifa-mint/50 mb-2 uppercase tracking-widest">Preview</p>
+                  <p className="font-headline text-[10px] text-fifa-cream/60 leading-relaxed">
+                    Challenge to play <span className="text-fifa-mint">{team.name}</span>
+                    <br />Team ID: <span className="text-fifa-amber">{team.shareId ? formatShareId(team.shareId) : team.id}</span>
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setChallengeTeamId(null)}
+                    className="flex-1 btn-secondary py-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => sendChallenge(team, challengeEmail)}
+                    disabled={!challengeEmail.trim()}
+                    className="flex-1 btn-primary py-2 disabled:opacity-30"
+                  >
+                    Send Challenge
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <Footer />
     </div>
