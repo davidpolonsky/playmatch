@@ -135,3 +135,121 @@ Valid event types: kickoff, action, shot, goal, save, foul, card, corner, freeki
     throw error;
   }
 };
+
+// ── Basketball Card Analysis ────────────────────────────────────────────────
+
+export const analyzeBasketballCard = async (imageBase64: string) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const prompt = `Analyze this basketball player card image and extract information in JSON format:
+{
+  "name": "player full name",
+  "position": "position — must be one of: PG, SG, SF, PF, C",
+  "rating": number between 1-99,
+  "isHistorical": boolean (true if retired/historical player),
+  "year": "year or era if historical",
+  "skinTone": "light, medium, tan, dark, brown, or ebony",
+  "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
+  "hairStyle": "short, long, bald, or curly"
+}
+
+Position guide:
+- PG = Point Guard (ball handler, usually shortest)
+- SG = Shooting Guard (scorer/perimeter)
+- SF = Small Forward (versatile wing)
+- PF = Power Forward (athletic big)
+- C  = Center (tallest, paint player)
+
+For the rating field:
+- Use NBA 2K-style overall rating (1-99) based on the player's skill during that specific year
+- Consider peak performance, achievements, and real-world impact
+- Examples: Prime MJ (1996) = 99, Prime LeBron (2013) = 98, Prime Curry (2016) = 97, All-Star = 88-94, Good starter = 78-87, Role player = 65-77
+
+If you cannot read the card clearly, or it is not a basketball card, return:
+{ "error": "description of the issue" }
+
+IMPORTANT: Always provide a numeric rating. Only return valid JSON, no extra text.`;
+
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+    ]);
+
+    const text = result.response.text();
+    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanText);
+  } catch (error) {
+    console.error('Error analyzing basketball card:', error);
+    throw error;
+  }
+};
+
+// ── Basketball Game Simulation ──────────────────────────────────────────────
+
+export const simulateBasketballGame = async (
+  team1Name: string,
+  team1Players: any[],
+  team2Name: string,
+  team2Players: any[]
+) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const team1Avg = Math.round(team1Players.reduce((s: number, p: any) => s + (p.rating || 75), 0) / team1Players.length);
+    const team2Avg = Math.round(team2Players.reduce((s: number, p: any) => s + (p.rating || 75), 0) / team2Players.length);
+    const ratingGap = Math.abs(team1Avg - team2Avg);
+    const favorite = team1Avg >= team2Avg ? team1Name : team2Name;
+
+    const prompt = `You are an elite NBA commentator. Simulate a FULL 4-quarter basketball game with live play-by-play between these two teams.
+
+TEAM 1: ${team1Name} (Avg Rating: ${team1Avg})
+${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
+
+TEAM 2: ${team2Name} (Avg Rating: ${team2Avg})
+${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
+
+SIMULATION RULES:
+- Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
+- Rating gap 0-3: Toss-up — either team equally likely to win, overtime is possible
+- Rating gap 4-8: Favorite wins ~65% of the time, upset ~20%, close game ~15%
+- Rating gap 9+: Favorite wins ~75% of the time, upset ~10%
+- Final scores should be realistic NBA totals: each team scores 85-120 points
+- NO ties — if scores are equal at end, one team wins by 2-3 in overtime
+- Use ACTUAL player names from the rosters above — never invent players
+- High-rated players make more impact but can still miss big shots
+
+PLAY-BY-PLAY RULES:
+- Generate exactly 48-56 events covering all 4 quarters
+- Include a mix of: tip_off, shot_made (2pts), three_made (3pts), shot_missed, three_missed, dunk, layup, steal, block, turnover, foul, free_throw (1pt), timeout, end_quarter (after each quarter), buzzer_beater (optional), final
+- Every shot_made, three_made, dunk, layup, free_throw, buzzer_beater MUST include "scoringTeam": "team1" or "team2" AND "points": 2 or 3 or 1
+- end_quarter events must state the running score e.g. "END Q1 — ${team1Name} 28 - ${team2Name} 24"
+- final event must state the final score
+- quarter field must be 1, 2, 3, or 4 (use 4 for overtime too)
+- time field format: "10:34" (minutes:seconds remaining in quarter)
+
+Return ONLY this JSON (no markdown, no extra text):
+{
+  "team1Score": <number>,
+  "team2Score": <number>,
+  "summary": "<2-3 exciting sentences summarizing the game>",
+  "playerOfGame": "<Player name> — <one sentence reason>",
+  "playByPlay": [
+    { "quarter": 1, "time": "12:00", "type": "tip_off", "text": "<description>" },
+    { "quarter": 1, "time": "11:22", "type": "shot_made", "scoringTeam": "team1", "points": 2, "text": "<description>" },
+    { "quarter": 1, "time": "0:00", "type": "end_quarter", "text": "END Q1 — <score>" },
+    { "quarter": 4, "time": "0:00", "type": "final", "text": "FINAL — ${team1Name} X - ${team2Name} Y" }
+  ]
+}
+
+Valid event types: tip_off, shot_made, three_made, shot_missed, three_missed, dunk, layup, steal, block, turnover, foul, free_throw, timeout, end_quarter, buzzer_beater, final`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanText);
+  } catch (error) {
+    console.error('Error simulating basketball game:', error);
+    throw error;
+  }
+};

@@ -49,6 +49,18 @@ export default function Home() {
     <>
       <main className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 bg-fifa-dark">
         <div className="max-w-4xl w-full text-center px-4">
+
+          {/* Sport switcher */}
+          <div className="flex justify-center gap-2 mb-8">
+            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-fifa-mint bg-fifa-mint/10 text-fifa-mint font-retro text-[8px]">
+              ⚽ Football
+            </button>
+            <button onClick={() => router.push('/basketball')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white/50 font-retro text-[8px] hover:text-white/70 transition-colors">
+              🏀 Basketball
+            </button>
+          </div>
+
           {/* Logo - Soccer ball */}
           <div className="mb-8 inline-block">
             <Image src="/soccer.png" alt="Soccer Ball" width={96} height={96} className="mx-auto" style={{ imageRendering: 'pixelated' }} unoptimized priority />
