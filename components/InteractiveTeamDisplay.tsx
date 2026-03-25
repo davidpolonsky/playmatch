@@ -176,16 +176,22 @@ export default function InteractiveTeamDisplay({
         {renderPositionRow('GK', formation.positions.GK)}
       </div>
 
-      {players.length < 11 && (
-        <div className="text-center bg-fifa-dark/50 rounded-lg p-3 mt-4 border border-fifa-border">
+      <div className="text-center bg-fifa-dark/50 rounded-lg p-3 mt-4 border border-fifa-border">
+        {players.length === 11 ? (
           <p className="font-retro text-[9px] text-fifa-mint mb-1">
-            Need {11 - players.length} more player{players.length !== 10 ? 's' : ''}
+            ✓ Complete team
           </p>
-          <p className="font-headline text-[9px] text-white/40">
-            Click + on empty slots or drag from roster
-          </p>
-        </div>
-      )}
+        ) : (
+          <>
+            <p className="font-retro text-[9px] text-fifa-mint mb-1">
+              Need {11 - players.length} more player{players.length !== 10 ? 's' : ''}
+            </p>
+            <p className="font-headline text-[9px] text-white/40">
+              Click + on empty slots or drag from roster
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

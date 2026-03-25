@@ -375,16 +375,6 @@ export default function Dashboard() {
 
               {currentTeam.length > 0 && (
                 <>
-                  <div className="mb-4 text-center">
-                    <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
-                      currentTeam.length === 11
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {currentTeam.length === 11 ? 'Complete Team' : `Partial Team: ${currentTeam.length}/11`}
-                    </span>
-                  </div>
-
                   <InteractiveTeamDisplay
                     players={currentTeam}
                     allPlayers={players}
