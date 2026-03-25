@@ -11,7 +11,7 @@ import {
   getTeamRecords,
   TeamRecord,
 } from '@/lib/firebase/firestore';
-import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
+import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
 
 type AnyTeam = Team | LegendaryTeam;
 
@@ -104,8 +104,11 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
   const [currentScore, setCurrentScore] = useState({ team1: 0, team2: 0 });
   const feedRef = useRef<HTMLDivElement>(null);
 
+  // Get legendary teams (excluding premium)
+  const legendaryTeams = getLegendaryTeams();
+
   // All selectable teams
-  const allTeams: AnyTeam[] = [...teams, ...LEGENDARY_TEAMS, ...otherTeams.filter(t => t.userId !== userId)];
+  const allTeams: AnyTeam[] = [...teams, ...legendaryTeams, ...otherTeams.filter(t => t.userId !== userId)];
 
   // Load other users' teams + records on mount
   useEffect(() => {
@@ -282,7 +285,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
               {teams.map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
             </optgroup>
             <optgroup label="⭐ Legendary Teams">
-              {LEGENDARY_TEAMS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
             {otherTeams.filter(t => t.userId !== userId).length > 0 && (
               <optgroup label="⚔️ Challenge (other users)">
@@ -320,7 +323,7 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
               {teams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
             </optgroup>
             <optgroup label="⭐ Legendary Teams">
-              {LEGENDARY_TEAMS.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {legendaryTeams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
             {otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).length > 0 && (
               <optgroup label="⚔️ Challenge (other users)">
