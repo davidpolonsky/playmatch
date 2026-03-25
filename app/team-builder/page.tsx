@@ -1,61 +1,69 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/components/AuthProvider';
+import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Player, Formation, FORMATIONS } from '@/lib/types';
-import { saveTeam } from '@/lib/firestore';
+import { saveTeam } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
 import TeamDisplay from '@/components/TeamDisplay';
 import PlayerList from '@/components/PlayerList';
 
+const POSITION_ORDER = { GK: 0, DEF: 1, MID: 2, FWD: 3 } as const;
+
 export default function TeamBuilder() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedFormation, setSelectedFormation] = useState<Formation>(Object.values(FORMATIONS)[0]);
   const [teamName, setTeamName] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('error');
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
-    }
+    if (!loading && !user) router.push('/');
   }, [user, loading, router]);
 
   const handleCardAnalyzed = (player: Player) => {
-    setPlayers((prev) => [...prev, player]);
+    setPlayers(prev => [...prev, player]);
   };
 
   const handleRemovePlayer = (playerId: string) => {
-    setPlayers((prev) => prev.filter((p) => p.id !== playerId));
+    setPlayers(prev => prev.filter(p => p.id !== playerId));
   };
 
   const getStarting11 = (): Player[] => {
-    const starting11: Player[] = [];
-    const positions: { [key: string]: Player[] } = { GK: [], DEF: [], MID: [], FWD: [] };
-    players.forEach((player) => { positions[player.position].push(player); });
-    Object.keys(positions).forEach((pos) => { positions[pos].sort((a, b) => b.rating - a.rating); });
+    const groups: Record<string, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+    players.forEach(p => { if (groups[p.position]) groups[p.position].push(p); });
+    Object.keys(groups).forEach(pos => groups[pos].sort((a, b) => b.rating - a.rating));
     const fp = selectedFormation.positions;
-    starting11.push(...positions.GK.slice(0, fp.GK));
-    starting11.push(...positions.DEF.slice(0, fp.DEF));
-    starting11.push(...positions.MID.slice(0, fp.MID));
-    starting11.push(...positions.FWD.slice(0, fp.FWD));
-    return starting11;
+    return [
+      ...groups.GK.slice(0, fp.GK),
+      ...groups.DEF.slice(0, fp.DEF),
+      ...groups.MID.slice(0, fp.MID),
+      ...groups.FWD.slice(0, fp.FWD),
+    ];
   };
 
   const handleSaveTeam = async () => {
-    if (!teamName.trim()) { setMessage('Please enter a team name'); return; }
+    if (!teamName.trim()) { setMessage('Enter a team name first.'); setMessageType('error'); return; }
     const starting11 = getStarting11();
-    if (starting11.length < 11) { setMessage(`You need 11 players. You have ${starting11.length}.`); return; }
+    if (starting11.length < 11) {
+      setMessage(`Need 11 players — you have ${starting11.length}.`);
+      setMessageType('error');
+      return;
+    }
     setSaving(true);
     try {
       await saveTeam({ name: teamName, userId: user!.uid, formation: selectedFormation.name, players: starting11 });
-      setMessage('Team saved successfully!');
-      setTimeout(() => { router.push('/teams'); }, 1500);
-    } catch (error) {
+      setMessage('Team saved!');
+      setMessageType('success');
+      setTimeout(() => router.push('/teams'), 1500);
+    } catch {
       setMessage('Error saving team. Please try again.');
+      setMessageType('error');
     } finally {
       setSaving(false);
     }
@@ -65,57 +73,132 @@ export default function TeamBuilder() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-fifa-mint mx-auto" />
+          <p className="mt-4 font-retro text-[9px] text-fifa-mint/50">Loading…</p>
         </div>
       </div>
     );
   }
 
   const starting11 = getStarting11();
+  const grouped: Record<string, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  players.forEach(p => { if (grouped[p.position] !== undefined) grouped[p.position]++; });
+  const fp = selectedFormation.positions;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Team Builder</h1>
-          <div className="flex gap-4 items-center">
-            <button onClick={() => router.push('/teams')} className="px-4 py-2 text-gray-700 hover:text-gray-900">My Teams</button>
-            <span className="text-gray-600">{user?.displayName}</span>
-            <button onClick={signOut} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg">Sign Out</button>
+    <div className="min-h-screen">
+      {/* Nav */}
+      <nav className="bg-fifa-dark border-b border-fifa-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center gap-4 flex-wrap">
+          <h1 className="font-retro text-[11px] text-fifa-mint tracking-wider">⚽ PlayMatch</h1>
+          <div className="flex gap-2 items-center flex-wrap">
+            <button onClick={() => router.push('/teams')} className="btn-secondary text-[9px] py-1.5 px-3">← My Teams</button>
+            <button onClick={() => router.push('/dashboard')} className="btn-secondary text-[9px] py-1.5 px-3">Dashboard</button>
+            <span className="font-headline text-[10px] text-fifa-cream/50 hidden sm:block">{user?.displayName}</span>
+            <button onClick={signOut} className="btn-secondary text-[9px] py-1.5 px-3">Sign Out</button>
           </div>
         </div>
       </nav>
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Upload Cards</h2>
-              <CardUploader onPlayerAdded={handleCardAnalyzed} userId={user!.uid} />
+        <h2 className="font-retro text-[13px] text-fifa-mint mb-6 tracking-wider">🏗 Team Builder</h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Left column: scanner + player list */}
+          <div className="lg:col-span-1 space-y-4">
+
+            {/* Scan Cards */}
+            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
+              <h3 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">📷 Scan Player Cards</h3>
+              <CardUploader
+                onPlayerAdded={handleCardAnalyzed}
+                onError={msg => { setMessage(msg); setMessageType('error'); }}
+                onSuccess={msg => { setMessage(msg); setMessageType('success'); }}
+                userId={user!.uid}
+              />
+              {message && (
+                <p className={`mt-3 font-headline text-[10px] text-center ${messageType === 'success' ? 'text-fifa-mint' : 'text-red-400'}`}>
+                  {message}
+                </p>
+              )}
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">All Players ({players.length})</h2>
+
+            {/* Uploaded Players */}
+            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider">Uploaded Players ({players.length})</h3>
+              </div>
+
+              {/* Position breakdown */}
+              {players.length > 0 && (
+                <div className="grid grid-cols-4 gap-1.5 mb-4">
+                  {(['GK', 'DEF', 'MID', 'FWD'] as const).map(pos => (
+                    <div key={pos} className="bg-fifa-dark border border-fifa-border rounded-lg p-2 text-center">
+                      <div className="font-retro text-[8px] text-fifa-mint/70">{pos}</div>
+                      <div className="font-headline text-[13px] text-white mt-0.5">
+                        {grouped[pos]}
+                        <span className="text-white/30 text-[10px]">/{fp[pos]}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <PlayerList players={players} onRemove={handleRemovePlayer} />
             </div>
           </div>
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Starting 11 ({starting11.length}/11)</h2>
-                <select value={selectedFormation.name} onChange={(e) => { const f = Object.values(FORMATIONS).find((x) => x.name === e.target.value); if (f) setSelectedFormation(f); }} className="px-4 py-2 border border-gray-300 rounded-lg">
-                  {Object.values(FORMATIONS).map((formation) => (<option key={formation.name} value={formation.name}>{formation.name}</option>))}
+
+          {/* Right column: pitch + save */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Starting 11 + formation picker */}
+            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
+              <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
+                <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider">
+                  Starting 11
+                  <span className={`ml-2 ${starting11.length === 11 ? 'text-fifa-mint' : 'text-white/30'}`}>
+                    ({starting11.length}/11)
+                  </span>
+                </h3>
+                <select
+                  value={selectedFormation.name}
+                  onChange={e => {
+                    const f = Object.values(FORMATIONS).find(x => x.name === e.target.value);
+                    if (f) setSelectedFormation(f);
+                  }}
+                  className="px-3 py-1.5 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-[11px] focus:ring-1 focus:ring-fifa-mint focus:outline-none"
+                >
+                  {Object.values(FORMATIONS).map(f => (
+                    <option key={f.name} value={f.name}>{f.name}</option>
+                  ))}
                 </select>
               </div>
               <TeamDisplay players={starting11} formation={selectedFormation} />
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Save Team</h2>
-              <div className="space-y-4">
-                <input type="text" placeholder="Enter team name..." value={teamName} onChange={(e) => setTeamName(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-                <button onClick={handleSaveTeam} disabled={saving || starting11.length < 11} className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-lg">{saving ? 'Saving...' : 'Save Team'}</button>
-                {message && (<p className={`text-center ${message.includes('success') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>)}
+
+            {/* Save Team */}
+            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
+              <h3 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">💾 Save Team</h3>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Enter team name…"
+                  value={teamName}
+                  onChange={e => setTeamName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveTeam()}
+                  className="w-full px-4 py-2.5 bg-fifa-dark border border-fifa-border rounded-lg text-white font-headline text-sm placeholder:text-white/25 focus:ring-1 focus:ring-fifa-mint focus:outline-none"
+                />
+                <button
+                  onClick={handleSaveTeam}
+                  disabled={saving || starting11.length < 11}
+                  className="w-full btn-primary py-3 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {saving ? 'Saving…' : starting11.length < 11 ? `Need ${11 - starting11.length} more players` : '✅ Save Team'}
+                </button>
               </div>
             </div>
+
           </div>
         </div>
       </main>
