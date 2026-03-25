@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+// Check if SendGrid is configured
+const SENDGRID_CONFIGURED = process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL;
+
+if (SENDGRID_CONFIGURED) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if SendGrid is configured
+    if (!SENDGRID_CONFIGURED) {
+      return NextResponse.json({
+        error: 'Email service not configured. Please set up SendGrid in environment variables.'
+      }, { status: 503 });
+    }
+
     const { fromName, toEmail } = await req.json();
 
     if (!toEmail || typeof toEmail !== 'string') {
@@ -83,6 +95,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('SendGrid error:', err?.response?.body || err);
-    return NextResponse.json({ error: 'Failed to send invite' }, { status: 500 });
+    const errorMessage = err?.response?.body?.errors?.[0]?.message || err?.message || 'Failed to send invite';
+    return NextResponse.json({
+      error: errorMessage,
+      hint: 'Make sure SendGrid API key and sender email are configured correctly'
+    }, { status: 500 });
   }
 }

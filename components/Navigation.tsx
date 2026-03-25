@@ -37,15 +37,22 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromName: name, toEmail: inviteEmail.trim() }),
       });
-      if (!res.ok) throw new Error('Failed');
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData?.error || 'Failed to send invite';
+        const hint = errorData?.hint;
+        throw new Error(hint ? `${message}\n\n${hint}` : message);
+      }
+
       setInviteSent(true);
       setTimeout(() => {
         setInviteSent(false);
         setInviteEmail('');
         setShowInvite(false);
       }, 3000);
-    } catch {
-      alert('Failed to send invite. Please try again.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to send invite. Please try again.');
     } finally {
       setInviteSending(false);
     }

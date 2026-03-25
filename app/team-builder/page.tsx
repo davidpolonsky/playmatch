@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Player, Formation, FORMATIONS } from '@/lib/types';
 import { saveTeam } from '@/lib/firebase/firestore';
 import CardUploader from '@/components/CardUploader';
-import EditableTeamDisplay from '@/components/EditableTeamDisplay';
+import TeamDisplay from '@/components/TeamDisplay';
 import PlayerList from '@/components/PlayerList';
 import Footer from '@/components/Footer';
 import Navigation from '@/components/Navigation';
@@ -34,12 +34,6 @@ export default function TeamBuilder() {
 
   const handleRemovePlayer = (playerId: string) => {
     setPlayers(prev => prev.filter(p => p.id !== playerId));
-  };
-
-  const handleAddPlayer = (playerId: string) => {
-    const player = players.find(p => p.id === playerId);
-    if (!player) return;
-    // Player is already in the list, no need to add
   };
 
   const getStarting11 = (): Player[] => {
@@ -151,13 +145,14 @@ export default function TeamBuilder() {
 
             {/* Starting 11 + formation picker */}
             <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-5">
-              <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
-                <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider">
-                  Starting 11
-                  <span className={`ml-2 ${starting11.length === 11 ? 'text-fifa-mint' : 'text-white/30'}`}>
-                    ({starting11.length}/11)
-                  </span>
-                </h3>
+              <div className="mb-4">
+                <div className="flex justify-between items-center gap-3 flex-wrap mb-2">
+                  <h3 className="font-retro text-[10px] text-fifa-mint tracking-wider">
+                    Starting 11
+                    <span className={`ml-2 ${starting11.length === 11 ? 'text-fifa-mint' : 'text-white/30'}`}>
+                      ({starting11.length}/11)
+                    </span>
+                  </h3>
                 <select
                   value={selectedFormation.name}
                   onChange={e => {
@@ -170,13 +165,14 @@ export default function TeamBuilder() {
                     <option key={f.name} value={f.name}>{f.name}</option>
                   ))}
                 </select>
+                </div>
+                <p className="font-headline text-[9px] text-white/40 mb-4">
+                  ℹ️ Auto-selects your best players by position and rating. Remove players from roster below to change lineup.
+                </p>
               </div>
-              <EditableTeamDisplay
+              <TeamDisplay
                 players={starting11}
-                allPlayers={players}
                 formation={selectedFormation}
-                onRemovePlayer={handleRemovePlayer}
-                onAddPlayer={handleAddPlayer}
               />
             </div>
 

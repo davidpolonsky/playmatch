@@ -27,7 +27,10 @@ export default function Footer() {
         body: JSON.stringify({ name: name.trim(), email: email.trim(), message: message.trim() }),
       });
 
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error || 'Failed to send feedback');
+      }
 
       setSent(true);
       setTimeout(() => {
@@ -37,8 +40,8 @@ export default function Footer() {
         setEmail('');
         setMessage('');
       }, 3000);
-    } catch {
-      setError('Failed to send feedback. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send feedback. Please try again.');
     } finally {
       setSending(false);
     }
