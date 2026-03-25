@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Team,
-  saveMatchResult,
+  saveMatchHistory,
   getAllTeams,
   updateTeamRecord,
   updateLegendaryRecord,
@@ -228,12 +228,32 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
       // Save match to history (regular teams only)
       const isLeg1 = 'isLegendary' in team1 && team1.isLegendary;
       const isLeg2 = 'isLegendary' in team2 && team2.isLegendary;
-      if (!isLeg1 && !isLeg2 && team1.id && team2.id) {
-        saveMatchResult({
-          team1Id: team1.id, team2Id: team2.id,
-          team1Name: team1.name, team2Name: team2.name,
-          team1Score: matchResult.team1Score, team2Score: matchResult.team2Score,
-          summary: matchResult.summary, userId,
+
+      // Save history for team1 if not legendary
+      if (!isLeg1 && team1.id) {
+        saveMatchHistory({
+          teamId: team1.id,
+          teamName: team1.name,
+          teamScore: matchResult.team1Score,
+          opponentId: team2.id ?? 'legendary',
+          opponentName: team2.name,
+          opponentScore: matchResult.team2Score,
+          result: t1wins ? 'win' : tied ? 'tie' : 'loss',
+          date: null,
+        }).catch(() => {});
+      }
+
+      // Save history for team2 if not legendary
+      if (!isLeg2 && team2.id) {
+        saveMatchHistory({
+          teamId: team2.id,
+          teamName: team2.name,
+          teamScore: matchResult.team2Score,
+          opponentId: team1.id ?? 'legendary',
+          opponentName: team1.name,
+          opponentScore: matchResult.team1Score,
+          result: t2wins ? 'win' : tied ? 'tie' : 'loss',
+          date: null,
         }).catch(() => {});
       }
     } catch (e) {
