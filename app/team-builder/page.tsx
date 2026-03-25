@@ -30,7 +30,9 @@ export default function TeamBuilder() {
   }, [user, loading, router]);
 
   const handleCardAnalyzed = (player: Player) => {
-    setPlayers(prev => [...prev, player]);
+    // Generate unique ID for the player
+    const playerWithId = { ...player, id: crypto.randomUUID() };
+    setPlayers(prev => [...prev, playerWithId]);
   };
 
   const handleRemovePlayerFromRoster = (playerId: string) => {

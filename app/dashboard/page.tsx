@@ -82,7 +82,9 @@ export default function Dashboard() {
   };
 
   const handlePlayerAdded = async (player: Player) => {
-    const newPlayers = [...players, player];
+    // Generate unique ID for the player
+    const playerWithId = { ...player, id: crypto.randomUUID() };
+    const newPlayers = [...players, playerWithId];
     setPlayers(newPlayers);
 
     // Save to Firebase
@@ -328,7 +330,7 @@ export default function Dashboard() {
                   allPlayers={players}
                   teamPlayers={currentTeam}
                   onAdd={handleAddToTeam}
-                  onRemove={handleRemovePlayerFromRoster}
+                  onRemove={handleRemoveFromTeam}
                 />
               </div>
             </div>
