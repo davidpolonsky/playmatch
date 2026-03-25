@@ -49,12 +49,18 @@ const EVENT_COLORS: Record<string, string> = {
 
 const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
 
+const LOADING_PHRASES = [
+  'Warming Up…', 'Stretching…', 'Fans are Singing…',
+  'Coin Toss…', 'Players Ready…', 'Ref Checks the Ball…',
+  'Tunnel Walk…', 'Anthems Playing…', 'Kicking Off…',
+];
+
 function RecordBadge({ record }: { record: TeamRecord }) {
   return (
-    <span className="inline-flex gap-2 font-headline text-[10px]">
+    <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
       <span className="text-fifa-mint">{record.wins}W</span>
       <span className="text-red-400">{record.losses}L</span>
-      <span className="text-white/40">{record.ties}T</span>
+      <span className="text-white/60">{record.ties}T</span>
     </span>
   );
 }
@@ -109,6 +115,7 @@ export default function TeamsPage() {
   const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
   const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingPhrase, setLoadingPhrase] = useState('');
   const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -153,6 +160,18 @@ export default function TeamsPage() {
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [visibleEvents]);
+
+  // Cycle fun phrases while waiting for simulation response
+  useEffect(() => {
+    if (!simulating) { setLoadingPhrase(''); return; }
+    let i = 0;
+    setLoadingPhrase(LOADING_PHRASES[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % LOADING_PHRASES.length;
+      setLoadingPhrase(LOADING_PHRASES[i]);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, [simulating]);
 
   const loadTeams = async () => {
     try {
@@ -236,7 +255,8 @@ export default function TeamsPage() {
     try {
       const history = await getMatchHistory(teamId, 10);
       setMatchHistories(prev => ({ ...prev, [teamId]: history }));
-    } catch {
+    } catch (e) {
+      console.error('getMatchHistory failed:', e);
       setMatchHistories(prev => ({ ...prev, [teamId]: [] }));
     } finally {
       setLoadingHistory(false);
@@ -278,6 +298,7 @@ export default function TeamsPage() {
 
   const handleSimulate = async () => {
     if (!selectedHome || !selectedAway) { alert('Please select both teams'); return; }
+    if (selectedHome.id === selectedAway.id) { alert("You can't play a team against itself!"); return; }
     setSimulating(true);
     setSimResult(null);
     setVisibleEvents([]);
@@ -411,7 +432,7 @@ export default function TeamsPage() {
 
           {/* Record + position counts */}
           <div className="flex justify-between items-center mt-2">
-            <div className="flex gap-3 font-headline text-[10px] text-white/25">
+            <div className="flex gap-3 font-headline text-[10px] text-white/60">
               {POSITION_ORDER.map(pos => (
                 <span key={pos}>{pos} {grouped[pos].length}</span>
               ))}
@@ -466,7 +487,7 @@ export default function TeamsPage() {
             {loadingHistory && !matchHistories[team.id] ? (
               <p className="font-headline text-[10px] text-white/30 animate-pulse">Loading…</p>
             ) : (matchHistories[team.id] ?? []).length === 0 ? (
-              <p className="font-headline text-[10px] text-white/30">No matches played yet.</p>
+              <p className="font-headline text-[10px] text-white/30">No history yet — only games played after history tracking was added are recorded.</p>
             ) : (
               <div className="space-y-1.5">
                 {(matchHistories[team.id] ?? []).map((entry, i) => {
@@ -535,10 +556,12 @@ export default function TeamsPage() {
           {(() => {
             const isHomeLegendary = selectedHome && 'isLegendary' in selectedHome && (selectedHome as any).isLegendary;
             const homeOptions: AnyTeam[] = [...myTeams, ...legendaryTeams];
-            const awayOptions: AnyTeam[] = isHomeLegendary
+            const notHome = (t: AnyTeam) => t.id !== selectedHome?.id;
+            const awayOptions: AnyTeam[] = (isHomeLegendary
               ? legendaryTeams
               : [...myTeams, ...legendaryTeams, ...savedTeams,
-                 ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))];
+                 ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))]
+            ).filter(notHome);
             return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
             {/* Home */}
@@ -583,7 +606,7 @@ export default function TeamsPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                     </svg>
-                    Loading…
+                    {loadingPhrase || 'Loading…'}
                   </span>
                 ) : '⚽ Kick Off'}
               </button>
@@ -626,6 +649,30 @@ export default function TeamsPage() {
           </div>
             );
           })()}
+
+          {/* Add rival by ID */}
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <span className="font-retro text-[8px] text-white/30 tracking-wider">Add rival by ID:</span>
+            <input
+              type="text"
+              value={addTeamIdInput}
+              onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+              placeholder="123-4567"
+              className="w-28 px-2 py-1 bg-fifa-dark border border-fifa-border rounded text-fifa-cream text-xs font-headline focus:ring-1 focus:ring-fifa-mint focus:outline-none placeholder:text-white/20"
+            />
+            <button
+              onClick={handleAddTeamById}
+              disabled={addTeamLoading || !addTeamIdInput.trim()}
+              className="btn-secondary text-[8px] py-1 px-3 disabled:opacity-30"
+            >
+              {addTeamLoading ? '…' : '+ Add'}
+            </button>
+            {addTeamError && <span className="font-retro text-[8px] text-red-400">{addTeamError}</span>}
+            {!addTeamError && savedTeams.length > 0 && (
+              <span className="font-retro text-[8px] text-fifa-mint/50">{savedTeams.length} rival{savedTeams.length !== 1 ? 's' : ''} saved</span>
+            )}
+          </div>
 
           {/* Live Scoreboard */}
           {(simResult || simulating) && (
