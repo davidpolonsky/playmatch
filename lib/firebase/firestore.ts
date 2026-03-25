@@ -1,17 +1,69 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
+import {
+  collection,
+  addDoc,
+  getDocs,
   getDoc,
   doc,
-  query, 
+  query,
   where,
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  setDoc,
+  increment,
   Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
+
+// ── Record types ──────────────────────────────────────────────
+export interface TeamRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+const TEAM_RECORDS_COLLECTION = 'teamRecords';
+const LEGENDARY_RECORDS_COLLECTION = 'legendaryRecords';
+
+// Update W/L/T for a regular team (any authenticated user can call this)
+export const updateTeamRecord = async (teamId: string, result: 'win' | 'loss' | 'tie') => {
+  const ref = doc(db, TEAM_RECORDS_COLLECTION, teamId);
+  const field = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'ties';
+  await setDoc(ref, { [field]: increment(1) }, { merge: true });
+};
+
+// Batch-fetch records for a list of team IDs
+export const getTeamRecords = async (teamIds: string[]): Promise<Record<string, TeamRecord>> => {
+  if (teamIds.length === 0) return {};
+  const snaps = await Promise.all(teamIds.map(id => getDoc(doc(db, TEAM_RECORDS_COLLECTION, id))));
+  const records: Record<string, TeamRecord> = {};
+  snaps.forEach((snap, i) => {
+    records[teamIds[i]] = snap.exists()
+      ? (snap.data() as TeamRecord)
+      : { wins: 0, losses: 0, ties: 0 };
+  });
+  return records;
+};
+
+// Update legendary team record for a specific user
+export const updateLegendaryRecord = async (userId: string, legendaryTeamId: string, result: 'win' | 'loss' | 'tie') => {
+  const docId = `${userId}_${legendaryTeamId}`;
+  const ref = doc(db, LEGENDARY_RECORDS_COLLECTION, docId);
+  const field = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'ties';
+  await setDoc(ref, { userId, legendaryTeamId, [field]: increment(1) }, { merge: true });
+};
+
+// Fetch all legendary records for a user (returns map of legendaryTeamId → record)
+export const getUserLegendaryRecords = async (userId: string): Promise<Record<string, TeamRecord>> => {
+  const q = query(collection(db, LEGENDARY_RECORDS_COLLECTION), where('userId', '==', userId));
+  const snap = await getDocs(q);
+  const records: Record<string, TeamRecord> = {};
+  snap.docs.forEach(d => {
+    const data = d.data();
+    records[data.legendaryTeamId] = { wins: data.wins ?? 0, losses: data.losses ?? 0, ties: data.ties ?? 0 };
+  });
+  return records;
+};
 
 export interface Player {
   id: string;
@@ -31,6 +83,9 @@ export interface Team {
   userId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  wins?: number;
+  losses?: number;
+  ties?: number;
 }
 
 export interface MatchResult {

@@ -96,6 +96,9 @@ export interface Team {
   userId: string;
   createdAt?: Date | unknown;
   updatedAt?: Date | unknown;
+  wins?: number;
+  losses?: number;
+  ties?: number;
 }
 
 export interface GameResult {

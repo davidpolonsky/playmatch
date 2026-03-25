@@ -5,7 +5,12 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Team } from '@/lib/types';
-import { getUserTeams, getAllTeams, deleteTeam } from '@/lib/firebase/firestore';
+import {
+  getUserTeams, getAllTeams, deleteTeam,
+  updateTeamRecord, updateLegendaryRecord,
+  getTeamRecords, getUserLegendaryRecords,
+  TeamRecord,
+} from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
 
 type AnyTeam = Team | LegendaryTeam;
@@ -40,15 +45,26 @@ const EVENT_COLORS: Record<string, string> = {
 
 const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
 
-function RosterPanel({ team }: { team: AnyTeam }) {
+function RecordBadge({ record }: { record: TeamRecord }) {
+  return (
+    <span className="inline-flex gap-2 text-xs font-bold">
+      <span className="text-green-600">{record.wins}W</span>
+      <span className="text-red-500">{record.losses}L</span>
+      <span className="text-gray-400">{record.ties}T</span>
+    </span>
+  );
+}
+
+function RosterPanel({ team, record }: { team: AnyTeam; record: TeamRecord }) {
   const isLegendary = 'isLegendary' in team && team.isLegendary;
   const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
   team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
 
   return (
     <div className={`mt-2 rounded-lg border p-3 text-sm ${isLegendary ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
-      <div className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
-        {isLegendary && '⭐'} {team.name} Roster
+      <div className="flex justify-between items-center mb-2">
+        <span className="font-semibold text-gray-700">{isLegendary && '⭐ '}{team.name}</span>
+        <RecordBadge record={record} />
       </div>
       {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
         <div key={pos} className="mb-1">
@@ -79,6 +95,8 @@ export default function TeamsPage() {
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [activeTab, setActiveTab] = useState<'my-teams' | 'all-teams' | 'legendary'>('my-teams');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
+  const [legendaryRecords, setLegendaryRecords] = useState<Record<string, TeamRecord>>({});
   const feedRef = useRef<HTMLDivElement>(null);
 
   const allTeamsForSim: AnyTeam[] = [...myTeams, ...legendaryTeams, ...allTeams.filter(t => t.userId !== user?.uid)];
@@ -118,16 +136,49 @@ export default function TeamsPage() {
 
   const loadTeams = async () => {
     try {
-      const [userTeams, teams] = await Promise.all([
+      const [userTeams, teams, legRecs] = await Promise.all([
         getUserTeams(user!.uid).catch(() => [] as Team[]),
         getAllTeams().catch(() => [] as Team[]),
+        getUserLegendaryRecords(user!.uid).catch(() => ({} as Record<string, TeamRecord>)),
       ]);
       setMyTeams(userTeams);
       setAllTeams(teams);
+      setLegendaryRecords(legRecs);
+      // Load W/L/T records for all teams
+      const ids = [...userTeams, ...teams].map(t => t.id!).filter(Boolean);
+      const recs = await getTeamRecords(ids).catch(() => ({} as Record<string, TeamRecord>));
+      setTeamRecords(recs);
     } catch {
       setMyTeams([]); setAllTeams([]);
     } finally {
       setLoadingTeams(false);
+    }
+  };
+
+  const getRecord = (team: AnyTeam): TeamRecord => {
+    const isLeg = 'isLegendary' in team && team.isLegendary;
+    return (isLeg ? legendaryRecords[team.id] : teamRecords[team.id!]) ?? { wins: 0, losses: 0, ties: 0 };
+  };
+
+  const applyRecordUpdate = async (team: AnyTeam, result: 'win' | 'loss' | 'tie') => {
+    try {
+      const isLeg = 'isLegendary' in team && team.isLegendary;
+      const field = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'ties';
+      if (isLeg) {
+        await updateLegendaryRecord(user!.uid, team.id, result);
+        setLegendaryRecords(prev => {
+          const cur = prev[team.id] ?? { wins: 0, losses: 0, ties: 0 };
+          return { ...prev, [team.id]: { ...cur, [field]: (cur[field as keyof TeamRecord] ?? 0) + 1 } };
+        });
+      } else if (team.id) {
+        await updateTeamRecord(team.id, result);
+        setTeamRecords(prev => {
+          const cur = prev[team.id!] ?? { wins: 0, losses: 0, ties: 0 };
+          return { ...prev, [team.id!]: { ...cur, [field]: (cur[field as keyof TeamRecord] ?? 0) + 1 } };
+        });
+      }
+    } catch (e) {
+      console.error('Failed to update record', e);
     }
   };
 
@@ -156,9 +207,17 @@ export default function TeamsPage() {
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Simulation failed');
       if (!Array.isArray(data.playByPlay)) throw new Error('Invalid response: missing playByPlay');
-      // Filter out any null/undefined events Gemini may have returned
       data.playByPlay = data.playByPlay.filter((e: any) => e && typeof e.type === 'string' && typeof e.text === 'string');
       setSimResult(data as SimResult);
+
+      // Update W/L/T records for both teams
+      const t1wins = data.team1Score > data.team2Score;
+      const t2wins = data.team2Score > data.team1Score;
+      const tied = data.team1Score === data.team2Score;
+      await Promise.all([
+        applyRecordUpdate(selectedHome, t1wins ? 'win' : tied ? 'tie' : 'loss'),
+        applyRecordUpdate(selectedAway, t2wins ? 'win' : tied ? 'tie' : 'loss'),
+      ]);
     } catch (e) {
       console.error(e);
       alert('Failed to simulate match. Please try again.');
@@ -224,7 +283,7 @@ export default function TeamsPage() {
                   {allTeams.filter(t => t.userId !== user?.uid).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
               </select>
-              {selectedHome && <RosterPanel team={selectedHome} />}
+              {selectedHome && <RosterPanel team={selectedHome} record={getRecord(selectedHome)} />}
             </div>
 
             {/* Kick off */}
@@ -266,7 +325,7 @@ export default function TeamsPage() {
                   {allTeams.filter(t => t.userId !== user?.uid).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
               </select>
-              {selectedAway && <RosterPanel team={selectedAway} />}
+              {selectedAway && <RosterPanel team={selectedAway} record={getRecord(selectedAway)} />}
             </div>
           </div>
 
@@ -402,11 +461,18 @@ export default function TeamsPage() {
                         </div>
                       </div>
 
-                      {/* Mini position breakdown */}
-                      <div className="flex gap-3 mt-2 text-xs text-gray-500">
-                        {POSITION_ORDER.map(pos => (
-                          <span key={pos}><span className="font-medium">{pos}</span> {grouped[pos].length}</span>
-                        ))}
+                      {/* Record + position breakdown */}
+                      <div className="flex justify-between items-center mt-2">
+                        <div className="flex gap-3 text-xs text-gray-500">
+                          {POSITION_ORDER.map(pos => (
+                            <span key={pos}><span className="font-medium">{pos}</span> {grouped[pos].length}</span>
+                          ))}
+                        </div>
+                        <RecordBadge record={
+                          isLegendary
+                            ? (legendaryRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
+                            : (teamRecords[team.id!] ?? { wins: 0, losses: 0, ties: 0 })
+                        } />
                       </div>
                     </button>
 
