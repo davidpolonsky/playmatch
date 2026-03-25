@@ -90,6 +90,7 @@ export const validateStarting11 = (
 
 export interface Team {
   id?: string;
+  shareId?: string;          // 7-digit short ID, formatted "123-4567"
   name: string;
   formation: Formation | string;
   players: Player[];

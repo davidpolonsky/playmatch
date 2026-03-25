@@ -6,6 +6,8 @@ import {
   doc,
   query,
   where,
+  orderBy,
+  limit,
   updateDoc,
   deleteDoc,
   serverTimestamp,
@@ -24,6 +26,20 @@ export interface TeamRecord {
 
 const TEAM_RECORDS_COLLECTION = 'teamRecords';
 const LEGENDARY_RECORDS_COLLECTION = 'legendaryRecords';
+const MATCH_HISTORY_COLLECTION = 'matchHistory';
+
+// ── Share ID helpers ───────────────────────────────────────────
+// Generate a random 7-digit numeric string
+export const generateShareId = (): string =>
+  String(Math.floor(1000000 + Math.random() * 9000000));
+
+// Format "1234567" → "123-4567"
+export const formatShareId = (id: string): string =>
+  id.length === 7 ? `${id.slice(0, 3)}-${id.slice(3)}` : id;
+
+// Strip formatting back to raw 7 digits
+export const parseShareId = (input: string): string =>
+  input.replace(/\D/g, '').slice(0, 7);
 
 // Update W/L/T for a regular team (any authenticated user can call this)
 export const updateTeamRecord = async (teamId: string, result: 'win' | 'loss' | 'tie') => {
@@ -77,6 +93,7 @@ export interface Player {
 
 export interface Team {
   id?: string;
+  shareId?: string;
   name: string;
   formation: string;
   players: Player[];
@@ -126,11 +143,13 @@ export const removeSavedTeam = async (userId: string, teamId: string): Promise<v
   await deleteDoc(doc(db, SAVED_TEAMS_COLLECTION, docId));
 };
 
-// Save a team to Firestore
+// Save a team to Firestore (auto-generates a 7-digit shareId)
 export const saveTeam = async (team: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>) => {
   try {
+    const shareId = team.shareId || generateShareId();
     const docRef = await addDoc(collection(db, TEAMS_COLLECTION), {
       ...team,
+      shareId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -139,6 +158,26 @@ export const saveTeam = async (team: Omit<Team, 'id' | 'createdAt' | 'updatedAt'
     console.error('Error saving team:', error);
     throw error;
   }
+};
+
+// Ensure an existing team has a shareId; generates + saves one if missing
+export const ensureShareId = async (teamId: string): Promise<string> => {
+  const ref = doc(db, TEAMS_COLLECTION, teamId);
+  const snap = await getDoc(ref);
+  const data = snap.data();
+  if (data?.shareId) return data.shareId as string;
+  const shareId = generateShareId();
+  await updateDoc(ref, { shareId });
+  return shareId;
+};
+
+// Find a team by its 7-digit shareId
+export const getTeamByShareId = async (shareId: string): Promise<Team | null> => {
+  const q = query(collection(db, TEAMS_COLLECTION), where('shareId', '==', shareId), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() } as Team;
 };
 
 // Get all teams for a user
@@ -298,3 +337,40 @@ export const getUserRoster = async (userId: string): Promise<Player[]> => {
   }
 };
 
+
+// ── Match History ──────────────────────────────────────────────
+
+export interface MatchHistoryEntry {
+  id?: string;
+  teamId: string;
+  teamName: string;
+  teamScore: number;
+  opponentId: string;
+  opponentName: string;
+  opponentScore: number;
+  result: 'win' | 'loss' | 'tie';
+  date: unknown; // Firestore Timestamp
+}
+
+// Save a match history entry for one side
+export const saveMatchHistory = async (entry: Omit<MatchHistoryEntry, 'id'>): Promise<void> => {
+  await addDoc(collection(db, MATCH_HISTORY_COLLECTION), {
+    ...entry,
+    date: serverTimestamp(),
+  });
+};
+
+// Get last N match history entries for a team
+export const getMatchHistory = async (
+  teamId: string,
+  maxResults = 10
+): Promise<MatchHistoryEntry[]> => {
+  const q = query(
+    collection(db, MATCH_HISTORY_COLLECTION),
+    where('teamId', '==', teamId),
+    orderBy('date', 'desc'),
+    limit(maxResults)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as MatchHistoryEntry));
+};

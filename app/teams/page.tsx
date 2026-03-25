@@ -10,7 +10,9 @@ import {
   updateTeamRecord, updateLegendaryRecord,
   getTeamRecords, getUserLegendaryRecords,
   addSavedTeam, getSavedTeamIds, removeSavedTeam,
-  TeamRecord,
+  ensureShareId, getTeamByShareId, formatShareId, parseShareId,
+  saveMatchHistory, getMatchHistory,
+  TeamRecord, MatchHistoryEntry,
 } from '@/lib/firebase/firestore';
 import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
 
@@ -103,6 +105,9 @@ export default function TeamsPage() {
   const [addTeamLoading, setAddTeamLoading] = useState(false);
   const [addTeamError, setAddTeamError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
+  const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const allTeamsForSim: AnyTeam[] = [
@@ -126,18 +131,19 @@ export default function TeamsPage() {
     }
   }, [user, loading]);
 
-  // Stream play-by-play events
+  // Stream play-by-play events over ~120 seconds
   useEffect(() => {
     if (!simResult?.playByPlay?.length) return;
     setVisibleEvents([]);
     setStreamingDone(false);
     const events = simResult.playByPlay.filter(e => e && e.type && e.text);
+    const msPerEvent = Math.round(120000 / Math.max(events.length, 1));
     let i = 0;
     const interval = setInterval(() => {
       if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
       setVisibleEvents(prev => [...prev, events[i]]);
       i++;
-    }, 120);
+    }, msPerEvent);
     return () => clearInterval(interval);
   }, [simResult]);
 
@@ -153,6 +159,13 @@ export default function TeamsPage() {
         getUserLegendaryRecords(user!.uid).catch(() => ({} as Record<string, TeamRecord>)),
         getSavedTeamIds(user!.uid).catch(() => [] as string[]),
       ]);
+      // Lazily assign shareIds to any teams missing them (one-time migration)
+      const teamsNeedingShareId = userTeams.filter(t => !t.shareId);
+      if (teamsNeedingShareId.length > 0) {
+        await Promise.all(teamsNeedingShareId.map(async t => {
+          if (t.id) t.shareId = await ensureShareId(t.id).catch(() => undefined);
+        }));
+      }
       setMyTeams(userTeams);
       setAllTeams(teams);
       setLegendaryRecords(legRecs);
@@ -177,23 +190,20 @@ export default function TeamsPage() {
   };
 
   const handleAddTeamById = async () => {
-    const teamId = addTeamIdInput.trim();
-    if (!teamId) return;
+    const raw = parseShareId(addTeamIdInput.trim());
+    if (raw.length !== 7) { setAddTeamError('Enter a valid 7-digit Team ID (e.g. 123-4567).'); return; }
     setAddTeamLoading(true);
     setAddTeamError('');
     try {
-      // Check not already added or own team
-      if (myTeams.some(t => t.id === teamId) || savedTeams.some(t => t.id === teamId)) {
-        setAddTeamError('You already have this team.');
-        return;
-      }
-      const team = await getTeam(teamId);
+      const team = await getTeamByShareId(raw);
       if (!team) { setAddTeamError('Team not found. Double-check the ID.'); return; }
       if (team.userId === user!.uid) { setAddTeamError("That's your own team!"); return; }
-      await addSavedTeam(user!.uid, teamId);
+      if (myTeams.some(t => t.id === team.id) || savedTeams.some(t => t.id === team.id)) {
+        setAddTeamError('You already have this team.'); return;
+      }
+      await addSavedTeam(user!.uid, team.id!);
       setSavedTeams(prev => [...prev, team]);
-      // Load its record too
-      const recs = await getTeamRecords([teamId]).catch(() => ({} as Record<string, TeamRecord>));
+      const recs = await getTeamRecords([team.id!]).catch(() => ({} as Record<string, TeamRecord>));
       setTeamRecords(prev => ({ ...prev, ...recs }));
       setAddTeamIdInput('');
     } catch {
@@ -208,10 +218,26 @@ export default function TeamsPage() {
     setSavedTeams(prev => prev.filter(t => t.id !== teamId));
   };
 
-  const handleCopyId = (teamId: string) => {
-    navigator.clipboard.writeText(teamId).catch(() => {});
-    setCopiedId(teamId);
+  const handleCopyId = (team: Team) => {
+    const display = team.shareId ? formatShareId(team.shareId) : team.id!;
+    navigator.clipboard.writeText(display).catch(() => {});
+    setCopiedId(team.id!);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleViewHistory = async (teamId: string) => {
+    if (historyTeamId === teamId) { setHistoryTeamId(null); return; }
+    setHistoryTeamId(teamId);
+    if (matchHistories[teamId]) return; // already cached
+    setLoadingHistory(true);
+    try {
+      const history = await getMatchHistory(teamId, 10);
+      setMatchHistories(prev => ({ ...prev, [teamId]: history }));
+    } catch {
+      setMatchHistories(prev => ({ ...prev, [teamId]: [] }));
+    } finally {
+      setLoadingHistory(false);
+    }
   };
 
   const getRecord = (team: AnyTeam): TeamRecord => {
@@ -273,10 +299,37 @@ export default function TeamsPage() {
       const t1wins = data.team1Score > data.team2Score;
       const t2wins = data.team2Score > data.team1Score;
       const tied = data.team1Score === data.team2Score;
+      const homeResult: 'win'|'loss'|'tie' = t1wins ? 'win' : tied ? 'tie' : 'loss';
+      const awayResult: 'win'|'loss'|'tie' = t2wins ? 'win' : tied ? 'tie' : 'loss';
       await Promise.all([
-        applyRecordUpdate(selectedHome, t1wins ? 'win' : tied ? 'tie' : 'loss'),
-        applyRecordUpdate(selectedAway, t2wins ? 'win' : tied ? 'tie' : 'loss'),
+        applyRecordUpdate(selectedHome, homeResult),
+        applyRecordUpdate(selectedAway, awayResult),
       ]);
+
+      // Save match history for both non-legendary teams
+      const isLegHome = 'isLegendary' in selectedHome && selectedHome.isLegendary;
+      const isLegAway = 'isLegendary' in selectedAway && selectedAway.isLegendary;
+      if (!isLegHome && selectedHome.id) {
+        saveMatchHistory({
+          teamId: selectedHome.id, teamName: selectedHome.name,
+          teamScore: data.team1Score, result: homeResult,
+          opponentId: selectedAway.id ?? 'legendary',
+          opponentName: selectedAway.name, opponentScore: data.team2Score,
+          date: null,
+        }).catch(() => {});
+        // Bust cache so next open reloads
+        setMatchHistories(prev => { const n = {...prev}; delete n[selectedHome.id!]; return n; });
+      }
+      if (!isLegAway && selectedAway.id) {
+        saveMatchHistory({
+          teamId: selectedAway.id, teamName: selectedAway.name,
+          teamScore: data.team2Score, result: awayResult,
+          opponentId: selectedHome.id ?? 'legendary',
+          opponentName: selectedHome.name, opponentScore: data.team1Score,
+          date: null,
+        }).catch(() => {});
+        setMatchHistories(prev => { const n = {...prev}; delete n[selectedAway.id!]; return n; });
+      }
     } catch (e) {
       console.error(e);
       alert('Failed to simulate match. Please try again.');
@@ -317,7 +370,7 @@ export default function TeamsPage() {
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {isOwn && team.id && (
                 <button
-                  onClick={e => { e.stopPropagation(); handleCopyId(team.id!); }}
+                  onClick={e => { e.stopPropagation(); handleCopyId(team as Team); }}
                   title="Copy Team ID to share"
                   className="text-gray-400 hover:text-blue-500 p-1 rounded transition-colors"
                 >
@@ -356,12 +409,25 @@ export default function TeamsPage() {
                 <span key={pos}><span className="font-medium">{pos}</span> {grouped[pos].length}</span>
               ))}
             </div>
-            <RecordBadge record={record} />
+            {/* Clickable record badge — opens match history */}
+            {!isLegendary && team.id ? (
+              <button
+                onClick={e => { e.stopPropagation(); handleViewHistory(team.id!); }}
+                className="hover:opacity-70 transition-opacity"
+                title="View match history"
+              >
+                <RecordBadge record={record} />
+              </button>
+            ) : (
+              <RecordBadge record={record} />
+            )}
           </div>
 
-          {/* Show team ID on own cards (truncated) */}
-          {isOwn && team.id && (
-            <p className="text-xs text-gray-400 mt-1 font-mono truncate">ID: {team.id}</p>
+          {/* Show formatted shareId on own cards */}
+          {isOwn && (
+            <p className="text-xs text-gray-400 mt-1 font-mono">
+              ID: {(team as Team).shareId ? formatShareId((team as Team).shareId!) : '…'}
+            </p>
           )}
         </button>
 
@@ -386,8 +452,40 @@ export default function TeamsPage() {
             {isLegendary && (
               <span className="inline-block mt-2 px-2 py-0.5 bg-purple-200 text-purple-800 rounded text-xs font-semibold">Legendary Team</span>
             )}
-            {isSaved && team.id && (
-              <p className="text-xs text-gray-400 mt-2 font-mono">ID: {team.id}</p>
+            {isSaved && team.id && (team as Team).shareId && (
+              <p className="text-xs text-gray-400 mt-2 font-mono">
+                ID: {formatShareId((team as Team).shareId!)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Match history panel */}
+        {!isLegendary && team.id && historyTeamId === team.id && (
+          <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Match History</h4>
+            {loadingHistory && !matchHistories[team.id] ? (
+              <p className="text-xs text-gray-400 animate-pulse">Loading…</p>
+            ) : (matchHistories[team.id] ?? []).length === 0 ? (
+              <p className="text-xs text-gray-400">No matches played yet.</p>
+            ) : (
+              <div className="space-y-1">
+                {(matchHistories[team.id] ?? []).map((entry, i) => {
+                  const date = entry.date
+                    ? new Date((entry.date as any).seconds * 1000).toLocaleDateString()
+                    : '—';
+                  const resultColor = entry.result === 'win' ? 'text-green-600' : entry.result === 'loss' ? 'text-red-500' : 'text-gray-400';
+                  const resultLabel = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
+                  return (
+                    <div key={i} className="flex items-center justify-between text-xs text-gray-700">
+                      <span className="text-gray-400 w-20 flex-shrink-0">{date}</span>
+                      <span className="flex-1 truncate mx-2">vs {entry.opponentName}</span>
+                      <span className="font-mono mr-2">{entry.teamScore}–{entry.opponentScore}</span>
+                      <span className={`font-bold w-4 text-right ${resultColor}`}>{resultLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -506,21 +604,28 @@ export default function TeamsPage() {
             </div>
           </div>
 
-          {/* Scoreboard */}
-          {simResult && (
+          {/* Scoreboard — scores hidden until streaming completes */}
+          {(simResult || simulating) && (
             <div className="mt-6 bg-gradient-to-r from-purple-900 to-blue-900 text-white rounded-xl p-6">
               <div className="flex items-center justify-between text-center">
                 <div className="flex-1">
                   <div className="text-sm font-medium opacity-75">{selectedHome?.name}</div>
-                  <div className="text-6xl font-black mt-1">{simResult.team1Score}</div>
+                  <div className="text-6xl font-black mt-1 transition-all duration-500">
+                    {streamingDone && simResult ? simResult.team1Score : <span className="opacity-30">?</span>}
+                  </div>
                 </div>
                 <div className="text-2xl opacity-40 px-4">—</div>
                 <div className="flex-1">
                   <div className="text-sm font-medium opacity-75">{selectedAway?.name}</div>
-                  <div className="text-6xl font-black mt-1">{simResult.team2Score}</div>
+                  <div className="text-6xl font-black mt-1 transition-all duration-500">
+                    {streamingDone && simResult ? simResult.team2Score : <span className="opacity-30">?</span>}
+                  </div>
                 </div>
               </div>
-              {streamingDone && (
+              {!streamingDone && (
+                <p className="mt-3 text-center text-xs opacity-50 animate-pulse">Match in progress…</p>
+              )}
+              {streamingDone && simResult && (
                 <p className="mt-3 text-center text-sm opacity-70">
                   ⭐ Man of the Match: <span className="font-semibold">{simResult.manOfTheMatch}</span>
                 </p>
