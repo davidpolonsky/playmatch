@@ -14,7 +14,7 @@ import {
   saveMatchHistory, getMatchHistory,
   TeamRecord, MatchHistoryEntry,
 } from '@/lib/firebase/firestore';
-import { LEGENDARY_TEAMS, LegendaryTeam } from '@/lib/legendary-teams';
+import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
 import Footer from '@/components/Footer';
 import Navigation from '@/components/Navigation';
 
@@ -96,7 +96,7 @@ export default function TeamsPage() {
   const router = useRouter();
   const [myTeams, setMyTeams] = useState<Team[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const legendaryTeams = LEGENDARY_TEAMS;
+  const legendaryTeams = getLegendaryTeams(); // Excludes premium teams
   const [selectedHome, setSelectedHome] = useState<AnyTeam | null>(null);
   const [selectedAway, setSelectedAway] = useState<AnyTeam | null>(null);
   const [simulating, setSimulating] = useState(false);

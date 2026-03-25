@@ -8,6 +8,7 @@ export interface LegendaryTeam {
   userId: 'legendary'; // Special ID to identify legendary teams
   description: string;
   isLegendary: true;
+  premium?: boolean; // Hidden unless user has premium access
 }
 
 // Barcelona 2008-2012 (Pep Guardiola Era)
@@ -126,6 +127,7 @@ const realMadridGalacticos: LegendaryTeam = {
   userId: 'legendary',
   description: 'The original superstar team. Peak Galacticos era.',
   isLegendary: true,
+  premium: true,
   players: [
     // GK
     { id: 'real-1', name: 'Iker Casillas', position: 'GK', rating: 91, imageUrl: '', isHistorical: true, year: '2005' },
@@ -172,6 +174,33 @@ const manchesterUnited1999: LegendaryTeam = {
   ],
 };
 
+// Wrexham AFC 2024-2026 (Current Squad)
+const wrexhamCurrent: LegendaryTeam = {
+  id: 'legendary-wrexham-2024',
+  name: 'Wrexham AFC 2024-26',
+  formation: '5-3-2',
+  userId: 'legendary',
+  description: 'Hollywood\'s favorite team. Back-to-back promotions under Reynolds & McElhenney.',
+  isLegendary: true,
+  players: [
+    // GK
+    { id: 'wrex-1', name: 'Arthur Okonkwo', position: 'GK', rating: 72, imageUrl: '', isHistorical: false, year: '2025' },
+    // DEF
+    { id: 'wrex-2', name: 'Ben Tozer', position: 'DEF', rating: 74, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-3', name: 'Aaron Hayden', position: 'DEF', rating: 71, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-4', name: 'Eoghan O\'Connell', position: 'DEF', rating: 72, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-5', name: 'James McClean', position: 'DEF', rating: 73, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-6', name: 'Ryan Barnett', position: 'DEF', rating: 72, imageUrl: '', isHistorical: false, year: '2025' },
+    // MID
+    { id: 'wrex-7', name: 'Elliot Lee', position: 'MID', rating: 75, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-8', name: 'Andy Cannon', position: 'MID', rating: 73, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-9', name: 'George Dobson', position: 'MID', rating: 74, imageUrl: '', isHistorical: false, year: '2025' },
+    // FWD
+    { id: 'wrex-10', name: 'Paul Mullin', position: 'FWD', rating: 78, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'wrex-11', name: 'Ollie Palmer', position: 'FWD', rating: 75, imageUrl: '', isHistorical: false, year: '2025' },
+  ],
+};
+
 export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   barcelonaDreamTeam,
   tottenhamLegends,
@@ -179,10 +208,14 @@ export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   brazil1970,
   realMadridGalacticos,
   manchesterUnited1999,
+  wrexhamCurrent,
 ];
 
-export const getLegendaryTeams = (): LegendaryTeam[] => {
-  return LEGENDARY_TEAMS;
+export const getLegendaryTeams = (includePremium: boolean = false): LegendaryTeam[] => {
+  if (includePremium) {
+    return LEGENDARY_TEAMS;
+  }
+  return LEGENDARY_TEAMS.filter(team => !team.premium);
 };
 
 export const getLegendaryTeamById = (id: string): LegendaryTeam | undefined => {
