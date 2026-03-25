@@ -429,7 +429,7 @@ export default function Dashboard() {
         )}
 
         {activeTab === 'match' && (
-          <MatchSimulator teams={savedTeams} userId={user.uid} />
+          <MatchSimulator teams={savedTeams} userId={user.uid} userEmail={user.email || undefined} />
         )}
         </div>
       </main>

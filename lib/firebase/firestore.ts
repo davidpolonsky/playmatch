@@ -290,11 +290,15 @@ export interface UserRoster {
 
 const ROSTERS_COLLECTION = 'rosters';
 const RATE_LIMITS_COLLECTION = 'rateLimits';
+const USERS_COLLECTION = 'users';
+const ADMIN_STATS_COLLECTION = 'adminStats';
 
 // Rate limiting constants
 const MAX_CARDS_PER_DAY = 50;
 const MAX_TOTAL_CARDS = 75;
 const MAX_SIMULATIONS_PER_DAY = 12;
+
+const ADMIN_EMAIL = 'davidpolonsky@gmail.com';
 
 // Rate limiting helpers
 const getTodayDateString = (): string => {
@@ -357,6 +361,81 @@ export const incrementSimulationCount = async (userId: string): Promise<void> =>
   const today = getTodayDateString();
   const rateLimitRef = doc(db, RATE_LIMITS_COLLECTION, `${userId}_${today}`);
   await setDoc(rateLimitRef, { simulations: increment(1), date: today }, { merge: true });
+};
+
+// Track new user signups and send admin notification
+export const trackNewUserSignup = async (userId: string, email: string, displayName: string | null): Promise<void> => {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    const userDoc = await getDoc(userRef);
+
+    // Only track if this is a new user
+    if (!userDoc.exists()) {
+      await setDoc(userRef, {
+        email,
+        displayName,
+        signupDate: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+
+      // Send admin notification
+      fetch('/api/admin-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'new_user',
+          data: {
+            email,
+            displayName,
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      }).catch(err => console.error('Failed to send admin notification:', err));
+    }
+  } catch (error) {
+    console.error('Error tracking new user:', error);
+  }
+};
+
+// Track global simulation count and send notifications every 5 (excluding admin)
+export const trackSimulation = async (userEmail: string): Promise<void> => {
+  try {
+    // Skip if admin
+    if (userEmail === ADMIN_EMAIL) return;
+
+    const statsRef = doc(db, ADMIN_STATS_COLLECTION, 'global');
+    const statsDoc = await getDoc(statsRef);
+
+    let currentCount = 0;
+    if (statsDoc.exists()) {
+      currentCount = statsDoc.data().simulationCount || 0;
+    }
+
+    const newCount = currentCount + 1;
+
+    await setDoc(statsRef, {
+      simulationCount: newCount,
+      lastUpdated: serverTimestamp(),
+      lastUserEmail: userEmail,
+    }, { merge: true });
+
+    // Send notification every 5 simulations
+    if (newCount % 5 === 0) {
+      fetch('/api/admin-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'simulation_milestone',
+          data: {
+            count: newCount,
+            lastUserEmail: userEmail,
+          },
+        }),
+      }).catch(err => console.error('Failed to send admin notification:', err));
+    }
+  } catch (error) {
+    console.error('Error tracking simulation:', error);
+  }
 };
 
 // Save user's roster (uploaded players)

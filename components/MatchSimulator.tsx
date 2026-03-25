@@ -32,6 +32,7 @@ interface MatchResult {
 interface MatchSimulatorProps {
   teams: Team[];        // current user's own teams
   userId: string;
+  userEmail?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -90,7 +91,7 @@ const EVENT_COLORS: Record<string, string> = {
 
 // ── Component ─────────────────────────────────────────────────
 
-export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
+export default function MatchSimulator({ teams, userId, userEmail }: MatchSimulatorProps) {
   const [otherTeams, setOtherTeams] = useState<Team[]>([]);
   const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, TeamRecord>>({});
@@ -209,6 +210,8 @@ export default function MatchSimulator({ teams, userId }: MatchSimulatorProps) {
         body: JSON.stringify({
           team1Name: team1.name, team1Players: team1.players,
           team2Name: team2.name, team2Players: team2.players,
+          userId: userId,
+          userEmail: userEmail,
         }),
       });
 

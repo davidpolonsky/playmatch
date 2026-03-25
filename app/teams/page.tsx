@@ -405,6 +405,7 @@ export default function TeamsPage() {
           team2Name: selectedAway.name,
           team2Players: selectedAway.players,
           userId: user?.uid,
+          userEmail: user?.email,
         }),
       });
       const data = await res.json();

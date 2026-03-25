@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
 import { onAuthChange } from '@/lib/firebase/auth';
+import { trackNewUserSignup } from '@/lib/firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +25,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthChange((user) => {
       setUser(user);
       setLoading(false);
+
+      // Track new user signups
+      if (user) {
+        trackNewUserSignup(user.uid, user.email || '', user.displayName).catch(err =>
+          console.error('Failed to track user signup:', err)
+        );
+      }
     });
 
     return () => unsubscribe();

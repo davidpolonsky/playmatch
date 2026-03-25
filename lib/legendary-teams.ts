@@ -201,6 +201,33 @@ const wrexhamCurrent: LegendaryTeam = {
   ],
 };
 
+// Inter Miami CF 2025 Champions
+const interMiami2025: LegendaryTeam = {
+  id: 'legendary-inter-miami-2025',
+  name: 'Inter Miami 2025 Champions',
+  formation: '4-3-3',
+  userId: 'legendary',
+  description: 'MLS Champions. Messi\'s Miami masterclass.',
+  isLegendary: true,
+  players: [
+    // GK
+    { id: 'miami-1', name: 'Drake Callender', position: 'GK', rating: 78, imageUrl: '', isHistorical: false, year: '2025' },
+    // DEF
+    { id: 'miami-2', name: 'Jordi Alba', position: 'DEF', rating: 86, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-3', name: 'Sergio Busquets', position: 'DEF', rating: 85, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-4', name: 'Tomas Aviles', position: 'DEF', rating: 75, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-5', name: 'DeAndre Yedlin', position: 'DEF', rating: 74, imageUrl: '', isHistorical: false, year: '2025' },
+    // MID
+    { id: 'miami-6', name: 'Diego Gomez', position: 'MID', rating: 77, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-7', name: 'Federico Redondo', position: 'MID', rating: 76, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-8', name: 'Julian Gressel', position: 'MID', rating: 73, imageUrl: '', isHistorical: false, year: '2025' },
+    // FWD
+    { id: 'miami-9', name: 'Lionel Messi', position: 'FWD', rating: 91, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-10', name: 'Luis Suarez', position: 'FWD', rating: 84, imageUrl: '', isHistorical: false, year: '2025' },
+    { id: 'miami-11', name: 'Robert Taylor', position: 'FWD', rating: 74, imageUrl: '', isHistorical: false, year: '2025' },
+  ],
+};
+
 export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   barcelonaDreamTeam,
   tottenhamLegends,
@@ -209,6 +236,7 @@ export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   realMadridGalacticos,
   manchesterUnited1999,
   wrexhamCurrent,
+  interMiami2025,
 ];
 
 export const getLegendaryTeams = (includePremium: boolean = false): LegendaryTeam[] => {
