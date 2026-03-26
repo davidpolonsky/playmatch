@@ -106,7 +106,7 @@ export default function BasketballFooter() {
                     onChange={e => setName(e.target.value)}
                     placeholder="Your name"
                     className="w-full px-3 py-2 rounded-lg font-headline text-[11px] focus:ring-1 focus:outline-none"
-                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316', placeholderColor: 'rgba(255,255,255,0.25)' }}
+                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
                   />
                 </div>
 
@@ -120,7 +120,7 @@ export default function BasketballFooter() {
                     onChange={e => setEmail(e.target.value)}
                     placeholder="your@email.com"
                     className="w-full px-3 py-2 rounded-lg font-headline text-[11px] focus:ring-1 focus:outline-none"
-                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316', placeholderColor: 'rgba(255,255,255,0.25)' }}
+                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
                   />
                 </div>
 
@@ -134,7 +134,7 @@ export default function BasketballFooter() {
                     placeholder="Share your thoughts, report bugs, or suggest features..."
                     rows={5}
                     className="w-full px-3 py-2 rounded-lg font-headline text-[11px] focus:ring-1 focus:outline-none resize-none"
-                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316', placeholderColor: 'rgba(255,255,255,0.25)' }}
+                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
                   />
                 </div>
 
