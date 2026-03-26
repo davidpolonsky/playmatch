@@ -279,50 +279,187 @@ IMPORTANT: Always provide a numeric rating. Only return valid JSON, no extra tex
 
 // ── Basketball Game Simulation ──────────────────────────────────────────────
 
-// Analyze how well a team's players fit their lineup strategy
-function analyzeLineupFit(players: any[], lineup: string): string {
-  const posRatings: Record<string, number> = {};
-  players.forEach((p: any) => { posRatings[p.position] = p.rating || 75; });
+// ── Basketball lineup fitness analysis ──────────────────────────────────────
+//
+// Basketball OOP is structural, not positional: the mismatch is between a
+// STRATEGY'S requirements and the actual players staffing its key roles.
+//
+// Penalty scale (mirrors soccer's goals-against logic but in points):
+//   CATASTROPHIC mismatch → opponent MUST receive +10 pts from exploiting it
+//   SEVERE        mismatch → opponent MUST receive +6  pts
+//   MODERATE      mismatch → opponent MUST receive +4  pts
+//   No penalty             → strategy works as designed
+//
+// Each strategy has 1-2 "critical slots." Fail to staff those adequately and
+// the whole system collapses in a specific, nameable way.
+//
+function analyzeBasketballLineup(players: any[], lineup: string, teamName: string): { summary: string; mandatoryRules: string } {
+  const byPos: Record<string, any> = {};
+  players.forEach((p: any) => { byPos[p.position] = p; });
+  const r = (pos: string) => byPos[pos]?.rating ?? 68;
+  const n = (pos: string) => byPos[pos]?.name ?? pos;
 
-  const issues: string[] = [];
+  const teamAvg = Math.round(players.reduce((s: number, p: any) => s + (p.rating || 68), 0) / players.length);
+  const rules: string[] = [];
 
+  // ── TWIN TOWERS ────────────────────────────────────────────────────────────
+  // Core requirement: dominant PF AND C (the "towers"). Strategy collapses
+  // if either big is weak — the opponent just posts up and scores at will.
   if (lineup === 'Twin Towers') {
-    const pfRating = posRatings['PF'] || 60;
-    const cRating = posRatings['C'] || 60;
-    if (pfRating < 75) issues.push(`PF (${posRatings['PF'] || '?'}) is too weak for a Twin Towers strategy`);
-    if (cRating < 75) issues.push(`C (${posRatings['C'] || '?'}) is too weak for a Twin Towers strategy`);
-    const bigAvg = (pfRating + cRating) / 2;
-    if (bigAvg >= 85) return `GOOD FIT — Twin Towers with dominant bigs (PF: ${pfRating}, C: ${cRating})`;
-    if (bigAvg >= 75) return `AVERAGE FIT — Twin Towers has adequate bigs but no dominant presence`;
-    return `POOR FIT — Twin Towers requires strong PF and C, but bigs are weak (PF: ${pfRating}, C: ${cRating}). Significant penalty in the paint.`;
+    const pfR = r('PF'), pfN = n('PF'), cR = r('C'), cN = n('C');
+    const bigAvg = (pfR + cR) / 2;
+
+    if (bigAvg < 72) {
+      // Both towers are weak — catastrophic. Opponent owns the paint entirely.
+      rules.push(
+        `🚨 TWIN TOWERS CATASTROPHE — ${teamName} runs Twin Towers but both bigs are undersized for this strategy: ` +
+        `${pfN} (PF, ${pfR}) and ${cN} (C, ${cR}), avg ${Math.round(bigAvg)}. ` +
+        `MANDATORY: Opponent MUST dominate the paint entirely. ` +
+        `${pfN} and ${cN} MUST be physically outmuscled, posterized, or bullied on at least 3 combined possessions. ` +
+        `This mismatch MUST directly hand the opponent +10 points through open paint looks, ` +
+        `put-backs, and foul-drawing that ${teamName}'s weak bigs cannot defend. ` +
+        `Name both players in those negative events. Do NOT let them look competent inside.`
+      );
+    } else if (pfR < 76 && cR >= 80) {
+      // One weak tower — the PF side collapses
+      rules.push(
+        `⚠️ WEAK TOWER — ${teamName}'s Twin Towers leans entirely on ${cN} (C, ${cR}) because ` +
+        `${pfN} (PF, ${pfR}) cannot hold his own at the 4. ` +
+        `MANDATORY: Opponent ISO's ${pfN} repeatedly on the low block and off ball-screens. ` +
+        `${pfN} MUST give up at least 2 easy baskets or foul out early. ` +
+        `This costs ${teamName} +6 points that a real power forward would have prevented.`
+      );
+    } else if (cR < 76 && pfR >= 80) {
+      // One weak tower — the C side collapses
+      rules.push(
+        `⚠️ WEAK TOWER — ${teamName}'s Twin Towers leans entirely on ${pfN} (PF, ${pfR}) because ` +
+        `${cN} (C, ${cR}) is not a true anchor. ` +
+        `MANDATORY: Opponent targets ${cN} in the post and on pick-and-rolls — ${cN} MUST surrender ` +
+        `at least 2 baskets through poor positioning or getting beaten off the dribble. ` +
+        `This costs ${teamName} +6 points.`
+      );
+    } else if (bigAvg >= 88) {
+      rules.push(
+        `✅ TWIN TOWERS DOMINANT — ${pfN} (${pfR}) and ${cN} (${cR}) are elite bigs. ` +
+        `MANDATORY: ${teamName} owns the paint. Opponent MUST avoid interior play. ` +
+        `60%+ of ${teamName}'s scoring should come inside. Highlight the towers dominating boards and post-ups.`
+      );
+    } else {
+      rules.push(`TWIN TOWERS FUNCTIONAL — ${pfN} (${pfR}) and ${cN} (${cR}) are adequate. Strategy works but without elite paint dominance.`);
+    }
   }
 
-  if (lineup === 'Small Ball') {
-    const sfRating = posRatings['SF'] || 60;
-    const pfRating = posRatings['PF'] || 60;
-    if (sfRating < 75) issues.push(`SF (${sfRating}) too weak for Small Ball`);
-    if (pfRating < 75) issues.push(`PF (${pfRating}) too weak for Small Ball`);
-    const wingAvg = (sfRating + pfRating) / 2;
-    if (wingAvg >= 82) return `GOOD FIT — Small Ball with athletic wings (SF: ${sfRating}, PF: ${pfRating})`;
-    if (wingAvg >= 72) return `AVERAGE FIT — Small Ball works but wings are not elite`;
-    return `POOR FIT — Small Ball needs quick athletic wings, but SF/PF are weak (SF: ${sfRating}, PF: ${pfRating}). Strategy backfires.`;
+  // ── SMALL BALL ─────────────────────────────────────────────────────────────
+  // Core requirement: PG drives pace and spacing; the C slot "plays PF" in
+  // this system — they need mobility. A slow traditional big at C is the classic
+  // Small Ball liability: dragged to the perimeter, can't keep up in transition.
+  else if (lineup === 'Small Ball') {
+    const pgR = r('PG'), pgN = n('PG');
+    const cR  = r('C'),  cN  = n('C');
+    const sgR = r('SG');
+    const perimeterAvg = Math.round((pgR + sgR) / 2);
+
+    if (cR < 72) {
+      // C is too weak to even survive the Small Ball scheme's PF demands
+      rules.push(
+        `🚨 SMALL BALL BREAKING POINT — ${teamName} runs Small Ball but ${cN} (C, ${cR}) cannot ` +
+        `handle the mobile-big role this scheme demands. ` +
+        `MANDATORY: Opponent exploits ${cN} relentlessly — dragging them to the perimeter on ` +
+        `pick-and-pops, running them in transition, and forcing them to guard quicker players. ` +
+        `${cN} MUST surrender at least 2 open three-pointers after getting caught on switches ` +
+        `AND blow at least 1 defensive rotation. This costs ${teamName} +10 points directly.`
+      );
+    } else if (cR < 78 && cR < (perimeterAvg - 6)) {
+      // C is below perimeter average — moderate liability in this system
+      rules.push(
+        `⚠️ SMALL BALL DRAG — ${cN} (C, ${cR}) is a traditional big trying to function in ` +
+        `${teamName}'s Small Ball scheme. ` +
+        `MANDATORY: Opponent pops ${cN} off screens to the midrange and switches quicker players onto them. ` +
+        `${cN} MUST give up at least 1 open look after being caught in a switch, and miss ` +
+        `a defensive rotation in transition. This costs ${teamName} +6 points.`
+      );
+    }
+
+    if (pgR < 74) {
+      // No engine — Small Ball without a real PG is a car without a driver
+      rules.push(
+        `⚠️ SMALL BALL WITHOUT AN ENGINE — Small Ball lives and dies with the PG, ` +
+        `but ${pgN} (PG, ${pgR}) is too limited to push pace for ${teamName}. ` +
+        `MANDATORY: ${teamName} fails to generate transition opportunities. ` +
+        `${pgN} MUST turn the ball over at least twice trying to create in the open court, ` +
+        `costing ${teamName} +4 points in easy fast-break buckets for the opponent.`
+      );
+    } else if (pgR >= 87 && perimeterAvg >= 84) {
+      rules.push(
+        `✅ SMALL BALL FIRING — ${pgN} (${pgR}) is an elite engine for ${teamName}'s Small Ball. ` +
+        `MANDATORY: Highlight transition buckets, quick ball movement, and perimeter shooting. ` +
+        `${teamName} should win at least one quarter decisively through pace.`
+      );
+    }
   }
 
-  if (lineup === 'Stretch-4') {
-    const pfRating = posRatings['PF'] || 60;
-    if (pfRating >= 82) return `GOOD FIT — Stretch-4 with a strong shooting PF (${pfRating})`;
-    if (pfRating >= 72) return `AVERAGE FIT — Stretch-4 PF can contribute but isn't elite`;
-    return `POOR FIT — Stretch-4 requires a high-rated PF as a floor-spacer, but PF is rated ${pfRating}. Spacing collapses.`;
+  // ── STRETCH-4 ──────────────────────────────────────────────────────────────
+  // Core requirement: PF must space the floor (perimeter threat). If the PF
+  // can't shoot, the defense ignores them, sags into the paint, and the entire
+  // point of the scheme — opening driving lanes — is nullified.
+  else if (lineup === 'Stretch-4') {
+    const pfR  = r('PF'),  pfN  = n('PF');
+    const pgR  = r('PG'),  pgN  = n('PG');
+    const perimAvg = Math.round((r('PG') + r('SG') + r('SF')) / 3);
+
+    if (pfR < 70) {
+      // PF is a liability — defense ignores them entirely
+      rules.push(
+        `🚨 STRETCH-4 NULLIFIED — ${teamName}'s Stretch-4 strategy depends entirely on ${pfN} ` +
+        `spacing the floor, but ${pfN} (PF, ${pfR}) cannot threaten from the perimeter. ` +
+        `MANDATORY: The opponent's defense sags completely off ${pfN}, packing the paint. ` +
+        `${pgN} and the guards MUST get blocked or lose the ball at least twice driving into ` +
+        `a clogged lane. ${pfN} MUST miss or decline open looks at least twice. ` +
+        `This costs ${teamName} +10 points in lost spacing value — their whole attack system breaks down.`
+      );
+    } else if (pfR < 78 || pfR < perimAvg - 8) {
+      // PF is below the team's perimeter standards — spacing is half-hearted
+      rules.push(
+        `⚠️ STRETCH-4 UNDERPERFORMING — ${pfN} (PF, ${pfR}) is below ${teamName}'s perimeter ` +
+        `standard (team avg: ${teamAvg}), limiting Stretch-4's floor-spacing impact. ` +
+        `MANDATORY: Defense half-commits on ${pfN}, shrinking driving lanes. ` +
+        `${pfN} MUST pass up at least 1 open three they should have hit, and allow ` +
+        `1 extra help-defense rotation that kills a teammate's driving lane. +6 points to opponent.`
+      );
+    } else if (pfR >= 85) {
+      rules.push(
+        `✅ STRETCH-4 ELITE — ${pfN} (${pfR}) is a genuine floor-spacer for ${teamName}. ` +
+        `MANDATORY: Defense must respect ${pfN} at all times. Highlight at least 2 open lanes ` +
+        `created by ${pfN}'s gravity, leading to buckets for teammates or ${pfN} themselves.`
+      );
+    }
   }
 
-  // Standard lineup — check for any severely weak positions
-  const ratings = Object.values(posRatings);
-  const minRating = Math.min(...ratings);
-  if (minRating < 65) {
-    const weakPos = Object.entries(posRatings).find(([, r]) => r < 65);
-    return `WEAK LINK — Standard lineup but ${weakPos?.[0]} (rated ${weakPos?.[1]}) is a major liability.`;
+  // ── STANDARD ───────────────────────────────────────────────────────────────
+  // No structural penalty. But if any player is 12+ pts below team avg,
+  // they're a named liability the opponent should target.
+  else {
+    const weak = players
+      .filter((p: any) => (p.rating || 68) < teamAvg - 12)
+      .sort((a: any, b: any) => a.rating - b.rating);
+
+    if (weak.length > 0) {
+      const wl = weak[0];
+      rules.push(
+        `⚠️ WEAK LINK — ${wl.name} (${wl.position}, ${wl.rating}) is ${teamAvg - wl.rating} points ` +
+        `below ${teamName}'s team average. ` +
+        `MANDATORY: Opponent MUST target ${wl.name}'s matchup. ` +
+        `${wl.name} MUST be beaten for at least 1 easy basket through their defensive weakness. ` +
+        `+4 points to opponent from isolating ${wl.name}.`
+      );
+    }
   }
-  return `STANDARD — Balanced lineup, no major mismatches.`;
+
+  const summary = rules.length > 0
+    ? rules[0].replace(/🚨|⚠️|✅/g, '').trim().substring(0, 80) + '…'
+    : `Good fit for ${lineup}`;
+
+  return { summary, mandatoryRules: rules.join('\n') };
 }
 
 export const simulateBasketballGame = async (
@@ -341,8 +478,9 @@ export const simulateBasketballGame = async (
     const ratingGap = Math.abs(team1Avg - team2Avg);
     const favorite = team1Avg >= team2Avg ? team1Name : team2Name;
 
-    const team1FitNote = analyzeLineupFit(team1Players, team1Lineup);
-    const team2FitNote = analyzeLineupFit(team2Players, team2Lineup);
+    const team1Analysis = analyzeBasketballLineup(team1Players, team1Lineup, team1Name);
+    const team2Analysis = analyzeBasketballLineup(team2Players, team2Lineup, team2Name);
+    const hasLineupRules = team1Analysis.mandatoryRules || team2Analysis.mandatoryRules;
 
     const prompt = `You are an elite NBA commentator. Simulate a FULL 4-quarter basketball game with live play-by-play between these two teams.
 
@@ -352,11 +490,18 @@ ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rati
 TEAM 2: ${team2Name} (Avg Rating: ${team2Avg}, Strategy: ${team2Lineup})
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
 
-LINEUP STRATEGY ANALYSIS:
-- ${team1Name} (${team1Lineup}): ${team1FitNote}
-- ${team2Name} (${team2Lineup}): ${team2FitNote}
-IMPORTANT: If a team has a POOR FIT rating above, their effective performance should be significantly worse than their raw average would suggest. A team playing the wrong strategy with mismatched players should struggle and lose more often — even against lower-rated opponents who are well-fitted.
-
+STRATEGY ANALYSIS:
+- ${team1Name} (${team1Lineup}): ${team1Analysis.summary}
+- ${team2Name} (${team2Lineup}): ${team2Analysis.summary}
+${hasLineupRules ? `
+╔══════════════════════════════════════════════════════════════╗
+║      MANDATORY LINEUP MISMATCH SIMULATION RULES             ║
+║  These OVERRIDE normal rating logic. Every instruction      ║
+║  below MUST be reflected in the play-by-play and score.     ║
+╚══════════════════════════════════════════════════════════════╝
+${team1Analysis.mandatoryRules}
+${team2Analysis.mandatoryRules}
+` : ''}
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
 - Rating gap 0-3: Toss-up — either team equally likely to win, overtime is possible
@@ -366,7 +511,7 @@ SIMULATION RULES:
 - NO ties — if scores are equal at end, one team wins by 2-3 in overtime
 - Use ACTUAL player names from the rosters above — never invent players
 - High-rated players make more impact but can still miss big shots
-- If a team has a POOR FIT lineup, their weak players should make key mistakes in relevant situations (e.g., Twin Towers with weak bigs gets dominated in the paint)
+- Any mandatory point penalties above ARE INCLUDED in the final score — do not add extra goals on top
 
 PLAY-BY-PLAY RULES:
 - Generate exactly 48-56 events covering all 4 quarters
