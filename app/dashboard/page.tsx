@@ -475,7 +475,24 @@ export default function Dashboard() {
         )}
 
         {activeTab === 'teams' && (
-          <TeamList teams={savedTeams} onTeamsChange={loadUserTeams} />
+          <div className="space-y-6">
+            <TeamList teams={savedTeams} onTeamsChange={loadUserTeams} />
+
+            {/* Legendary Teams Section */}
+            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
+              <h2 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider">⭐ LEGENDARY TEAMS</h2>
+              <p className="font-headline text-[10px] text-white/50 mb-4">Classic teams from FIFA history</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {getLegendaryTeams().map(team => (
+                  <div key={team.id} className="bg-fifa-dark rounded-lg border border-fifa-border p-3">
+                    <h3 className="font-headline text-[12px] text-fifa-cream mb-1">{team.name}</h3>
+                    <p className="font-body text-[9px] text-fifa-amber/70 mb-2">{(team as any).description}</p>
+                    <p className="font-headline text-[10px] text-fifa-mint/60">{team.formation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'match' && (
