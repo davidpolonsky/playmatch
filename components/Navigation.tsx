@@ -71,6 +71,13 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
         </button>
 
         <div className="flex gap-2 items-center flex-wrap">
+          <button
+            onClick={() => router.push('/basketball')}
+            className="btn-secondary text-[9px] py-1.5 px-3 flex items-center gap-1.5"
+          >
+            <img src="/basketball.png" className="w-3.5 h-3.5" alt="" /> Basketball
+          </button>
+
           {/* Invite Friends Dropdown */}
           <div className="relative">
             <button
