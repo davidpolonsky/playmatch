@@ -71,40 +71,6 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
         </button>
 
         <div className="flex gap-2 items-center flex-wrap">
-          {currentPage !== 'dashboard' && (
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="btn-secondary text-[9px] py-1.5 px-3"
-            >
-              Dashboard
-            </button>
-          )}
-
-          {currentPage !== 'teams' && (
-            <button
-              onClick={() => router.push('/teams')}
-              className="btn-secondary text-[9px] py-1.5 px-3"
-            >
-              My Teams
-            </button>
-          )}
-
-          {currentPage !== 'team-builder' && (
-            <button
-              onClick={() => router.push('/team-builder')}
-              className="btn-primary text-[9px] py-1.5 px-3"
-            >
-              + New Team
-            </button>
-          )}
-
-          <button
-            onClick={() => router.push('/basketball')}
-            className="btn-secondary text-[9px] py-1.5 px-3"
-          >
-            🏀 Basketball
-          </button>
-
           {/* Invite Friends Dropdown */}
           <div className="relative">
             <button
