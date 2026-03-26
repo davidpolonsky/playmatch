@@ -81,24 +81,28 @@ export const simulateMatch = async (
     const ratingGap = Math.abs(team1AvgRating - team2AvgRating);
     const favorite = team1AvgRating >= team2AvgRating ? team1Name : team2Name;
 
-    // Detailed OOP analysis — identifies specific players, roles, and mandatory simulation instructions
+    // OOP severity table:
+    //   WAY out of position (2 goals against): GK→any, any→GK, DEF→FWD, FWD→DEF
+    //   Minor out of position (1 goal against): DEF↔MID, MID↔FWD
+    const isWayOOP = (from: string, to: string) =>
+      from === 'GK' || to === 'GK' ||
+      (from === 'DEF' && to === 'FWD') ||
+      (from === 'FWD' && to === 'DEF');
+
     const analyzeSoccerLineup = (players: any[], formation: string, teamName: string) => {
       const parts = formation.split('-').map(Number);
-      if (parts.length < 3) return { summary: 'Unknown formation', mandatoryRules: '' };
+      if (parts.length < 3) return { summary: 'Well-fitted', mandatoryRules: '' };
 
       const needed: Record<string, number> = { GK: 1, DEF: parts[0], MID: parts[1], FWD: parts[2] };
 
-      // Group players by their NATURAL position, sorted rating DESC
       const byPos: Record<string, any[]> = { GK: [], DEF: [], MID: [], FWD: [] };
       players.forEach((p: any) => { if (byPos[p.position]) byPos[p.position].push(p); });
       for (const pos of ['GK','DEF','MID','FWD']) byPos[pos].sort((a: any, b: any) => b.rating - a.rating);
 
-      // Identify surplus (OOP players) and deficit (roles to fill)
       const oopPlayers: Array<{ player: any; naturalPos: string }> = [];
       const deficitSlots: string[] = [];
       for (const pos of ['GK','DEF','MID','FWD']) {
-        const have = byPos[pos].length;
-        const need = needed[pos] || 0;
+        const have = byPos[pos].length, need = needed[pos] || 0;
         if (have > need) byPos[pos].slice(need).forEach((p: any) => oopPlayers.push({ player: p, naturalPos: pos }));
         if (have < need) for (let i = 0; i < need - have; i++) deficitSlots.push(pos);
       }
@@ -108,45 +112,28 @@ export const simulateMatch = async (
       const rules: string[] = [];
       oopPlayers.forEach(({ player, naturalPos }, i) => {
         const playingAs = deficitSlots[i] || 'outfield';
-        const gkPlayingOut = naturalPos === 'GK' && playingAs !== 'GK';
-        const outfieldPlayingGK = naturalPos !== 'GK' && playingAs === 'GK';
-        const bigJump = (naturalPos === 'DEF' && playingAs === 'FWD') || (naturalPos === 'FWD' && playingAs === 'DEF');
+        const way = isWayOOP(naturalPos, playingAs);
 
-        if (gkPlayingOut) {
+        if (way) {
           rules.push(
-            `🚨 CRITICAL — ${player.name} (GK, ${player.rating}) is playing as ${playingAs} for ${teamName}. ` +
-            `A goalkeeper playing outfield is almost always catastrophic. MANDATORY: ` +
-            `(1) The opposition MUST target ${player.name}'s area repeatedly. ` +
-            `(2) ${player.name} MUST directly cause at least 1 goal against through an error (lost duel, terrible pass, inability to mark). ` +
-            `(3) Reference ${player.name} by name in at least 2 negative play events. ` +
-            `(4) Do NOT let ${player.name} have a quiet or positive game — every involvement is a liability.`
-          );
-        } else if (outfieldPlayingGK) {
-          rules.push(
-            `🚨 CRITICAL — ${player.name} (${naturalPos}, ${player.rating}) is playing as GOALKEEPER for ${teamName}. ` +
-            `An outfield player in goal is almost always catastrophic. MANDATORY: ` +
-            `(1) Shots on target against ${teamName} MUST frequently beat ${player.name} — poor positioning, fumbles, misjudged crosses. ` +
-            `(2) ${player.name} MUST directly allow at least 2 goals that a real GK would have saved. ` +
-            `(3) Reference ${player.name} by name in negative goalkeeping events.`
-          );
-        } else if (bigJump) {
-          rules.push(
-            `⚠️ SEVERE — ${player.name} (${naturalPos}, ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
-            `A ${naturalPos} playing ${playingAs} is a serious mismatch. MANDATORY: ` +
-            `${player.name} should make at least one costly error in this role (misplaced pass leading to danger, fails to track a run, poor touch in a key moment). ` +
-            `Treat their effective rating as 10-15 points lower.`
+            `🚨 WAY OUT OF POSITION — ${player.name} (${naturalPos}, rated ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
+            `MANDATORY RULE — this mismatch MUST cause exactly 2 goals against ${teamName} in this match. ` +
+            `Both goals must be directly caused by ${player.name}'s inability to perform in this role. ` +
+            `Name ${player.name} explicitly in those goal events. ` +
+            `Do NOT let ${player.name} make any positive contribution — every involvement is a liability.`
           );
         } else {
           rules.push(
-            `⚠️ MODERATE — ${player.name} (${naturalPos}, ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
-            `Adjacent position mismatch — they'll be noticeably below peak in this role. ` +
-            `Mention their unconventional position in 1-2 commentary moments. Treat effective rating as 5-8 points lower.`
+            `⚠️ MINOR OUT OF POSITION — ${player.name} (${naturalPos}, rated ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
+            `MANDATORY RULE — this mismatch MUST cause exactly 1 goal against ${teamName} in this match. ` +
+            `That goal must be directly linked to ${player.name} being out of their natural position (poor positioning, hesitation, wrong decision). ` +
+            `Name ${player.name} explicitly in that goal event.`
           );
         }
       });
 
       const summary = oopPlayers.map(({ player, naturalPos }, i) =>
-        `${player.name} (${naturalPos}→${deficitSlots[i] || 'out'})`
+        `${player.name} (${naturalPos}→${deficitSlots[i] || 'out'}, ${isWayOOP(naturalPos, deficitSlots[i] || 'outfield') ? '2-goal penalty' : '1-goal penalty'})`
       ).join(', ');
 
       return { summary, mandatoryRules: rules.join('\n') };
