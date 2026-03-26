@@ -935,7 +935,7 @@ export default function BasketballTeamsPage() {
             const gb = (team: AnyBballTeam) => {
               if (!leader) return 0;
               const r = getRecord(team);
-              return ((leader.wins - r.wins) + (r.losses - leader.losses)) / 2;
+              return (((leader.wins ?? 0) - (r.wins ?? 0)) + ((r.losses ?? 0) - (leader.losses ?? 0))) / 2;
             };
 
             const toggleStandings = (id: string) => setStandingsTeamIds(prev => {
