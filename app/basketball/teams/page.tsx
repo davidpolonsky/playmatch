@@ -13,6 +13,7 @@ import {
 } from '@/lib/firebase/firestore-basketball';
 import { LEGENDARY_BASKETBALL_TEAMS, LegendaryBasketballTeam } from '@/lib/legendary-basketball-teams';
 import { BASKETBALL_POSITION_ORDER, BasketballPosition } from '@/lib/types-basketball';
+import Footer from '@/components/Footer';
 
 type AnyBballTeam = BballTeamDoc | LegendaryBasketballTeam;
 
@@ -111,10 +112,25 @@ export default function BasketballTeamsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
+  const [soccerLabel, setSoccerLabel] = useState('Football');
 
   const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
+
+  // Detect user location to show "Soccer" for US, "Football" for others
+  useEffect(() => {
+    fetch('https://ipapi.co/json/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.country_code === 'US') {
+          setSoccerLabel('Soccer');
+        }
+      })
+      .catch(() => {
+        // If detection fails, keep default "Football"
+      });
+  }, []);
 
   useEffect(() => {
     if (user) { loadTeams(); }
@@ -334,16 +350,17 @@ export default function BasketballTeamsPage() {
   const SELECT_STYLE = { background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #0f0a00 0%, #1c1200 60%, #0f0a00 100%)' }}>
-      {/* Nav */}
-      <nav style={{ background: '#0f0a00', borderBottom: '1px solid #3d2c00' }}>
+    <>
+      <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #0f0a00 0%, #1c1200 60%, #0f0a00 100%)' }}>
+        {/* Nav */}
+        <nav style={{ background: '#0f0a00', borderBottom: '1px solid #3d2c00' }}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4 flex-wrap">
           <h1 className="font-retro text-[11px] tracking-wider" style={{ color: '#f97316' }}>🏀 PlayMatch</h1>
           <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => router.push('/dashboard')}
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"
               style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-              ⚽ Switch to Football
+              ⚽ Switch to {soccerLabel}
             </button>
             <button onClick={() => router.push('/basketball/team-builder')}
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg transition-all"
@@ -849,6 +866,8 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
           )}
         </div>
       )}
-    </div>
+      </div>
+      <Footer />
+    </>
   );
 }

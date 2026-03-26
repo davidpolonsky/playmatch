@@ -98,6 +98,13 @@ export default function Navigation({ user, currentPage }: NavigationProps) {
             </button>
           )}
 
+          <button
+            onClick={() => router.push('/basketball')}
+            className="btn-secondary text-[9px] py-1.5 px-3"
+          >
+            🏀 Basketball
+          </button>
+
           {/* Invite Friends Dropdown */}
           <div className="relative">
             <button

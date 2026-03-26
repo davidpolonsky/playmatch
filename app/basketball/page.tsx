@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 
 export default function BasketballHome() {
   const [loading, setLoading] = useState(true);
+  const [soccerLabel, setSoccerLabel] = useState('Football');
   const router = useRouter();
 
   useEffect(() => {
@@ -18,6 +19,20 @@ export default function BasketballHome() {
     });
     return () => unsub();
   }, [router]);
+
+  useEffect(() => {
+    // Detect user location to show "Soccer" for US, "Football" for others
+    fetch('https://ipapi.co/json/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.country_code === 'US') {
+          setSoccerLabel('Soccer');
+        }
+      })
+      .catch(() => {
+        // If detection fails, keep default "Football"
+      });
+  }, []);
 
   const handleSignIn = async () => {
     try {
@@ -48,7 +63,7 @@ export default function BasketballHome() {
           <div className="flex justify-center gap-2 mb-8">
             <button onClick={() => router.push('/')}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-bball-border bg-bball-mid/50 text-white/50 font-retro text-[8px] hover:text-white/70 transition-colors">
-              ⚽ Football
+              ⚽ {soccerLabel}
             </button>
             <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-bball-orange bg-bball-orange/10 text-bball-orange font-retro text-[8px]">
               🏀 Basketball
