@@ -142,16 +142,33 @@ export default function Dashboard() {
     const player = players.find(p => p.id === playerId);
     if (!player) return;
 
-    // Check if we can add more of this position
-    const currentCount = currentTeam.filter(p => p.position === player.position).length;
+    if (currentTeam.length >= 11) {
+      showNotification('Team is full — 11 players maximum', 'info');
+      return;
+    }
+
     const formationConfig = FORMATIONS[formation];
+    const currentCount = currentTeam.filter(p => p.position === player.position).length;
     const maxCount = formationConfig.positions[player.position];
 
-    if (currentCount < maxCount) {
-      setCurrentTeam(prev => [...prev, player]);
-    } else {
-      showNotification(`Maximum ${player.position} players for this formation: ${maxCount}`, 'info');
+    setCurrentTeam(prev => [...prev, player]);
+
+    if (currentCount >= maxCount) {
+      showNotification(`⚠️ ${player.name} added out of position — ${player.position} exceeds ${formation} quota. Red border shows in team.`, 'info');
     }
+  };
+
+  // Compute which players are exceeding their position quota (out of position)
+  const getOutOfPositionIds = (team: typeof currentTeam): Set<string> => {
+    const out = new Set<string>();
+    const formationConfig = FORMATIONS[formation];
+    const positions = ['GK', 'DEF', 'MID', 'FWD'] as const;
+    for (const pos of positions) {
+      const posPlayers = team.filter(p => p.position === pos).sort((a, b) => b.rating - a.rating);
+      const limit = formationConfig.positions[pos];
+      posPlayers.slice(limit).forEach(p => out.add(p.id));
+    }
+    return out;
   };
 
   const handleRemoveFromTeam = (playerId: string) => {
@@ -354,6 +371,7 @@ export default function Dashboard() {
                 <InteractivePlayerList
                   allPlayers={players}
                   teamPlayers={currentTeam}
+                  outOfPositionIds={getOutOfPositionIds(currentTeam)}
                   onAdd={handleAddToTeam}
                   onRemove={handleRemoveFromTeam}
                 />
@@ -395,6 +413,7 @@ export default function Dashboard() {
                     players={currentTeam}
                     allPlayers={players}
                     formation={FORMATIONS[formation]}
+                    outOfPositionIds={getOutOfPositionIds(currentTeam)}
                     onRemoveFromTeam={handleRemoveFromTeam}
                     onAddToTeam={handleAddToTeam}
                   />

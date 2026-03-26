@@ -7,6 +7,7 @@ import PixelAvatar from './PixelAvatar';
 interface InteractivePlayerListProps {
   allPlayers: Player[];
   teamPlayers: Player[];
+  outOfPositionIds?: Set<string>;
   onAdd: (playerId: string) => void;
   onRemove: (playerId: string) => void;
 }
@@ -23,6 +24,7 @@ const POSITION_COLORS: Record<string, string> = {
 export default function InteractivePlayerList({
   allPlayers,
   teamPlayers,
+  outOfPositionIds = new Set(),
   onAdd,
   onRemove,
 }: InteractivePlayerListProps) {
@@ -57,6 +59,7 @@ export default function InteractivePlayerList({
     <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
       {sorted.map((player) => {
         const isInTeam = teamPlayerIds.has(player.id);
+        const isOOP = outOfPositionIds.has(player.id);
 
         return (
           <div
@@ -65,7 +68,9 @@ export default function InteractivePlayerList({
             onDragStart={() => handleDragStart(player.id)}
             onDragEnd={handleDragEnd}
             className={`flex items-center gap-3 px-3 py-2.5 bg-fifa-dark border rounded-lg transition-colors cursor-move ${
-              isInTeam
+              isOOP
+                ? 'border-red-500/60 bg-red-500/5'
+                : isInTeam
                 ? 'border-fifa-mint/50 bg-fifa-mint/5'
                 : 'border-fifa-border hover:border-fifa-mint/30'
             }`}
@@ -83,6 +88,11 @@ export default function InteractivePlayerList({
                 <span className="font-headline text-[12px] text-white truncate">
                   {player.name}
                 </span>
+                {isOOP && (
+                  <span className="font-retro text-[7px] px-1.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/40 rounded">
+                    OUT OF POS
+                  </span>
+                )}
                 {player.isHistorical && (
                   <span className="font-retro text-[7px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded">
                     {player.era || 'LEGEND'}

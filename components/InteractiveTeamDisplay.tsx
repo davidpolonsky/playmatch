@@ -8,6 +8,7 @@ interface InteractiveTeamDisplayProps {
   players: Player[];
   allPlayers: Player[];
   formation: Formation;
+  outOfPositionIds?: Set<string>;
   onRemoveFromTeam: (playerId: string) => void;
   onAddToTeam: (playerId: string) => void;
 }
@@ -25,6 +26,7 @@ export default function InteractiveTeamDisplay({
   players,
   allPlayers,
   formation,
+  outOfPositionIds = new Set(),
   onRemoveFromTeam,
   onAddToTeam,
 }: InteractiveTeamDisplayProps) {
@@ -47,6 +49,9 @@ export default function InteractiveTeamDisplay({
     FWD: allPlayers.filter(p => p.position === 'FWD' && !playerIds.has(p.id)),
   };
 
+  // Players that exceed the formation quota (shown below the grid)
+  const overflowPlayers = players.filter(p => outOfPositionIds.has(p.id));
+
   const handleDragStart = (playerId: string) => {
     setDraggedPlayerId(playerId);
   };
@@ -67,10 +72,8 @@ export default function InteractiveTeamDisplay({
       const draggedPlayer = allPlayers.find(p => p.id === draggedPlayerId);
       if (draggedPlayer && draggedPlayer.position === position) {
         if (playerIds.has(draggedPlayerId)) {
-          // Removing from team (dragging within formation)
           onRemoveFromTeam(draggedPlayerId);
         } else {
-          // Adding to team (dragging from roster)
           onAddToTeam(draggedPlayerId);
         }
       }
@@ -79,48 +82,63 @@ export default function InteractiveTeamDisplay({
     setDragOverPosition(null);
   };
 
-  const renderPlayerCard = (player: Player) => (
-    <div
-      key={player.id}
-      draggable
-      onDragStart={() => handleDragStart(player.id)}
-      onDragEnd={handleDragEnd}
-      className="relative bg-white border-2 border-gray-300 rounded-lg p-2 shadow-md hover:shadow-lg transition-all text-center cursor-move group w-20"
-    >
-      {/* X button to remove */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemoveFromTeam(player.id);
-        }}
-        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 flex items-center justify-center z-10 font-bold"
-        title="Remove from team"
+  const renderPlayerCard = (player: Player, forceOutOfPosition?: boolean) => {
+    const isOOP = forceOutOfPosition || outOfPositionIds.has(player.id);
+    return (
+      <div
+        key={player.id}
+        draggable
+        onDragStart={() => handleDragStart(player.id)}
+        onDragEnd={handleDragEnd}
+        className={`relative rounded-lg p-2 shadow-md hover:shadow-lg transition-all text-center cursor-move group w-20 ${
+          isOOP
+            ? 'bg-white border-2 border-red-500'
+            : 'bg-white border-2 border-gray-300'
+        }`}
       >
-        ✕
-      </button>
+        {/* Out-of-position warning badge */}
+        {isOOP && (
+          <div className="absolute -top-2 -left-2 w-5 h-5 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold z-10"
+            title="Out of position">
+            !
+          </div>
+        )}
 
-      {/* Pixel avatar */}
-      <div className="flex justify-center mb-1">
-        <PixelAvatar
-          skinTone={player.skinTone}
-          hairColor={player.hairColor}
-          hairStyle={player.hairStyle}
-          size={32}
-        />
-      </div>
+        {/* X button to remove */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemoveFromTeam(player.id);
+          }}
+          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 flex items-center justify-center z-10 font-bold"
+          title="Remove from team"
+        >
+          ✕
+        </button>
 
-      <div className="font-headline text-[10px] mb-0.5 text-fifa-amber font-bold truncate leading-tight">
-        {formatPlayerName(player.name)}
+        {/* Pixel avatar */}
+        <div className="flex justify-center mb-1">
+          <PixelAvatar
+            skinTone={player.skinTone}
+            hairColor={player.hairColor}
+            hairStyle={player.hairStyle}
+            size={32}
+          />
+        </div>
+
+        <div className="font-headline text-[10px] mb-0.5 text-fifa-amber font-bold truncate leading-tight">
+          {formatPlayerName(player.name)}
+        </div>
+        <div className={`text-[8px] font-retro uppercase tracking-widest ${isOOP ? 'text-red-500 font-bold' : 'text-gray-600'}`}>
+          {player.position}
+        </div>
+        <div className="mt-0.5 text-sm font-bold text-blue-600">{player.rating}</div>
+        {player.isHistorical && (
+          <div className="mt-0.5 text-[7px] text-purple-600">★</div>
+        )}
       </div>
-      <div className="text-[8px] font-retro text-gray-600 uppercase tracking-widest">
-        {player.position}
-      </div>
-      <div className="mt-0.5 text-sm font-bold text-blue-600">{player.rating}</div>
-      {player.isHistorical && (
-        <div className="mt-0.5 text-[7px] text-purple-600">★</div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderEmptySlot = (position: 'GK' | 'DEF' | 'MID' | 'FWD', index: number) => {
     const available = availableByPosition[position].sort((a, b) => b.rating - a.rating);
@@ -150,12 +168,15 @@ export default function InteractiveTeamDisplay({
   };
 
   const renderPositionRow = (position: 'GK' | 'DEF' | 'MID' | 'FWD', count: number) => {
-    const posPlayers = playersByPosition[position].slice(0, count);
+    // Only show in-position players in the formation grid (those NOT in outOfPositionIds)
+    const posPlayers = playersByPosition[position]
+      .filter(p => !outOfPositionIds.has(p.id))
+      .slice(0, count);
     const emptySlots = count - posPlayers.length;
 
     return (
       <div className="flex justify-center gap-2 flex-wrap">
-        {posPlayers.map(renderPlayerCard)}
+        {posPlayers.map(p => renderPlayerCard(p))}
         {Array.from({ length: emptySlots }).map((_, i) => renderEmptySlot(position, i))}
       </div>
     );
@@ -187,10 +208,27 @@ export default function InteractiveTeamDisplay({
         {renderPositionRow('GK', formation.positions.GK)}
       </div>
 
+      {/* Out-of-position overflow row */}
+      {overflowPlayers.length > 0 && (
+        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/5 p-3">
+          <div className="text-center font-retro text-[8px] text-red-400 mb-2 tracking-wider uppercase">
+            ⚠ Out of Position
+          </div>
+          <div className="flex justify-center gap-2 flex-wrap">
+            {overflowPlayers.map(p => renderPlayerCard(p, true))}
+          </div>
+          <p className="text-center font-headline text-[9px] text-red-300/70 mt-2">
+            These players exceed the {formation.name} quota for their position — they'll perform worse in simulation.
+          </p>
+        </div>
+      )}
+
       <div className="text-center bg-fifa-dark/50 rounded-lg p-3 mt-4 border border-fifa-border">
         {players.length === 11 ? (
           <p className="font-retro text-[9px] text-fifa-mint mb-1">
-            ✓ Complete team
+            {overflowPlayers.length > 0
+              ? `✓ 11 players — but ${overflowPlayers.length} out of position`
+              : '✓ Complete team'}
           </p>
         ) : (
           <>
