@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [tableRecords, setTableRecords] = useState<Record<string, TeamRecord>>({});
   const [tableLegendaryRecords, setTableLegendaryRecords] = useState<Record<string, TeamRecord>>({});
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const [tableSaveState, setTableSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [notification, setNotification] = useState<{
     message: string;
     type: 'success' | 'error' | 'info';
@@ -58,6 +59,10 @@ export default function Dashboard() {
     if (user) {
       loadUserTeams();
       loadUserRoster();
+      // Load saved table selection
+      getTablePreferences(user.uid).then(prefs => {
+        if (prefs.tableTeamIds.length > 0) setTableTeamIds(new Set(prefs.tableTeamIds));
+      }).catch(() => {});
     }
   }, [user]);
 
@@ -518,11 +523,42 @@ export default function Dashboard() {
                     </button>
                   ))}
                 </div>
-                {/* Add teams button */}
-                <button onClick={() => setTablePickerOpen(o => !o)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-retro text-[9px] tracking-wider transition-colors border-fifa-mint/40 text-fifa-mint hover:bg-fifa-mint/10">
-                  {tablePickerOpen ? '✕ Close' : '＋ Add Teams'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Save button */}
+                  <button
+                    title="Save table selection"
+                    onClick={async () => {
+                      if (tableSaveState !== 'idle') return;
+                      setTableSaveState('saving');
+                      try {
+                        await saveTablePreferences(user.uid, [...tableTeamIds]);
+                        setTableSaveState('saved');
+                        setTimeout(() => setTableSaveState('idle'), 2000);
+                      } catch { setTableSaveState('idle'); }
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-retro text-[9px] tracking-wider transition-all border-fifa-mint/30 hover:border-fifa-mint/60 hover:bg-fifa-mint/10"
+                    style={{ color: tableSaveState === 'saved' ? '#4ade80' : 'rgba(74,222,128,0.5)' }}>
+                    {tableSaveState === 'saved' ? (
+                      '✓ SAVED'
+                    ) : tableSaveState === 'saving' ? (
+                      '…'
+                    ) : (
+                      // Retro floppy disk icon
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                        <rect x="3" y="1" width="7" height="5" rx="0.5"/>
+                        <rect x="9" y="2" width="2" height="3" fill="var(--color-fifa-dark, #0a1628)" rx="0.3"/>
+                        <rect x="3" y="8" width="10" height="6" rx="0.5"/>
+                        <rect x="5" y="9.5" width="6" height="3" rx="0.3" fill="var(--color-fifa-dark, #0a1628)"/>
+                      </svg>
+                    )}
+                  </button>
+                  {/* Add teams button */}
+                  <button onClick={() => setTablePickerOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-retro text-[9px] tracking-wider transition-colors border-fifa-mint/40 text-fifa-mint hover:bg-fifa-mint/10">
+                    {tablePickerOpen ? '✕ Close' : '＋ Add Teams'}
+                  </button>
+                </div>
               </div>
 
               {/* Team picker panel */}

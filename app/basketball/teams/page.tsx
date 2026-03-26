@@ -11,6 +11,7 @@ import {
   ensureBballShareId, getBasketballTeamByShareId, formatShareId, parseShareId,
   saveBballHistory, getBballHistory, BballHistoryEntry,
 } from '@/lib/firebase/firestore-basketball';
+import { saveTablePreferences, getTablePreferences } from '@/lib/firebase/firestore';
 import { LEGENDARY_BASKETBALL_TEAMS, LegendaryBasketballTeam } from '@/lib/legendary-basketball-teams';
 import { BASKETBALL_POSITION_ORDER, BasketballPosition } from '@/lib/types-basketball';
 
@@ -87,6 +88,7 @@ export default function BasketballTeamsPage() {
   const [standingsTeamIds, setStandingsTeamIds] = useState<Set<string>>(new Set());
   const [standingsMetric, setStandingsMetric] = useState<'winpct' | 'gb'>('winpct');
   const [standingsPickerOpen, setStandingsPickerOpen] = useState(false);
+  const [standingsSaveState, setStandingsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
@@ -130,7 +132,13 @@ export default function BasketballTeamsPage() {
   }, []);
 
   useEffect(() => {
-    if (user) { loadTeams(); }
+    if (user) {
+      loadTeams();
+      // Load saved standings selection
+      getTablePreferences(user.uid).then(prefs => {
+        if (prefs.standingsTeamIds.length > 0) setStandingsTeamIds(new Set(prefs.standingsTeamIds));
+      }).catch(() => {});
+    }
     else if (!loading) setLoadingTeams(false);
   }, [user, loading]);
 
@@ -783,11 +791,45 @@ export default function BasketballTeamsPage() {
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setStandingsPickerOpen(o => !o)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-colors"
-                    style={{ border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
-                    {standingsPickerOpen ? '✕ Close' : '＋ Add Teams'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Save button */}
+                    <button
+                      title="Save standings selection"
+                      onClick={async () => {
+                        if (standingsSaveState !== 'idle' || !user) return;
+                        setStandingsSaveState('saving');
+                        try {
+                          await saveTablePreferences(user.uid, [], [...standingsTeamIds]);
+                          setStandingsSaveState('saved');
+                          setTimeout(() => setStandingsSaveState('idle'), 2000);
+                        } catch { setStandingsSaveState('idle'); }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-all"
+                      style={{
+                        border: '1px solid rgba(249,115,22,0.3)',
+                        color: standingsSaveState === 'saved' ? '#4ade80' : 'rgba(249,115,22,0.5)',
+                      }}>
+                      {standingsSaveState === 'saved' ? (
+                        '✓ SAVED'
+                      ) : standingsSaveState === 'saving' ? (
+                        '…'
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                          <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                          <rect x="3" y="1" width="7" height="5" rx="0.5"/>
+                          <rect x="9" y="2" width="2" height="3" fill="#1c1200" rx="0.3"/>
+                          <rect x="3" y="8" width="10" height="6" rx="0.5"/>
+                          <rect x="5" y="9.5" width="6" height="3" rx="0.3" fill="#1c1200"/>
+                        </svg>
+                      )}
+                    </button>
+                    {/* Add teams button */}
+                    <button onClick={() => setStandingsPickerOpen(o => !o)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-colors"
+                      style={{ border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
+                      {standingsPickerOpen ? '✕ Close' : '＋ Add Teams'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Picker */}

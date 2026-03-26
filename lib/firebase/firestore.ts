@@ -522,3 +522,25 @@ export const getMatchHistory = async (
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as MatchHistoryEntry));
 };
+
+// ── User Preferences (Table / Standings selections) ────────────
+const USER_PREFS_COLLECTION = 'userPreferences';
+
+export const saveTablePreferences = async (userId: string, tableTeamIds: string[], standingsTeamIds?: string[]): Promise<void> => {
+  const ref = doc(db, USER_PREFS_COLLECTION, userId);
+  await setDoc(ref, {
+    ...(tableTeamIds !== undefined && { tableTeamIds }),
+    ...(standingsTeamIds !== undefined && { standingsTeamIds }),
+  }, { merge: true });
+};
+
+export const getTablePreferences = async (userId: string): Promise<{ tableTeamIds: string[]; standingsTeamIds: string[] }> => {
+  const ref = doc(db, USER_PREFS_COLLECTION, userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { tableTeamIds: [], standingsTeamIds: [] };
+  const data = snap.data();
+  return {
+    tableTeamIds: data.tableTeamIds ?? [],
+    standingsTeamIds: data.standingsTeamIds ?? [],
+  };
+};
