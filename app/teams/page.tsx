@@ -618,8 +618,9 @@ export default function TeamsPage() {
                   const rc = entry.result === 'win' ? 'text-fifa-mint' : entry.result === 'loss' ? 'text-red-400' : 'text-white/30';
                   const rl = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
 
-                  // Check if opponent team still exists
+                  // Check if opponent team still exists (legendary teams always exist)
                   const opponentExists = entry.opponentId === 'legendary' ||
+                    legendaryTeams.some(t => t.id === entry.opponentId) ||
                     allTeams.some(t => t.id === entry.opponentId);
                   const opponentDisplay = opponentExists
                     ? entry.opponentName

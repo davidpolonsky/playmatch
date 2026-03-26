@@ -720,6 +720,7 @@ export default function Dashboard() {
                           const rc = entry.result === 'win' ? 'text-fifa-mint' : entry.result === 'loss' ? 'text-red-400' : 'text-white/30';
                           const rl = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
                           const opponentExists = entry.opponentId === 'legendary' ||
+                            getLegendaryTeams().some(t => t.id === entry.opponentId) ||
                             allUserTeams.some(t => t.id === entry.opponentId);
                           const opponentDisplay = opponentExists
                             ? entry.opponentName

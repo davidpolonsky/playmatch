@@ -171,18 +171,18 @@ SIMULATION RULES:
 - Use ACTUAL player names from the rosters above — never invent players.
 - High-rated players should make more impactful plays but can still make mistakes.
 
-SCORELINE VARIETY — Pick a random number 1-10 and use the matching style. This gives realistic soccer distributions.
-  1   → Goalless draw or 1-0 defensive win (0-0, 1-0, 0-1)
-  2   → Narrow win: 2-0, 0-2
-  3   → Classic close game: 1-1 draw
-  4   → Edgy single-goal win: 2-1, 1-2
-  5   → Comfortable victory: 3-0, 3-1, 0-3, 1-3
-  6   → Tight draw then late winner: 1-1 at 85', someone nicks it 2-1 in 89' or 90+
-  7   → Comeback: losing 0-2 or 1-3 at half, rally to draw or win
-  8   → Extra time drama: 90 mins ends level (1-1 or 2-2), goal in 93-97' decides it
-  9   → Red card chaos: red card mid-second-half swings the game, final 2-1 or 3-1
-  10  → High-scoring thriller: 3-2, 4-2, 3-3 (rare — only if both teams have high avg ratings ≥ 83)
-RULES: Do NOT default to 4-3 or high-scoring games. Most real soccer ends 1-0, 1-1, or 2-1. Only pick style 10 if both teams genuinely have high ratings. Vary the winner — don't always let the higher-rated team score more.
+SCORELINE VARIETY — Pick a random number 1-10 and use the matching style. Target ~6 total goals per game — this is an action-packed card game, not a 0-0 snooze-fest.
+  1   → Dominant victory: 4-0, 5-0, 4-1 (one team simply outclasses the other)
+  2   → Comfortable win: 3-0, 3-1, 4-1
+  3   → Exciting win: 4-2, 5-2, 3-1 with late drama
+  4   → Classic thriller: 3-2, 4-3 — lead changes hands, decided late
+  5   → Back-and-forth draw: 2-2, 3-3, 4-4 — goals traded throughout
+  6   → Comeback: trailing 0-2 or 1-3 at half, rally to 3-3 or win 4-3
+  7   → Late drama: 2-2 at 80', then 2 goals in the last 10 mins — 4-2 or 3-4
+  8   → Red card chaos: 10-man team concedes 3+ in second half, final 4-1 or 5-2
+  9   → Extra time: 3-3 at 90', goal in 94-97' seals it 4-3
+  10  → Goal-fest: 5-3, 6-2, 5-4 (both teams high rated ≥ 83, all-out attack)
+RULES: Default to 5-8 total goals across the match. A 2-1 scoreline is BORING — avoid it unless it's a genuine last-minute winner flipping a 2-0. Always vary who leads when. The higher-rated team wins more often but underdogs can sneak it. Never produce the same scoreline twice in a row.
 
 SPECIAL EVENTS (use occasionally, not every game):
 - Red cards: type "redcard", mention the player sent off and minute. A 10-man team concedes more goals.

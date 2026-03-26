@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       // ---- Basketball invite ----
       const teamLine = teamName ? ` with their team "${teamName}"` : '';
       subject = `${senderName} challenged you to PlayMatch Basketball 🏀`;
-      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch Basketball${teamLine} — scan NBA cards, build your squad, and run the simulated game against friends.\n\nSign up here: ${appUrl}/basketball\n\nSee you on the court! 🏀\n— The PlayMatch Team`;
+      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch Basketball${teamLine} — scan NBA cards, build your squad, and run the simulated game against friends.\n\nSign up here: ${appUrl}/basketball?invited=true\n\nSee you on the court! 🏀\n— The PlayMatch Team`;
       htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -68,14 +68,14 @@ export async function POST(req: NextRequest) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 24px;">
-                    <a href="${appUrl}/basketball" style="display:inline-block;background:#f97316;color:#0f0a00;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
+                    <a href="${appUrl}/basketball?invited=true" style="display:inline-block;background:#f97316;color:#0f0a00;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
                       Accept the Challenge →
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">
-                Or visit <a href="${appUrl}/basketball" style="color:#f97316;">${appUrl}/basketball</a>
+                Or visit <a href="${appUrl}/basketball?invited=true" style="color:#f97316;">${appUrl}/basketball?invited=true</a>
               </p>
             </td>
           </tr>
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     } else {
       // ---- Soccer invite (original) ----
       subject = `${senderName} challenged you to PlayMatch ⚽`;
-      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch — scan soccer player cards, build your dream team, and simulate matches against friends.\n\nSign up here: ${appUrl}\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`;
+      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch — scan soccer player cards, build your dream team, and simulate matches against friends.\n\nSign up here: ${appUrl}?invited=true\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`;
       htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -127,14 +127,14 @@ export async function POST(req: NextRequest) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 24px;">
-                    <a href="${appUrl}" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
+                    <a href="${appUrl}?invited=true" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
                       Accept Challenge →
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">
-                Or visit <a href="${appUrl}" style="color:#4ade80;">${appUrl}</a>
+                Or visit <a href="${appUrl}?invited=true" style="color:#4ade80;">${appUrl}</a>
               </p>
             </td>
           </tr>
