@@ -104,7 +104,6 @@ export default function TeamsPage() {
   const [visibleEvents, setVisibleEvents] = useState<PlayByPlayEvent[]>([]);
   const [streamingDone, setStreamingDone] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'my-teams' | 'teams'>('my-teams');
   const [liveScore, setLiveScore] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
@@ -654,12 +653,10 @@ export default function TeamsPage() {
     );
   }
 
-  // "Teams" tab = legendary teams + all other users' teams combined
-  const browseTeams: AnyTeam[] = [
-    ...legendaryTeams,
-    ...allTeams.filter(t => t.userId !== user?.uid),
-  ];
-  const displayTeams = activeTab === 'my-teams' ? myTeams : browseTeams;
+  // Friends' teams = all other users' teams (excluding saved ones to avoid duplication)
+  const friendsTeams: Team[] = allTeams.filter(t =>
+    t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)
+  );
 
   return (
     <div className="min-h-screen">
@@ -701,7 +698,7 @@ export default function TeamsPage() {
                 className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none"
               >
                 <option value="">Select home team…</option>
-                <optgroup label="Your Teams">
+                <optgroup label="🏠 My Teams">
                   {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                 </optgroup>
                 <optgroup label="⭐ Legendary Teams">
@@ -746,20 +743,18 @@ export default function TeamsPage() {
                   </optgroup>
                 ) : (
                   <>
-                    <optgroup label="Your Teams">
+                    <optgroup label="🏠 My Teams">
                       {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                     </optgroup>
                     <optgroup label="⭐ Legendary Teams">
                       {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
                     </optgroup>
-                    {savedTeams.length > 0 && (
-                      <optgroup label="⚔️ Rival Teams">
+                    {(savedTeams.length > 0 || friendsTeams.length > 0) && (
+                      <optgroup label="👥 Friends' Teams">
                         {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
+                        {friendsTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                       </optgroup>
                     )}
-                    <optgroup label="All Other Teams">
-                      {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
-                    </optgroup>
                   </>
                 )}
               </select>
@@ -768,30 +763,6 @@ export default function TeamsPage() {
           </div>
             );
           })()}
-
-          {/* Add rival by ID */}
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="font-retro text-[8px] text-white/30 tracking-wider">Add rival by ID:</span>
-            <input
-              type="text"
-              value={addTeamIdInput}
-              onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
-              placeholder="123-4567"
-              className="w-28 px-2 py-1 bg-fifa-dark border border-fifa-border rounded text-fifa-cream text-xs font-headline focus:ring-1 focus:ring-fifa-mint focus:outline-none placeholder:text-white/20"
-            />
-            <button
-              onClick={handleAddTeamById}
-              disabled={addTeamLoading || !addTeamIdInput.trim()}
-              className="btn-secondary text-[8px] py-1 px-3 disabled:opacity-30"
-            >
-              {addTeamLoading ? '…' : '+ Add'}
-            </button>
-            {addTeamError && <span className="font-retro text-[8px] text-red-400">{addTeamError}</span>}
-            {!addTeamError && savedTeams.length > 0 && (
-              <span className="font-retro text-[8px] text-fifa-mint/50">{savedTeams.length} rival{savedTeams.length !== 1 ? 's' : ''} saved</span>
-            )}
-          </div>
 
           {/* Live Scoreboard */}
           {(simResult || simulating) && (
@@ -863,96 +834,79 @@ export default function TeamsPage() {
 
         {/* ── Teams List ── */}
         <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
-          <div className="flex gap-1 mb-6 border-b border-fifa-border pb-0">
-            {[
-              { key: 'my-teams', label: `My Teams` },
-              { key: 'teams',    label: `Teams` },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key as typeof activeTab)}
-                className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
-                  activeTab === key
-                    ? 'text-fifa-mint border-fifa-mint'
-                    : 'text-white/30 border-transparent hover:text-white/60'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <h2 className="font-retro text-[11px] text-fifa-mint mb-6 tracking-wider">⚽ TEAMS</h2>
 
-          {loadingTeams && activeTab !== 'teams' ? (
+          {loadingTeams ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fifa-mint mx-auto" />
               <p className="mt-4 font-headline text-[10px] text-white/40">Loading…</p>
             </div>
           ) : (
             <>
-              {/* ── My Teams: add-by-ID + other teams ── */}
-              {activeTab === 'my-teams' && (
-                <>
-                  {/* Add by Team ID */}
-                  <div className="mb-6 p-4 bg-fifa-dark border border-fifa-border rounded-xl">
-                    <p className="font-retro text-[9px] text-fifa-mint mb-3 tracking-wider">⚔️ Add a Rival by Team ID</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={addTeamIdInput}
-                        onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
-                        onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
-                        placeholder="Enter ID e.g. 123-4567"
-                        className="flex-1 px-3 py-2 bg-fifa-mid border border-fifa-border rounded-lg text-fifa-cream text-sm placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
-                      />
-                      <button
-                        onClick={handleAddTeamById}
-                        disabled={addTeamLoading || !addTeamIdInput.trim()}
-                        className="btn-primary py-2 px-4 disabled:opacity-30"
-                      >
-                        {addTeamLoading ? '…' : 'Add'}
-                      </button>
-                    </div>
-                    {addTeamError && <p className="font-headline text-[10px] text-red-400 mt-2">{addTeamError}</p>}
-                  </div>
+              {/* Add by Team ID */}
+              <div className="mb-6 p-4 bg-fifa-dark border border-fifa-border rounded-xl">
+                <p className="font-retro text-[9px] text-fifa-mint mb-3 tracking-wider">⚔️ Add a Friend's Team by ID</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={addTeamIdInput}
+                    onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+                    placeholder="Enter ID e.g. 123-4567"
+                    className="flex-1 px-3 py-2 bg-fifa-mid border border-fifa-border rounded-lg text-fifa-cream text-sm placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
+                  />
+                  <button
+                    onClick={handleAddTeamById}
+                    disabled={addTeamLoading || !addTeamIdInput.trim()}
+                    className="btn-primary py-2 px-4 disabled:opacity-30"
+                  >
+                    {addTeamLoading ? '…' : 'Add'}
+                  </button>
+                </div>
+                {addTeamError && <p className="font-headline text-[10px] text-red-400 mt-2">{addTeamError}</p>}
+              </div>
 
-                  {/* My Teams grid */}
-                  {myTeams.length === 0 ? (
-                    <div className="text-center py-12 bg-fifa-dark border border-fifa-border rounded-xl">
-                      <p className="font-retro text-[9px] text-white/40 tracking-wider mb-1">NO TEAMS YET</p>
-                      <p className="font-headline text-[10px] text-white/25 mb-6">Build and save your first team</p>
-                      <button onClick={() => router.push('/team-builder')} className="btn-primary py-2.5 px-6">
-                        + Build Your Team
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {myTeams.map(team => <TeamCard key={team.id} team={team} isOwn />)}
-                    </div>
-                  )}
-
-                  {/* Other Teams section */}
-                  {savedTeams.length > 0 && (
-                    <div className="mt-8">
-                      <h3 className="font-retro text-[9px] text-fifa-mint/70 mb-4 tracking-wider">⚔️ Rivals</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {savedTeams.map(team => <TeamCard key={team.id} team={team} isSaved />)}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* ── Teams browse tab ── */}
-              {activeTab === 'teams' && (
-                displayTeams.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="font-headline text-[11px] text-white/30">No teams found</p>
+              {/* My Teams section */}
+              <div className="mb-8">
+                <h3 className="font-retro text-[9px] text-fifa-mint/70 mb-4 tracking-wider">🏠 MY TEAMS</h3>
+                {myTeams.length === 0 ? (
+                  <div className="text-center py-12 bg-fifa-dark border border-fifa-border rounded-xl">
+                    <p className="font-retro text-[9px] text-white/40 tracking-wider mb-1">NO TEAMS YET</p>
+                    <p className="font-headline text-[10px] text-white/25 mb-6">Build and save your first team</p>
+                    <button onClick={() => router.push('/team-builder')} className="btn-primary py-2.5 px-6">
+                      + Build Your Team
+                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {displayTeams.map(team => <TeamCard key={team.id} team={team} />)}
+                    {myTeams.map(team => <TeamCard key={team.id} team={team} isOwn />)}
                   </div>
-                )
+                )}
+              </div>
+
+              {/* Legendary Teams section */}
+              <div className="mb-8">
+                <h3 className="font-retro text-[9px] text-fifa-mint/70 mb-4 tracking-wider">⭐ LEGENDARY TEAMS</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {legendaryTeams.map(team => <TeamCard key={team.id} team={team} />)}
+                </div>
+              </div>
+
+              {/* Friends' Teams section */}
+              {(savedTeams.length > 0 || friendsTeams.length > 0) && (
+                <div>
+                  <h3 className="font-retro text-[9px] text-fifa-mint/70 mb-4 tracking-wider">👥 FRIENDS' TEAMS</h3>
+                  {savedTeams.length === 0 && friendsTeams.length === 0 ? (
+                    <div className="text-center py-8 bg-fifa-dark border border-fifa-border rounded-xl">
+                      <p className="font-headline text-[10px] text-white/30">No friends' teams yet. Add a team by ID above!</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {savedTeams.map(team => <TeamCard key={team.id} team={team} isSaved />)}
+                      {friendsTeams.map(team => <TeamCard key={team.id} team={team} />)}
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
