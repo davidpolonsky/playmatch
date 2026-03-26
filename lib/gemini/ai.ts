@@ -173,14 +173,18 @@ SIMULATION RULES:
 - Use ACTUAL player names from the rosters above — never invent players.
 - High-rated players should make more impactful plays but can still make mistakes.
 
-SCORELINE VARIETY — THIS IS CRITICAL. Roll a dice and pick ONE of these scoreline styles (roughly equal probability):
-  1. Low-scoring tight game: 1-0, 0-0, 1-1, 2-1
-  2. Comfortable win: 3-1, 3-0, 4-1
-  3. High-scoring thriller: 3-3, 4-2, 4-3, 5-2, 3-4
-  4. Comeback: team losing 0-2 or 1-3 at half, then equalises or wins
-  5. Extra time drama: 90 minutes ends level (e.g. 2-2), then a goal in 93', 95', or 97' decides it
-  6. Red card chaos: a red card (type "redcard") in the 2nd half changes the game
-You MUST NOT default to 2-1. If you keep getting 2-1 you are broken. Vary it every time.
+SCORELINE VARIETY — Pick a random number 1-10 and use the matching style. This gives realistic soccer distributions.
+  1   → Goalless draw or 1-0 defensive win (0-0, 1-0, 0-1)
+  2   → Narrow win: 2-0, 0-2
+  3   → Classic close game: 1-1 draw
+  4   → Edgy single-goal win: 2-1, 1-2
+  5   → Comfortable victory: 3-0, 3-1, 0-3, 1-3
+  6   → Tight draw then late winner: 1-1 at 85', someone nicks it 2-1 in 89' or 90+
+  7   → Comeback: losing 0-2 or 1-3 at half, rally to draw or win
+  8   → Extra time drama: 90 mins ends level (1-1 or 2-2), goal in 93-97' decides it
+  9   → Red card chaos: red card mid-second-half swings the game, final 2-1 or 3-1
+  10  → High-scoring thriller: 3-2, 4-2, 3-3 (rare — only if both teams have high avg ratings ≥ 83)
+RULES: Do NOT default to 4-3 or high-scoring games. Most real soccer ends 1-0, 1-1, or 2-1. Only pick style 10 if both teams genuinely have high ratings. Vary the winner — don't always let the higher-rated team score more.
 
 SPECIAL EVENTS (use occasionally, not every game):
 - Red cards: type "redcard", mention the player sent off and minute. A 10-man team concedes more goals.
