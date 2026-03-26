@@ -12,9 +12,7 @@ import {
   saveBballHistory, getBballHistory, BballHistoryEntry,
 } from '@/lib/firebase/firestore-basketball';
 import { LEGENDARY_BASKETBALL_TEAMS, LegendaryBasketballTeam } from '@/lib/legendary-basketball-teams';
-import { BASKETBALL_LINEUPS, BASKETBALL_POSITION_ORDER, BASKETBALL_ROSTER_REQUIREMENTS, BasketballPlayer, BasketballPosition } from '@/lib/types-basketball';
-import { saveBasketballTeam } from '@/lib/firebase/firestore-basketball';
-import BasketballFooter from '@/components/BasketballFooter';
+import { BASKETBALL_POSITION_ORDER, BasketballPosition } from '@/lib/types-basketball';
 
 type AnyBballTeam = BballTeamDoc | LegendaryBasketballTeam;
 
@@ -73,162 +71,10 @@ function RecordBadge({ record }: { record: BballRecord }) {
   );
 }
 
-// Basketball Card Uploader (copied from team-builder/page.tsx)
-function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
-  onPlayerAdded: (p: BasketballPlayer) => void;
-  onError?: (msg: string) => void;
-  onSuccess?: (msg: string) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [videoReady, setVideoReady] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!stream || !videoRef.current) return;
-    const video = videoRef.current;
-    video.srcObject = stream;
-    setVideoReady(false);
-    const onReady = () => { setVideoReady(true); video.play().catch(() => {}); };
-    video.addEventListener('loadeddata', onReady);
-    if (video.readyState >= 2) onReady();
-    return () => video.removeEventListener('loadeddata', onReady);
-  }, [stream, cameraActive]);
-
-  const startCamera = async () => {
-    try {
-      const ms = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'environment' } },
-      });
-      setStream(ms);
-      setCameraActive(true);
-    } catch {
-      onError?.('Could not access camera. Please check permissions.');
-    }
-  };
-
-  const stopCamera = () => {
-    stream?.getTracks().forEach(t => t.stop());
-    setStream(null);
-    setVideoReady(false);
-    setCameraActive(false);
-  };
-
-  const captureAndAnalyze = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (video.videoWidth === 0) { onError?.('Camera not ready yet.'); return; }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (!blob) { onError?.('Could not capture photo.'); return; }
-      stopCamera();
-      setUploading(true);
-      try {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((res, rej) => {
-          reader.onload = () => res((reader.result as string).split(',')[1]);
-          reader.onerror = rej;
-          reader.readAsDataURL(new File([blob], 'capture.jpg', { type: 'image/jpeg' }));
-        });
-        const resp = await fetch('/api/analyze-basketball-card', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64 }),
-        });
-        const result = await resp.json();
-        if (result.error) { onError?.(result.error); return; }
-        if (!result.name || !result.position || typeof result.rating !== 'number') {
-          onError?.('Card analyzed but missing data. Try a clearer photo.'); return;
-        }
-        const player: BasketballPlayer = { ...result, id: crypto.randomUUID(), imageUrl: '' };
-        onPlayerAdded(player);
-        onSuccess?.(`🏀 ${result.name} added! (${result.position} · ${result.rating})`);
-      } catch {
-        onError?.('Failed to analyze card. Check your connection and try again.');
-      } finally {
-        setUploading(false);
-      }
-    }, 'image/jpeg', 0.9);
-  };
-
-  if (uploading) {
-    return (
-      <div className="text-center py-8">
-        <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-bball-orange mb-3" />
-        <p className="font-retro text-[9px] text-bball-orange/70 animate-pulse">Analyzing card…</p>
-      </div>
-    );
-  }
-
-  if (!cameraActive) {
-    return (
-      <div className="text-center py-6">
-        <div className="mb-4">
-          <img src="/camera.png" className="w-16 h-16 mx-auto" alt="Camera" />
-        </div>
-        <p className="font-headline text-[11px] text-white/70 mb-1">Scan a basketball card</p>
-        <p className="font-headline text-[10px] text-white/30 mb-5">Point camera at an NBA or basketball card</p>
-        <button onClick={startCamera}
-          className="w-full py-3 rounded-lg font-retro text-[9px] transition-all"
-          style={{ background: '#f97316', color: '#0f0a00' }}>
-          <img src="/camera.png" className="w-4 h-4 inline-block mr-1" alt="" /> Open Camera
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="relative rounded-xl overflow-hidden border border-bball-border bg-bball-dark" style={{ minHeight: 260 }}>
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto max-h-80 object-cover" style={{ minHeight: 260 }} />
-        <canvas ref={canvasRef} className="hidden" />
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="w-56 h-36 border-2 rounded-lg" style={{ borderColor: 'rgba(249,115,22,0.6)', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }} />
-        </div>
-        {!videoReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-bball-dark/80">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto mb-2" />
-              <p className="font-retro text-[8px] text-bball-orange/60">Starting camera…</p>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <button onClick={captureAndAnalyze} disabled={!videoReady}
-          className="flex-1 py-3 rounded-lg font-retro text-[9px] disabled:opacity-30 transition-all"
-          style={{ background: '#f97316', color: '#0f0a00' }}>
-          <img src="/camera.png" className="w-4 h-4 inline-block mr-1" alt="" /> Capture
-        </button>
-        <button onClick={stopCamera}
-          className="px-4 py-3 rounded-lg font-retro text-[9px] border border-bball-border text-white/60 hover:text-white transition-colors">
-          Cancel
-        </button>
-      </div>
-      <p className="font-headline text-[10px] text-white/30 text-center">Align card inside the frame, then tap Capture</p>
-    </div>
-  );
-}
-
-export default function BasketballDashboard() {
+export default function BasketballTeamsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const feedRef = useRef<HTMLDivElement>(null);
 
-  // Build Team tab state
-  const [players, setPlayers] = useState<BasketballPlayer[]>([]);
-  const [selectedLineup, setSelectedLineup] = useState('Standard');
-  const [teamName, setTeamName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [buildMessage, setBuildMessage] = useState('');
-  const [buildMessageType, setBuildMessageType] = useState<'success' | 'error'>('error');
-
-  // Teams/Rivals state
   const [myTeams, setMyTeams] = useState<BballTeamDoc[]>([]);
   const [allTeams, setAllTeams] = useState<BballTeamDoc[]>([]);
   const legendaryTeams = LEGENDARY_BASKETBALL_TEAMS;
@@ -236,15 +82,12 @@ export default function BasketballDashboard() {
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, BballRecord>>({});
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [teamsActiveTab, setTeamsActiveTab] = useState<'my-teams' | 'teams'>('my-teams');
+  const [activeTab, setActiveTab] = useState<'my-teams' | 'teams'>('my-teams');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
   const [matchHistories, setMatchHistories] = useState<Record<string, BballHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [addTeamIdInput, setAddTeamIdInput] = useState('');
-  const [addTeamLoading, setAddTeamLoading] = useState(false);
-  const [addTeamError, setAddTeamError] = useState('');
 
   // Simulator state
   const [selectedHome, setSelectedHome] = useState<AnyBballTeam | null>(null);
@@ -257,6 +100,11 @@ export default function BasketballDashboard() {
   const [loadingPhrase, setLoadingPhrase] = useState('');
   const [currentQuarter, setCurrentQuarter] = useState(0);
 
+  // Add rival
+  const [addTeamIdInput, setAddTeamIdInput] = useState('');
+  const [addTeamLoading, setAddTeamLoading] = useState(false);
+  const [addTeamError, setAddTeamError] = useState('');
+
   // Invite
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState('');
@@ -264,10 +112,18 @@ export default function BasketballDashboard() {
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
 
-  // Active tab
-  const [activeTab, setActiveTab] = useState<'build' | 'teams' | 'match'>('build');
+  // Geo label
+  const [soccerLabel, setSoccerLabel] = useState('Football');
+
+  const feedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
+
+  useEffect(() => {
+    fetch('/api/geo').then(r => r.json()).then(d => {
+      if (d.country_code === 'US') setSoccerLabel('Soccer');
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (user) { loadTeams(); }
@@ -347,37 +203,6 @@ export default function BasketballDashboard() {
     }
   };
 
-  const getStarting5 = (): BasketballPlayer[] => {
-    const seen = new Set<string>();
-    const result: BasketballPlayer[] = [];
-    for (const pos of BASKETBALL_POSITION_ORDER) {
-      const p = players.find(pl => pl.position === pos && !seen.has(pl.id));
-      if (p) { result.push(p); seen.add(p.id); }
-    }
-    return result;
-  };
-
-  const handleSaveTeam = async () => {
-    if (!teamName.trim()) { setBuildMessage('Enter a team name.'); setBuildMessageType('error'); return; }
-    const starting5 = getStarting5();
-    if (starting5.length < 5) { setBuildMessage(`Need all 5 positions — missing ${5 - starting5.length}.`); setBuildMessageType('error'); return; }
-    setSaving(true);
-    try {
-      await saveBasketballTeam({ name: teamName, userId: user!.uid, lineup: selectedLineup, players: starting5 });
-      setBuildMessage('Team saved!');
-      setBuildMessageType('success');
-      setTeamName('');
-      setPlayers([]);
-      await loadTeams();
-      setTimeout(() => setActiveTab('teams'), 1500);
-    } catch {
-      setBuildMessage('Error saving team. Try again.');
-      setBuildMessageType('error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleAddTeamById = async () => {
     const raw = parseShareId(addTeamIdInput.trim());
     if (raw.length !== 7) { setAddTeamError('Enter a valid 7-digit Team ID (e.g. 123-4567).'); return; }
@@ -444,8 +269,8 @@ export default function BasketballDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          team1Name: selectedHome.name, team1Players: selectedHome.players,
-          team2Name: selectedAway.name, team2Players: selectedAway.players,
+          team1Name: selectedHome.name, team1Players: selectedHome.players, team1Lineup: selectedHome.lineup || 'Standard',
+          team2Name: selectedAway.name, team2Players: selectedAway.players, team2Lineup: selectedAway.lineup || 'Standard',
         }),
       });
       const data = await res.json();
@@ -509,12 +334,13 @@ export default function BasketballDashboard() {
        ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))]
   ).filter(notHome);
 
+  const browseTeams: AnyBballTeam[] = [
+    ...legendaryTeams,
+    ...allTeams.filter(t => t.userId !== user?.uid),
+  ];
+
   const SELECT_CLS = "w-full px-3 py-2 rounded-lg font-headline text-sm focus:outline-none focus:ring-1";
   const SELECT_STYLE = { background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' };
-
-  const grouped: Record<string, number> = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
-  players.forEach(p => { if (grouped[p.position] !== undefined) grouped[p.position]++; });
-  const starting5 = getStarting5();
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #0f0a00 0%, #1c1200 60%, #0f0a00 100%)' }}>
@@ -528,7 +354,12 @@ export default function BasketballDashboard() {
             <button onClick={() => router.push('/dashboard')}
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"
               style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-              ⚽ Switch to Football
+              ⚽ Switch to {soccerLabel}
+            </button>
+            <button onClick={() => router.push('/basketball/team-builder')}
+              className="font-retro text-[9px] py-1.5 px-3 rounded-lg transition-all"
+              style={{ background: '#f97316', color: '#0f0a00' }}>
+              + New Team
             </button>
             {/* Invite */}
             <div className="relative">
@@ -585,489 +416,316 @@ export default function BasketballDashboard() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h2 className="font-retro text-[13px] mb-2 tracking-wider" style={{ color: '#f97316' }}>DASHBOARD</h2>
-          <p className="font-headline text-[10px]" style={{ color: 'rgba(241,239,227,0.4)' }}>Welcome, {user?.displayName}</p>
-        </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-8 border-b pb-0 flex-wrap" style={{ borderColor: '#3d2c00' }}>
-          {[
-            { key: 'build', label: 'Build Team' },
-            { key: 'teams', label: `My Teams (${myTeams.length})` },
-            { key: 'match', label: 'Simulate Match' },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key as typeof activeTab)}
-              className="px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px"
-              style={{
-                color: activeTab === key ? '#f97316' : 'rgba(255,255,255,0.3)',
-                borderBottomColor: activeTab === key ? '#f97316' : 'transparent',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* ── Game Simulator ── */}
+        <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
+          <h2 className="font-retro text-[11px] mb-6 tracking-wider" style={{ color: '#f97316' }}>⚡ Game Simulator</h2>
 
-        {/* Content */}
-        {activeTab === 'build' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: scanner + players */}
-            <div className="lg:col-span-1 space-y-4">
-              {/* Scanner */}
-              <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-                <h3 className="font-retro text-[10px] mb-4 tracking-wider flex items-center gap-1.5" style={{ color: '#f97316' }}>
-                  <img src="/camera.png" className="w-3.5 h-3.5" alt="" /> Scan Cards
-                </h3>
-                <BasketballCardUploader
-                  onPlayerAdded={p => setPlayers(prev => [...prev, p])}
-                  onError={msg => { setBuildMessage(msg); setBuildMessageType('error'); }}
-                  onSuccess={msg => { setBuildMessage(msg); setBuildMessageType('success'); }}
-                />
-                {buildMessage && (
-                  <p className={`mt-3 font-headline text-[10px] text-center ${buildMessageType === 'success' ? 'text-bball-orange' : 'text-red-400'}`}>{buildMessage}</p>
-                )}
-              </div>
-
-              {/* Scanned players */}
-              <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-                <h3 className="font-retro text-[10px] mb-4 tracking-wider" style={{ color: '#f97316' }}>
-                  Scanned Players ({players.length})
-                </h3>
-
-                {/* Position breakdown */}
-                {players.length > 0 && (
-                  <div className="grid grid-cols-5 gap-1 mb-4">
-                    {BASKETBALL_POSITION_ORDER.map(pos => (
-                      <div key={pos} className="rounded-lg p-2 text-center" style={{ background: '#0f0a00', border: '1px solid #3d2c00' }}>
-                        <div className="font-retro text-[7px] mb-0.5" style={{ color: POS_COLORS[pos] }}>{pos}</div>
-                        <div className="font-headline text-[12px] text-white">
-                          {grouped[pos]}<span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.3)' }}>/{BASKETBALL_ROSTER_REQUIREMENTS[pos]}</span>
-                        </div>
-                      </div>
-                    ))}
+          {/* Team selectors */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+            {/* Home */}
+            <div>
+              <label className="block font-retro text-[9px] mb-2 uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.7)' }}>Home Team</label>
+              <select value={selectedHome?.id || ''}
+                onChange={e => {
+                  const all: AnyBballTeam[] = [...myTeams, ...legendaryTeams];
+                  const team = all.find(t => t.id === e.target.value) || null;
+                  setSelectedHome(team);
+                  if (team && 'isLegendary' in team && (team as any).isLegendary) {
+                    if (selectedAway && !('isLegendary' in selectedAway && (selectedAway as any).isLegendary)) setSelectedAway(null);
+                  }
+                }}
+                className={SELECT_CLS} style={SELECT_STYLE}>
+                <option value="">Select home team…</option>
+                <optgroup label="Your Teams">
+                  {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
+                </optgroup>
+                <optgroup label="🏆 Legendary Teams">
+                  {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
+                </optgroup>
+              </select>
+              {selectedHome && (
+                <div className="mt-2 rounded-lg border p-3 text-sm" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-headline text-[11px] text-white">{selectedHome.name}</span>
+                    <RecordBadge record={getRecord(selectedHome)} />
                   </div>
-                )}
-
-                {players.length === 0 ? (
-                  <p className="font-retro text-[8px] text-center py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No players yet — scan cards to start</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                    {players.map(p => (
-                      <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors"
-                        style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                        <span className="font-retro text-[7px] w-6 flex-shrink-0" style={{ color: POS_COLORS[p.position] }}>{p.position}</span>
-                        <span className="font-headline text-[11px] text-white flex-1 truncate">{p.name}</span>
-                        <span className="font-headline text-[10px] font-bold"
-                          style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
+                  {BASKETBALL_POSITION_ORDER.map(pos => {
+                    const p = selectedHome.players.find(pl => pl.position === pos);
+                    return p ? (
+                      <div key={pos} className="flex items-center gap-1 text-xs">
+                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                        <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
+                        <span className="ml-auto font-headline text-[10px] font-bold"
+                          style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
                           {p.rating}
                         </span>
-                        <button onClick={() => setPlayers(prev => prev.filter(x => x.id !== p.id))}
-                          className="text-white/20 hover:text-red-400 p-0.5 transition-colors">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: lineup + save */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* Starting 5 */}
-              <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-                <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
-                  <h3 className="font-retro text-[10px] tracking-wider" style={{ color: '#f97316' }}>
-                    Starting 5
-                    <span className="ml-2" style={{ color: starting5.length === 5 ? '#f97316' : 'rgba(255,255,255,0.3)' }}>
-                      ({starting5.length}/5)
-                    </span>
-                  </h3>
-                  <select value={selectedLineup}
-                    onChange={e => setSelectedLineup(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg font-headline text-[11px] focus:outline-none focus:ring-1"
-                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}>
-                    {Object.keys(BASKETBALL_LINEUPS).map(l => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
-                </div>
-                <p className="font-headline text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  {BASKETBALL_LINEUPS[selectedLineup]?.description}
-                </p>
-
-                {/* Position slots */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {BASKETBALL_POSITION_ORDER.map(pos => {
-                    const player = starting5.find(p => p.position === pos);
-                    return (
-                      <div key={pos} className="flex items-center gap-3 p-3 rounded-xl border transition-all"
-                        style={{
-                          background: player ? '#0f0a00' : 'rgba(15,10,0,0.4)',
-                          borderColor: player ? POS_COLORS[pos] + '60' : '#3d2c00',
-                        }}>
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center font-retro text-[8px] flex-shrink-0"
-                          style={{ background: player ? POS_COLORS[pos] + '20' : '#1c1200', color: POS_COLORS[pos], border: `1px solid ${POS_COLORS[pos]}40` }}>
-                          {pos}
-                        </div>
-                        {player ? (
-                          <div className="flex-1 min-w-0">
-                            <div className="font-headline text-[12px] text-white truncate">{player.name}</div>
-                            <div className="font-headline text-[10px] font-bold" style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
-                              {player.rating}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                            No {pos} scanned yet
-                          </span>
-                        )}
-                      </div>
-                    );
+                    ) : null;
                   })}
                 </div>
-              </div>
-
-              {/* Save */}
-              <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-                <h3 className="font-retro text-[10px] mb-4 tracking-wider" style={{ color: '#f97316' }}>💾 Save Team</h3>
-                <div className="space-y-3">
-                  <input type="text" placeholder="Enter team name…" value={teamName}
-                    onChange={e => setTeamName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSaveTeam()}
-                    className="w-full px-4 py-2.5 rounded-lg text-white font-headline text-sm focus:outline-none focus:ring-1"
-                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', outlineColor: '#f97316' }} />
-                  <button onClick={handleSaveTeam} disabled={saving || starting5.length < 5}
-                    className="w-full py-3 rounded-lg font-retro text-[9px] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                    style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
-                    {saving ? 'Saving…' : starting5.length < 5 ? `Need ${5 - starting5.length} more positions` : '✅ Save Team'}
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {activeTab === 'teams' && (
-          <div className="space-y-6">
-            {/* Teams list with sub-tabs */}
-            <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-              <div className="flex gap-1 mb-6 border-b pb-0" style={{ borderColor: '#3d2c00' }}>
-                {[{ key: 'my-teams', label: 'My Teams' }, { key: 'teams', label: 'Teams' }].map(({ key, label }) => (
-                  <button key={key} onClick={() => setTeamsActiveTab(key as typeof teamsActiveTab)}
-                    className="px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px"
-                    style={{
-                      color: teamsActiveTab === key ? '#f97316' : 'rgba(255,255,255,0.3)',
-                      borderBottomColor: teamsActiveTab === key ? '#f97316' : 'transparent',
-                    }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {/* Tip Off button */}
+            <div className="flex flex-col items-center justify-start pt-5">
+              <div className="font-retro text-[11px] mb-4 tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>VS</div>
+              <button onClick={handleSimulate}
+                disabled={!selectedHome || !selectedAway || simulating}
+                className="w-full py-3 rounded-lg font-retro text-[9px] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
+                {simulating ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    {loadingPhrase || 'Loading…'}
+                  </span>
+                ) : <span className="flex items-center justify-center gap-1.5"><img src="/basketball.png" className="w-4 h-4" alt="" /> Tip Off</span>}
+              </button>
+            </div>
 
-              {loadingTeams ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
-                  <p className="mt-3 font-retro text-[8px] text-bball-orange/40 animate-pulse">Loading teams…</p>
-                </div>
-              ) : teamsActiveTab === 'my-teams' ? (
-                <div className="space-y-3">
-                  {myTeams.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="mb-3">
-                        <img src="/basketball.png" className="w-12 h-12 mx-auto" alt="Basketball" />
-                      </div>
-                      <p className="font-retro text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No teams yet</p>
-                      <button onClick={() => setActiveTab('build')}
-                        className="font-retro text-[9px] py-2 px-6 rounded-lg transition-all"
-                        style={{ background: '#f97316', color: '#0f0a00' }}>
-                        Build Your First Team
-                      </button>
-                    </div>
-                  ) : (
-                    myTeams.map(team => (
-                      <TeamCard key={team.id} team={team} isOwn
-                        expandedId={expandedId} setExpandedId={setExpandedId}
-                        record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
-                        copiedId={copiedId} setCopiedId={setCopiedId}
-                        historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
-                        matchHistories={matchHistories} loadingHistory={loadingHistory}
-                        onDelete={async (id) => { if (!confirm('Delete this team?')) return; await deleteBasketballTeam(id); await loadTeams(); }}
-                      />
-                    ))
-                  )}
-                  {savedTeams.length > 0 && (
-                    <>
-                      <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>⚔️ Rival Teams</h3>
-                      {savedTeams.map(team => (
-                        <TeamCard key={team.id} team={team} isSaved
-                          expandedId={expandedId} setExpandedId={setExpandedId}
-                          record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
-                          copiedId={copiedId} setCopiedId={setCopiedId}
-                          historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
-                          matchHistories={matchHistories} loadingHistory={loadingHistory}
-                          onRemoveSaved={async (id) => { await removeSavedBballTeam(user!.uid, id); setSavedTeams(prev => prev.filter(t => t.id !== id)); }}
-                        />
+            {/* Away */}
+            <div>
+              <label className="block font-retro text-[9px] mb-2 uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.7)' }}>Away Team</label>
+              <select value={selectedAway?.id || ''}
+                onChange={e => setSelectedAway(awayOptions.find(t => t.id === e.target.value) || null)}
+                className={SELECT_CLS} style={SELECT_STYLE}>
+                <option value="">Select away team…</option>
+                {isHomeLegendary ? (
+                  <optgroup label="🏆 Legendary Teams">
+                    {legendaryTeams.filter(notHome).map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
+                  </optgroup>
+                ) : (
+                  <>
+                    <optgroup label="Your Teams">
+                      {myTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
+                    </optgroup>
+                    <optgroup label="🏆 Legendary Teams">
+                      {legendaryTeams.filter(notHome).map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
+                    </optgroup>
+                    {savedTeams.length > 0 && (
+                      <optgroup label="⚔️ Rival Teams">
+                        {savedTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
+                      </optgroup>
+                    )}
+                    <optgroup label="All Other Teams">
+                      {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).filter(notHome).map(t => (
+                        <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>
                       ))}
-                      {/* Add rival by ID */}
-                      <div className="mt-6 flex items-center gap-2 flex-wrap">
-                        <span className="font-retro text-[8px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Add rival by ID:</span>
-                        <input type="text" value={addTeamIdInput}
-                          onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
-                          onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
-                          placeholder="123-4567"
-                          className="w-28 px-2 py-1 rounded text-sm font-headline focus:outline-none"
-                          style={{ ...SELECT_STYLE, fontSize: '12px' }} />
-                        <button onClick={handleAddTeamById} disabled={addTeamLoading || !addTeamIdInput.trim()}
-                          className="font-retro text-[8px] py-1 px-3 rounded-lg border disabled:opacity-30 transition-colors"
-                          style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-                          {addTeamLoading ? '…' : '+ Add'}
-                        </button>
-                        {addTeamError && <span className="font-retro text-[8px] text-red-400">{addTeamError}</span>}
+                    </optgroup>
+                  </>
+                )}
+              </select>
+              {selectedAway && (
+                <div className="mt-2 rounded-lg border p-3 text-sm" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-headline text-[11px] text-white">{selectedAway.name}</span>
+                    <RecordBadge record={getRecord(selectedAway)} />
+                  </div>
+                  {BASKETBALL_POSITION_ORDER.map(pos => {
+                    const p = selectedAway.players.find(pl => pl.position === pos);
+                    return p ? (
+                      <div key={pos} className="flex items-center gap-1 text-xs">
+                        <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                        <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
+                        <span className="ml-auto font-headline text-[10px] font-bold"
+                          style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
+                          {p.rating}
+                        </span>
                       </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <h3 className="font-retro text-[9px] mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🏆 Legendary Teams</h3>
-                  {legendaryTeams.map(team => (
-                    <TeamCard key={team.id} team={team}
-                      expandedId={expandedId} setExpandedId={setExpandedId}
-                      record={legendaryRecords[team.id] ?? { wins: 0, losses: 0 }}
-                      copiedId={copiedId} setCopiedId={setCopiedId}
-                      historyTeamId={null} onViewHistory={() => {}}
-                      matchHistories={{}} loadingHistory={false}
-                    />
-                  ))}
-                  {allTeams.filter(t => t.userId !== user?.uid).length > 0 && (
-                    <>
-                      <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🌍 Other Players' Teams</h3>
-                      {allTeams.filter(t => t.userId !== user?.uid).map(team => (
-                        <TeamCard key={team.id} team={team}
-                          expandedId={expandedId} setExpandedId={setExpandedId}
-                          record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
-                          copiedId={copiedId} setCopiedId={setCopiedId}
-                          historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
-                          matchHistories={matchHistories} loadingHistory={loadingHistory}
-                        />
-                      ))}
-                    </>
-                  )}
+                    ) : null;
+                  })}
                 </div>
               )}
             </div>
           </div>
-        )}
 
-        {activeTab === 'match' && (
-          <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-            <h2 className="font-retro text-[11px] mb-6 tracking-wider" style={{ color: '#f97316' }}>⚡ Game Simulator</h2>
-
-            {/* Team selectors */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
-              {/* Home */}
-              <div>
-                <label className="block font-retro text-[9px] mb-2 uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.7)' }}>Home Team</label>
-                <select value={selectedHome?.id || ''}
-                  onChange={e => {
-                    const all: AnyBballTeam[] = [...myTeams, ...legendaryTeams];
-                    const team = all.find(t => t.id === e.target.value) || null;
-                    setSelectedHome(team);
-                    if (team && 'isLegendary' in team && (team as any).isLegendary) {
-                      if (selectedAway && !('isLegendary' in selectedAway && (selectedAway as any).isLegendary)) setSelectedAway(null);
-                    }
-                  }}
-                  className={SELECT_CLS} style={SELECT_STYLE}>
-                  <option value="">Select home team…</option>
-                  <optgroup label="Your Teams">
-                    {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
-                  </optgroup>
-                  <optgroup label="🏆 Legendary Teams">
-                    {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
-                  </optgroup>
-                </select>
-                {selectedHome && (
-                  <div className="mt-2 rounded-lg border p-3 text-sm" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-headline text-[11px] text-white">{selectedHome.name}</span>
-                      <RecordBadge record={getRecord(selectedHome)} />
-                    </div>
-                    {BASKETBALL_POSITION_ORDER.map(pos => {
-                      const p = selectedHome.players.find(pl => pl.position === pos);
-                      return p ? (
-                        <div key={pos} className="flex items-center gap-1 text-xs">
-                          <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
-                          <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
-                          <span className="ml-auto font-headline text-[10px] font-bold"
-                            style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
-                            {p.rating}
-                          </span>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Tip Off button */}
-              <div className="flex flex-col items-center justify-start pt-5">
-                <div className="font-retro text-[11px] mb-4 tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>VS</div>
-                <button onClick={handleSimulate}
-                  disabled={!selectedHome || !selectedAway || simulating}
-                  className="w-full py-3 rounded-lg font-retro text-[9px] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
-                  {simulating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                      </svg>
-                      {loadingPhrase || 'Loading…'}
-                    </span>
-                  ) : <span className="flex items-center justify-center gap-1.5"><img src="/basketball.png" className="w-4 h-4" alt="" /> Tip Off</span>}
-                </button>
-              </div>
-
-              {/* Away */}
-              <div>
-                <label className="block font-retro text-[9px] mb-2 uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.7)' }}>Away Team</label>
-                <select value={selectedAway?.id || ''}
-                  onChange={e => setSelectedAway(awayOptions.find(t => t.id === e.target.value) || null)}
-                  className={SELECT_CLS} style={SELECT_STYLE}>
-                  <option value="">Select away team…</option>
-                  {isHomeLegendary ? (
-                    <optgroup label="🏆 Legendary Teams">
-                      {legendaryTeams.filter(notHome).map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
-                    </optgroup>
-                  ) : (
-                    <>
-                      <optgroup label="Your Teams">
-                        {myTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
-                      </optgroup>
-                      <optgroup label="🏆 Legendary Teams">
-                        {legendaryTeams.filter(notHome).map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
-                      </optgroup>
-                      {savedTeams.length > 0 && (
-                        <optgroup label="⚔️ Rival Teams">
-                          {savedTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
-                        </optgroup>
-                      )}
-                      <optgroup label="All Other Teams">
-                        {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).filter(notHome).map(t => (
-                          <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>
-                        ))}
-                      </optgroup>
-                    </>
-                  )}
-                </select>
-                {selectedAway && (
-                  <div className="mt-2 rounded-lg border p-3 text-sm" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-headline text-[11px] text-white">{selectedAway.name}</span>
-                      <RecordBadge record={getRecord(selectedAway)} />
-                    </div>
-                    {BASKETBALL_POSITION_ORDER.map(pos => {
-                      const p = selectedAway.players.find(pl => pl.position === pos);
-                      return p ? (
-                        <div key={pos} className="flex items-center gap-1 text-xs">
-                          <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[pos] }}>{pos}</span>
-                          <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
-                          <span className="ml-auto font-headline text-[10px] font-bold"
-                            style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
-                            {p.rating}
-                          </span>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Live Scoreboard */}
-            {(simResult || simulating) && (
-              <div className="mt-6 rounded-xl border p-6" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                {currentQuarter > 0 && !streamingDone && (
-                  <p className="text-center font-retro text-[8px] mb-3 tracking-widest" style={{ color: 'rgba(249,115,22,0.6)' }}>
-                    Q{currentQuarter}
-                  </p>
-                )}
-                <div className="flex items-center justify-between text-center">
-                  <div className="flex-1">
-                    <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedHome?.name}</div>
-                    <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.home}</div>
-                  </div>
-                  <div className="px-6">
-                    <div className="font-retro text-[9px] tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                      {streamingDone ? 'FINAL' : visibleEvents.length > 0 ? 'LIVE' : 'TIP OFF'}
-                    </div>
-                    <div className="font-retro text-lg mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>—</div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedAway?.name}</div>
-                    <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.away}</div>
-                  </div>
-                </div>
-                {!streamingDone && visibleEvents.length > 0 && (
-                  <p className="mt-3 text-center font-retro text-[8px] animate-pulse" style={{ color: 'rgba(249,115,22,0.5)' }}>● LIVE</p>
-                )}
-                {streamingDone && simResult && (
-                  <p className="mt-3 text-center font-headline text-[10px]" style={{ color: '#fbbf24' }}>
-                    ⭐ {simResult.playerOfGame}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Play-by-play feed */}
-            {visibleEvents.length > 0 && (
-              <div ref={feedRef} className="mt-4 rounded-xl border overflow-y-auto" style={{ maxHeight: 380, borderColor: '#3d2c00', background: '#0f0a00' }}>
-                <div className="divide-y" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
-                  {visibleEvents.filter(ev => ev && ev.type).map((ev, i) => {
-                    const color = EVENT_COLORS[ev.type] || 'border-l-4 border-transparent';
-                    const icon = EVENT_ICONS[ev.type] || '🏀';
-                    const isScore = ['shot_made', 'three_made', 'dunk', 'layup', 'free_throw', 'buzzer_beater'].includes(ev.type);
-                    const isMilestone = ev.type === 'end_quarter' || ev.type === 'final';
-                    return (
-                      <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${color}`}>
-                        <span className="flex-shrink-0 w-8 font-retro text-[7px] pt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Q{ev.quarter}</span>
-                        <span className="flex-shrink-0 text-sm">
-                          {icon === '🏀' ? <img src="/basketball.png" className="w-4 h-4 inline-block" alt="" /> : icon}
-                        </span>
-                        <p className={`text-sm flex-1 leading-snug ${isScore ? 'font-bold' : ''}`}
-                          style={{ color: isScore ? '#f97316' : isMilestone ? '#fbbf24' : 'rgba(241,239,227,0.7)' }}>
-                          {ev.text}
-                          {ev.points && isScore && (
-                            <span className="ml-1 font-retro text-[8px] opacity-70">+{ev.points}</span>
-                          )}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Summary */}
-            {streamingDone && simResult && (
-              <div className="mt-4 rounded-xl border p-4" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                <h4 className="font-retro text-[9px] mb-2" style={{ color: '#f97316' }}>📋 Game Report</h4>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(241,239,227,0.8)' }}>{simResult.summary}</p>
-              </div>
+          {/* Add rival by ID */}
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <span className="font-retro text-[8px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Add rival by ID:</span>
+            <input type="text" value={addTeamIdInput}
+              onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+              placeholder="123-4567"
+              className="w-28 px-2 py-1 rounded text-sm font-headline focus:outline-none"
+              style={{ ...SELECT_STYLE, fontSize: '12px' }} />
+            <button onClick={handleAddTeamById} disabled={addTeamLoading || !addTeamIdInput.trim()}
+              className="font-retro text-[8px] py-1 px-3 rounded-lg border disabled:opacity-30 transition-colors"
+              style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
+              {addTeamLoading ? '…' : '+ Add'}
+            </button>
+            {addTeamError && <span className="font-retro text-[8px] text-red-400">{addTeamError}</span>}
+            {!addTeamError && savedTeams.length > 0 && (
+              <span className="font-retro text-[8px]" style={{ color: 'rgba(249,115,22,0.5)' }}>{savedTeams.length} rival{savedTeams.length !== 1 ? 's' : ''}</span>
             )}
           </div>
-        )}
-      </main>
 
-      <BasketballFooter />
+          {/* Live Scoreboard */}
+          {(simResult || simulating) && (
+            <div className="mt-6 rounded-xl border p-6" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+              {currentQuarter > 0 && !streamingDone && (
+                <p className="text-center font-retro text-[8px] mb-3 tracking-widest" style={{ color: 'rgba(249,115,22,0.6)' }}>
+                  Q{currentQuarter}
+                </p>
+              )}
+              <div className="flex items-center justify-between text-center">
+                <div className="flex-1">
+                  <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedHome?.name}</div>
+                  <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.home}</div>
+                </div>
+                <div className="px-6">
+                  <div className="font-retro text-[9px] tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                    {streamingDone ? 'FINAL' : visibleEvents.length > 0 ? 'LIVE' : 'TIP OFF'}
+                  </div>
+                  <div className="font-retro text-lg mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>—</div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedAway?.name}</div>
+                  <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.away}</div>
+                </div>
+              </div>
+              {!streamingDone && visibleEvents.length > 0 && (
+                <p className="mt-3 text-center font-retro text-[8px] animate-pulse" style={{ color: 'rgba(249,115,22,0.5)' }}>● LIVE</p>
+              )}
+              {streamingDone && simResult && (
+                <p className="mt-3 text-center font-headline text-[10px]" style={{ color: '#fbbf24' }}>
+                  ⭐ {simResult.playerOfGame}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Play-by-play feed */}
+          {visibleEvents.length > 0 && (
+            <div ref={feedRef} className="mt-4 rounded-xl border overflow-y-auto" style={{ maxHeight: 380, borderColor: '#3d2c00', background: '#0f0a00' }}>
+              <div className="divide-y" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
+                {visibleEvents.filter(ev => ev && ev.type).map((ev, i) => {
+                  const color = EVENT_COLORS[ev.type] || 'border-l-4 border-transparent';
+                  const icon = EVENT_ICONS[ev.type] || '🏀';
+                  const isScore = ['shot_made', 'three_made', 'dunk', 'layup', 'free_throw', 'buzzer_beater'].includes(ev.type);
+                  const isMilestone = ev.type === 'end_quarter' || ev.type === 'final';
+                  return (
+                    <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${color}`}>
+                      <span className="flex-shrink-0 w-8 font-retro text-[7px] pt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Q{ev.quarter}</span>
+                      <span className="flex-shrink-0 text-sm">
+                        {icon === '🏀' ? <img src="/basketball.png" className="w-4 h-4 inline-block" alt="" /> : icon}
+                      </span>
+                      <p className={`text-sm flex-1 leading-snug ${isScore ? 'font-bold' : ''}`}
+                        style={{ color: isScore ? '#f97316' : isMilestone ? '#fbbf24' : 'rgba(241,239,227,0.7)' }}>
+                        {ev.text}
+                        {ev.points && isScore && (
+                          <span className="ml-1 font-retro text-[8px] opacity-70">+{ev.points}</span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          {streamingDone && simResult && (
+            <div className="mt-4 rounded-xl border p-4" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+              <h4 className="font-retro text-[9px] mb-2" style={{ color: '#f97316' }}>📋 Game Report</h4>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(241,239,227,0.8)' }}>{simResult.summary}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Teams List ── */}
+        <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
+          <div className="flex gap-1 mb-6 border-b pb-0" style={{ borderColor: '#3d2c00' }}>
+            {[{ key: 'my-teams', label: 'My Teams' }, { key: 'teams', label: 'Teams' }].map(({ key, label }) => (
+              <button key={key} onClick={() => setActiveTab(key as typeof activeTab)}
+                className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
+                  activeTab === key ? 'border-bball-orange text-bball-orange' : 'border-transparent text-white/30 hover:text-white/60'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {loadingTeams ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
+              <p className="mt-3 font-retro text-[8px] text-bball-orange/40 animate-pulse">Loading teams…</p>
+            </div>
+          ) : activeTab === 'my-teams' ? (
+            <div className="space-y-3">
+              {myTeams.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="mb-3">
+                    <img src="/basketball.png" className="w-12 h-12 mx-auto" alt="Basketball" />
+                  </div>
+                  <p className="font-retro text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No teams yet</p>
+                  <button onClick={() => router.push('/basketball/team-builder')}
+                    className="font-retro text-[9px] py-2 px-6 rounded-lg transition-all"
+                    style={{ background: '#f97316', color: '#0f0a00' }}>
+                    Build Your First Team
+                  </button>
+                </div>
+              ) : (
+                myTeams.map(team => (
+                  <TeamCard key={team.id} team={team} isOwn
+                    expandedId={expandedId} setExpandedId={setExpandedId}
+                    record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
+                    copiedId={copiedId} setCopiedId={setCopiedId}
+                    historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
+                    matchHistories={matchHistories} loadingHistory={loadingHistory}
+                    onDelete={async (id) => { if (!confirm('Delete this team?')) return; await deleteBasketballTeam(id); await loadTeams(); }}
+                  />
+                ))
+              )}
+              {savedTeams.length > 0 && (
+                <>
+                  <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>⚔️ Rival Teams</h3>
+                  {savedTeams.map(team => (
+                    <TeamCard key={team.id} team={team} isSaved
+                      expandedId={expandedId} setExpandedId={setExpandedId}
+                      record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
+                      copiedId={copiedId} setCopiedId={setCopiedId}
+                      historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
+                      matchHistories={matchHistories} loadingHistory={loadingHistory}
+                      onRemoveSaved={async (id) => { await removeSavedBballTeam(user!.uid, id); setSavedTeams(prev => prev.filter(t => t.id !== id)); }}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <h3 className="font-retro text-[9px] mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🏆 Legendary Teams</h3>
+              {legendaryTeams.map(team => (
+                <TeamCard key={team.id} team={team}
+                  expandedId={expandedId} setExpandedId={setExpandedId}
+                  record={legendaryRecords[team.id] ?? { wins: 0, losses: 0 }}
+                  copiedId={copiedId} setCopiedId={setCopiedId}
+                  historyTeamId={null} onViewHistory={() => {}}
+                  matchHistories={{}} loadingHistory={false}
+                />
+              ))}
+              {allTeams.filter(t => t.userId !== user?.uid).length > 0 && (
+                <>
+                  <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🌍 Other Players' Teams</h3>
+                  {allTeams.filter(t => t.userId !== user?.uid).map(team => (
+                    <TeamCard key={team.id} team={team}
+                      expandedId={expandedId} setExpandedId={setExpandedId}
+                      record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
+                      copiedId={copiedId} setCopiedId={setCopiedId}
+                      historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
+                      matchHistories={matchHistories} loadingHistory={loadingHistory}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
@@ -1149,53 +807,59 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
             </button>
           ) : <RecordBadge record={record} />}
         </div>
+        {isOwn && (
+          <p className="font-retro text-[8px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            ID: {(team as BballTeamDoc).shareId ? formatShareId((team as BballTeamDoc).shareId!) : '…'}
+          </p>
+        )}
       </button>
 
-      {/* Expanded content */}
+      {/* Expanded roster */}
       {isExpanded && (
-        <div className="border-t px-4 py-3" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
-            {BASKETBALL_POSITION_ORDER.map(pos => {
-              const player = team.players.find(p => p.position === pos);
-              return (
-                <div key={pos} className="rounded-lg p-2 text-center border" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-                  <div className="font-retro text-[8px] mb-1" style={{ color: POS_COLORS[pos] }}>{pos}</div>
-                  {player ? (
-                    <>
-                      <div className="font-headline text-[10px] text-white truncate">{player.name}</div>
-                      <div className="font-headline text-[11px] font-bold" style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
-                        {player.rating}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="font-headline text-[9px] text-white/30">—</div>
-                  )}
+        <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: '#3d2c00' }}>
+          {BASKETBALL_POSITION_ORDER.map(pos => {
+            const p = team.players.find(pl => pl.position === pos);
+            if (!p) return null;
+            return (
+              <div key={pos} className="flex justify-between items-center py-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-retro text-[7px] w-6" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                  <span className="text-sm" style={{ color: 'rgba(241,239,227,0.8)' }}>{p.name}</span>
+                  {p.isHistorical && <span className="font-retro text-[6px] px-1 rounded" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}>{p.year}</span>}
                 </div>
-              );
-            })}
-          </div>
+                <span className="font-headline text-[11px] font-bold"
+                  style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
+                  {p.rating}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {/* History */}
-          {!isLeg && team.id && historyTeamId === team.id && (
-            <div className="mt-3 pt-3 border-t" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
-              <h4 className="font-retro text-[9px] mb-2" style={{ color: 'rgba(249,115,22,0.6)' }}>📋 Match History</h4>
-              {loadingHistory ? (
-                <p className="font-headline text-[9px] text-white/30">Loading…</p>
-              ) : matchHistories[team.id]?.length === 0 ? (
-                <p className="font-headline text-[9px] text-white/30">No matches yet</p>
-              ) : (
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {matchHistories[team.id]?.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className={`font-retro text-[8px] px-2 py-0.5 rounded`}
-                        style={{ background: entry.result === 'win' ? 'rgba(249,115,22,0.2)' : 'rgba(239,68,68,0.2)', color: entry.result === 'win' ? '#f97316' : '#ef4444' }}>
-                        {entry.result.toUpperCase()}
-                      </span>
-                      <span style={{ color: 'rgba(241,239,227,0.7)' }}>{entry.teamScore} vs {entry.opponentName} {entry.opponentScore}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* Match history */}
+      {!isLeg && team.id && historyTeamId === team.id && (
+        <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: '#3d2c00' }}>
+          <h4 className="font-retro text-[8px] mb-3 uppercase" style={{ color: 'rgba(249,115,22,0.6)' }}>Game History</h4>
+          {loadingHistory && !matchHistories[team.id] ? (
+            <p className="font-headline text-[10px] animate-pulse" style={{ color: 'rgba(255,255,255,0.3)' }}>Loading…</p>
+          ) : (matchHistories[team.id] ?? []).length === 0 ? (
+            <p className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>No history yet — only games played after tracking was added are recorded.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {(matchHistories[team.id] ?? []).map((entry, i) => {
+                const date = entry.date ? new Date((entry.date as any).seconds * 1000).toLocaleDateString() : '—';
+                const rc = entry.result === 'win' ? '#f97316' : '#f87171';
+                const rl = entry.result === 'win' ? 'W' : 'L';
+                return (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="font-retro text-[7px] w-16 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }}>{date}</span>
+                    <span className="flex-1 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>vs {entry.opponentName}</span>
+                    <span className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{entry.teamScore}–{entry.opponentScore}</span>
+                    <span className="font-retro text-[9px] w-4 text-right" style={{ color: rc }}>{rl}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

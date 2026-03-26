@@ -69,7 +69,9 @@ export const simulateMatch = async (
   team1Name: string,
   team1Players: any[],
   team2Name: string,
-  team2Players: any[]
+  team2Players: any[],
+  team1Formation: string = '4-3-3',
+  team2Formation: string = '4-3-3'
 ) => {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -79,13 +81,39 @@ export const simulateMatch = async (
     const ratingGap = Math.abs(team1AvgRating - team2AvgRating);
     const favorite = team1AvgRating >= team2AvgRating ? team1Name : team2Name;
 
+    // Analyze position fit for soccer
+    const soccerPositionNote = (players: any[], formation: string) => {
+      const pos: Record<string, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+      players.forEach((p: any) => { if (pos[p.position] !== undefined) pos[p.position]++; });
+      const issues: string[] = [];
+      // Formation like "4-3-3" → [4 DEF, 3 MID, 3 FWD]
+      const parts = formation.split('-').map(Number);
+      if (parts.length >= 3) {
+        const [def, mid, fwd] = parts;
+        if (pos['GK'] < 1) issues.push('No GK');
+        if (pos['DEF'] < def) issues.push(`Only ${pos['DEF']} DEF (needs ${def})`);
+        if (pos['MID'] < mid) issues.push(`Only ${pos['MID']} MID (needs ${mid})`);
+        if (pos['FWD'] < fwd) issues.push(`Only ${pos['FWD']} FWD (needs ${fwd})`);
+      }
+      if (issues.length === 0) return `Well-fitted for ${formation}`;
+      return `MISMATCH in ${formation}: ${issues.join(', ')} — affected positions perform at reduced effectiveness`;
+    };
+
+    const team1PositionNote = soccerPositionNote(team1Players, team1Formation);
+    const team2PositionNote = soccerPositionNote(team2Players, team2Formation);
+
     const prompt = `You are an elite soccer match commentator. Simulate a FULL match with live play-by-play commentary between these two teams.
 
-TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating})
+TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating}, Formation: ${team1Formation})
 ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
 
-TEAM 2: ${team2Name} (Average Rating: ${team2AvgRating})
+TEAM 2: ${team2Name} (Average Rating: ${team2AvgRating}, Formation: ${team2Formation})
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
+
+TACTICAL ANALYSIS:
+- ${team1Name} (${team1Formation}): ${team1PositionNote}
+- ${team2Name} (${team2Formation}): ${team2PositionNote}
+If a team has a MISMATCH, reduce their effective performance accordingly — players out of position make more errors and contribute less.
 
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
@@ -202,11 +230,59 @@ IMPORTANT: Always provide a numeric rating. Only return valid JSON, no extra tex
 
 // ── Basketball Game Simulation ──────────────────────────────────────────────
 
+// Analyze how well a team's players fit their lineup strategy
+function analyzeLineupFit(players: any[], lineup: string): string {
+  const posRatings: Record<string, number> = {};
+  players.forEach((p: any) => { posRatings[p.position] = p.rating || 75; });
+
+  const issues: string[] = [];
+
+  if (lineup === 'Twin Towers') {
+    const pfRating = posRatings['PF'] || 60;
+    const cRating = posRatings['C'] || 60;
+    if (pfRating < 75) issues.push(`PF (${posRatings['PF'] || '?'}) is too weak for a Twin Towers strategy`);
+    if (cRating < 75) issues.push(`C (${posRatings['C'] || '?'}) is too weak for a Twin Towers strategy`);
+    const bigAvg = (pfRating + cRating) / 2;
+    if (bigAvg >= 85) return `GOOD FIT — Twin Towers with dominant bigs (PF: ${pfRating}, C: ${cRating})`;
+    if (bigAvg >= 75) return `AVERAGE FIT — Twin Towers has adequate bigs but no dominant presence`;
+    return `POOR FIT — Twin Towers requires strong PF and C, but bigs are weak (PF: ${pfRating}, C: ${cRating}). Significant penalty in the paint.`;
+  }
+
+  if (lineup === 'Small Ball') {
+    const sfRating = posRatings['SF'] || 60;
+    const pfRating = posRatings['PF'] || 60;
+    if (sfRating < 75) issues.push(`SF (${sfRating}) too weak for Small Ball`);
+    if (pfRating < 75) issues.push(`PF (${pfRating}) too weak for Small Ball`);
+    const wingAvg = (sfRating + pfRating) / 2;
+    if (wingAvg >= 82) return `GOOD FIT — Small Ball with athletic wings (SF: ${sfRating}, PF: ${pfRating})`;
+    if (wingAvg >= 72) return `AVERAGE FIT — Small Ball works but wings are not elite`;
+    return `POOR FIT — Small Ball needs quick athletic wings, but SF/PF are weak (SF: ${sfRating}, PF: ${pfRating}). Strategy backfires.`;
+  }
+
+  if (lineup === 'Stretch-4') {
+    const pfRating = posRatings['PF'] || 60;
+    if (pfRating >= 82) return `GOOD FIT — Stretch-4 with a strong shooting PF (${pfRating})`;
+    if (pfRating >= 72) return `AVERAGE FIT — Stretch-4 PF can contribute but isn't elite`;
+    return `POOR FIT — Stretch-4 requires a high-rated PF as a floor-spacer, but PF is rated ${pfRating}. Spacing collapses.`;
+  }
+
+  // Standard lineup — check for any severely weak positions
+  const ratings = Object.values(posRatings);
+  const minRating = Math.min(...ratings);
+  if (minRating < 65) {
+    const weakPos = Object.entries(posRatings).find(([, r]) => r < 65);
+    return `WEAK LINK — Standard lineup but ${weakPos?.[0]} (rated ${weakPos?.[1]}) is a major liability.`;
+  }
+  return `STANDARD — Balanced lineup, no major mismatches.`;
+}
+
 export const simulateBasketballGame = async (
   team1Name: string,
   team1Players: any[],
   team2Name: string,
-  team2Players: any[]
+  team2Players: any[],
+  team1Lineup: string = 'Standard',
+  team2Lineup: string = 'Standard'
 ) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -216,13 +292,21 @@ export const simulateBasketballGame = async (
     const ratingGap = Math.abs(team1Avg - team2Avg);
     const favorite = team1Avg >= team2Avg ? team1Name : team2Name;
 
+    const team1FitNote = analyzeLineupFit(team1Players, team1Lineup);
+    const team2FitNote = analyzeLineupFit(team2Players, team2Lineup);
+
     const prompt = `You are an elite NBA commentator. Simulate a FULL 4-quarter basketball game with live play-by-play between these two teams.
 
-TEAM 1: ${team1Name} (Avg Rating: ${team1Avg})
+TEAM 1: ${team1Name} (Avg Rating: ${team1Avg}, Strategy: ${team1Lineup})
 ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
 
-TEAM 2: ${team2Name} (Avg Rating: ${team2Avg})
+TEAM 2: ${team2Name} (Avg Rating: ${team2Avg}, Strategy: ${team2Lineup})
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
+
+LINEUP STRATEGY ANALYSIS:
+- ${team1Name} (${team1Lineup}): ${team1FitNote}
+- ${team2Name} (${team2Lineup}): ${team2FitNote}
+IMPORTANT: If a team has a POOR FIT rating above, their effective performance should be significantly worse than their raw average would suggest. A team playing the wrong strategy with mismatched players should struggle and lose more often — even against lower-rated opponents who are well-fitted.
 
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
@@ -233,6 +317,7 @@ SIMULATION RULES:
 - NO ties — if scores are equal at end, one team wins by 2-3 in overtime
 - Use ACTUAL player names from the rosters above — never invent players
 - High-rated players make more impact but can still miss big shots
+- If a team has a POOR FIT lineup, their weak players should make key mistakes in relevant situations (e.g., Twin Towers with weak bigs gets dominated in the paint)
 
 PLAY-BY-PLAY RULES:
 - Generate exactly 48-56 events covering all 4 quarters

@@ -208,8 +208,8 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          team1Name: team1.name, team1Players: team1.players,
-          team2Name: team2.name, team2Players: team2.players,
+          team1Name: team1.name, team1Players: team1.players, team1Formation: (team1 as any).formation || '4-3-3',
+          team2Name: team2.name, team2Players: team2.players, team2Formation: (team2 as any).formation || '4-3-3',
           userId: userId,
           userEmail: userEmail,
         }),

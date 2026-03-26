@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -103,16 +102,15 @@ function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
   if (!cameraActive) {
     return (
       <div className="text-center py-6">
-        <div className="mb-4 inline-block">
-          <Image src="/camera.png" alt="Camera" width={80} height={80} className="mx-auto" style={{ imageRendering: 'pixelated' }} unoptimized />
+        <div className="mb-4">
+          <img src="/camera.png" className="w-16 h-16 mx-auto" alt="Camera" />
         </div>
         <p className="font-headline text-[11px] text-white/70 mb-1">Scan a basketball card</p>
         <p className="font-headline text-[10px] text-white/30 mb-5">Point camera at an NBA or basketball card</p>
         <button onClick={startCamera}
-          className="w-full py-3 rounded-lg font-retro text-[9px] transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-lg font-retro text-[9px] transition-all"
           style={{ background: '#f97316', color: '#0f0a00' }}>
-          <Image src="/camera.png" alt="" width={16} height={16} style={{ imageRendering: 'pixelated' }} unoptimized />
-          Open Camera
+          <img src="/camera.png" className="w-4 h-4 inline-block mr-1" alt="" /> Open Camera
         </button>
       </div>
     );
@@ -167,7 +165,10 @@ export default function BasketballTeamBuilder() {
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
 
+  const [pinnedLineup, setPinnedLineup] = useState<BasketballPlayer[] | null>(null);
+
   const getStarting5 = (): BasketballPlayer[] => {
+    if (pinnedLineup) return pinnedLineup;
     const seen = new Set<string>();
     const result: BasketballPlayer[] = [];
     for (const pos of BASKETBALL_POSITION_ORDER) {
@@ -175,6 +176,20 @@ export default function BasketballTeamBuilder() {
       if (p) { result.push(p); seen.add(p.id); }
     }
     return result;
+  };
+
+  const generateBestLineup = () => {
+    const best: BasketballPlayer[] = [];
+    for (const pos of BASKETBALL_POSITION_ORDER) {
+      const candidates = players.filter(pl => pl.position === pos);
+      if (candidates.length === 0) continue;
+      const top = candidates.sort((a, b) => b.rating - a.rating)[0];
+      best.push(top);
+    }
+    setPinnedLineup(best);
+    const avg = best.length > 0 ? Math.round(best.reduce((s, p) => s + p.rating, 0) / best.length) : 0;
+    setMessage(best.length === 5 ? `⚡ Best lineup generated! Avg rating: ${avg}` : `Partial lineup: ${best.length}/5 positions filled. Scan more cards!`);
+    setMessageType(best.length === 5 ? 'success' : 'error');
   };
 
   const handleSave = async () => {
@@ -242,9 +257,8 @@ export default function BasketballTeamBuilder() {
           <div className="lg:col-span-1 space-y-4">
             {/* Scanner */}
             <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-              <h3 className="font-retro text-[10px] mb-4 tracking-wider flex items-center gap-2" style={{ color: '#f97316' }}>
-                <Image src="/camera.png" alt="" width={14} height={14} style={{ imageRendering: 'pixelated' }} unoptimized />
-                Scan Cards
+              <h3 className="font-retro text-[10px] mb-4 tracking-wider flex items-center gap-1.5" style={{ color: '#f97316' }}>
+                <img src="/camera.png" className="w-3.5 h-3.5" alt="" /> Scan Cards
               </h3>
               <BasketballCardUploader
                 onPlayerAdded={p => setPlayers(prev => [...prev, p])}
@@ -289,7 +303,7 @@ export default function BasketballTeamBuilder() {
                         style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
                         {p.rating}
                       </span>
-                      <button onClick={() => setPlayers(prev => prev.filter(x => x.id !== p.id))}
+                      <button onClick={() => { setPlayers(prev => prev.filter(x => x.id !== p.id)); setPinnedLineup(null); }}
                         className="text-white/20 hover:text-red-400 p-0.5 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -313,6 +327,14 @@ export default function BasketballTeamBuilder() {
                     ({starting5.length}/5)
                   </span>
                 </h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={generateBestLineup}
+                  disabled={players.length === 0}
+                  className="font-retro text-[8px] py-1.5 px-3 rounded-lg transition-all disabled:opacity-30"
+                  style={{ background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
+                  ⚡ Best Lineup
+                </button>
                 <select value={selectedLineup}
                   onChange={e => setSelectedLineup(e.target.value)}
                   className="px-3 py-1.5 rounded-lg font-headline text-[11px] focus:outline-none focus:ring-1"
@@ -321,6 +343,7 @@ export default function BasketballTeamBuilder() {
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>
+                </div>
               </div>
               <p className="font-headline text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 {BASKETBALL_LINEUPS[selectedLineup]?.description}
