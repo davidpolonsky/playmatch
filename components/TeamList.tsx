@@ -123,9 +123,8 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: inviteEmail.trim(),
-          teamName: team.name,
-          teamId: team.id,
+          toEmail: inviteEmail.trim(),
+          fromName: 'A friend',
         }),
       });
 
