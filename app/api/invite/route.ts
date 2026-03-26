@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-// Check if SendGrid is configured
+// ── Firebase Admin init (server-side Firestore access) ─────────
+function getAdminDb() {
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+  return getFirestore();
+}
+
+// Generate a random invite code like PLAY-A1B2C3
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let part = '';
+  for (let i = 0; i < 6; i++) part += chars[Math.floor(Math.random() * chars.length)];
+  return `PLAY-${part}`;
+}
+
+// ── SendGrid ───────────────────────────────────────────────────
 const SENDGRID_CONFIGURED = process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL;
 
 if (SENDGRID_CONFIGURED) {
@@ -22,19 +46,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing recipient email' }, { status: 400 });
     }
 
+    // ── Generate + store an invite code ───────────────────────
+    let inviteCode: string | null = null;
+    try {
+      const db = getAdminDb();
+      inviteCode = generateInviteCode();
+      await db.collection('inviteCodes').doc(inviteCode).set({
+        code: inviteCode,
+        used: false,
+        usedBy: null,
+        usedAt: null,
+        createdAt: new Date(),
+        createdFor: toEmail.trim(),
+      });
+    } catch (adminErr) {
+      // If admin SDK isn't configured, fall back gracefully (no code gating)
+      console.warn('Firebase Admin not configured; sending invite without embedded code:', adminErr);
+      inviteCode = null;
+    }
+
     const senderName = (fromName || 'A friend').trim();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://playmatch.games';
     const isBasketball = sport === 'basketball';
+
+    // Build invite URL — embed code if generated, else fall back to ?invited=true
+    const inviteQuery = inviteCode ? `invite=${encodeURIComponent(inviteCode)}` : 'invited=true';
+    const soccerInviteUrl = `${appUrl}?${inviteQuery}`;
+    const basketballInviteUrl = `${appUrl}/basketball?${inviteQuery}`;
+    const inviteUrl = isBasketball ? basketballInviteUrl : soccerInviteUrl;
 
     let subject: string;
     let textBody: string;
     let htmlBody: string;
 
+    const codeBlock = inviteCode
+      ? `\n\nYour invite code: ${inviteCode}\n`
+      : '';
+
     if (isBasketball) {
       // ---- Basketball invite ----
       const teamLine = teamName ? ` with their team "${teamName}"` : '';
       subject = `${senderName} challenged you to PlayMatch Basketball 🏀`;
-      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch Basketball${teamLine} — scan NBA cards, build your squad, and run the simulated game against friends.\n\nSign up here: ${appUrl}/basketball?invited=true\n\nSee you on the court! 🏀\n— The PlayMatch Team`;
+      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch Basketball${teamLine} — scan NBA cards, build your squad, and run the simulated game against friends.${codeBlock}\nSign up here: ${inviteUrl}\n\nSee you on the court! 🏀\n— The PlayMatch Team`;
       htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -64,18 +117,24 @@ export async function POST(req: NextRequest) {
                 Scan real NBA cards, build your starting 5, and let the AI sim decide who wins the court.
               </p>
               ${teamId ? `<p style="margin:0 0 20px;color:#6b7280;font-size:12px;text-align:center;">Team ID: <span style="color:#f97316;font-family:monospace;">${teamId}</span></p>` : ''}
+              ${inviteCode ? `
+              <!-- Invite Code -->
+              <div style="background:#0a0700;border:1px solid #3d2c00;border-radius:10px;padding:16px;margin:0 0 20px;text-align:center;">
+                <p style="margin:0 0 6px;color:#6b7280;font-size:11px;letter-spacing:2px;text-transform:uppercase;">Your Invite Code</p>
+                <p style="margin:0;color:#f97316;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px;">${inviteCode}</p>
+              </div>` : ''}
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 24px;">
-                    <a href="${appUrl}/basketball?invited=true" style="display:inline-block;background:#f97316;color:#0f0a00;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
+                    <a href="${inviteUrl}" style="display:inline-block;background:#f97316;color:#0f0a00;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
                       Accept the Challenge →
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">
-                Or visit <a href="${appUrl}/basketball?invited=true" style="color:#f97316;">${appUrl}/basketball?invited=true</a>
+                Or visit <a href="${inviteUrl}" style="color:#f97316;">${inviteUrl}</a>
               </p>
             </td>
           </tr>
@@ -92,9 +151,9 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`.trim();
     } else {
-      // ---- Soccer invite (original) ----
+      // ---- Soccer invite ----
       subject = `${senderName} challenged you to PlayMatch ⚽`;
-      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch — scan soccer player cards, build your dream team, and simulate matches against friends.\n\nSign up here: ${appUrl}?invited=true\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`;
+      textBody = `Hey!\n\n${senderName} wants to challenge you on PlayMatch — scan soccer player cards, build your dream team, and simulate matches against friends.${codeBlock}\nSign up here: ${inviteUrl}\n\nSee you on the pitch! ⚽\n— The PlayMatch Team`;
       htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -123,18 +182,24 @@ export async function POST(req: NextRequest) {
                 <strong style="color:#ffffff;">${senderName}</strong> has invited you to join <strong style="color:#4ade80;">PlayMatch</strong> —
                 scan real soccer player cards, build your dream team, and simulate matches against friends.
               </p>
+              ${inviteCode ? `
+              <!-- Invite Code -->
+              <div style="background:#060f09;border:1px solid #1e5c33;border-radius:10px;padding:16px;margin:0 0 20px;text-align:center;">
+                <p style="margin:0 0 6px;color:#6b7280;font-size:11px;letter-spacing:2px;text-transform:uppercase;">Your Invite Code</p>
+                <p style="margin:0;color:#4ade80;font-family:monospace;font-size:22px;font-weight:bold;letter-spacing:4px;">${inviteCode}</p>
+              </div>` : ''}
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 24px;">
-                    <a href="${appUrl}?invited=true" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
+                    <a href="${inviteUrl}" style="display:inline-block;background:#4ade80;color:#060f09;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:1px;">
                       Accept Challenge →
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">
-                Or visit <a href="${appUrl}?invited=true" style="color:#4ade80;">${appUrl}</a>
+                Or visit <a href="${inviteUrl}" style="color:#4ade80;">${inviteUrl}</a>
               </p>
             </td>
           </tr>
@@ -163,7 +228,7 @@ export async function POST(req: NextRequest) {
       html: htmlBody,
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, inviteCode });
   } catch (err: any) {
     console.error('SendGrid error:', err?.response?.body || err);
     const errorMessage = err?.response?.body?.errors?.[0]?.message || err?.message || 'Failed to send invite';

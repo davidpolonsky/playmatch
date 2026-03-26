@@ -544,3 +544,66 @@ export const getTablePreferences = async (userId: string): Promise<{ tableTeamId
     standingsTeamIds: data.standingsTeamIds ?? [],
   };
 };
+
+// ── Invite Codes ────────────────────────────────────────────────
+const INVITE_CODES_COLLECTION = 'inviteCodes';
+const USERS_COLLECTION = 'users';
+
+export interface InviteCode {
+  code: string;
+  used: boolean;
+  usedBy: string | null;
+  usedAt: Timestamp | null;
+  createdAt: Timestamp;
+  createdFor?: string; // optional label / email
+}
+
+// Generate a random invite code like PLAY-A1B2C3
+export const generateInviteCode = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let part = '';
+  for (let i = 0; i < 6; i++) part += chars[Math.floor(Math.random() * chars.length)];
+  return `PLAY-${part}`;
+};
+
+// Persist a new invite code in Firestore (doc ID = code string)
+export const createInviteCode = async (code: string, createdFor?: string): Promise<void> => {
+  await setDoc(doc(db, INVITE_CODES_COLLECTION, code), {
+    code,
+    used: false,
+    usedBy: null,
+    usedAt: null,
+    createdAt: serverTimestamp(),
+    ...(createdFor ? { createdFor } : {}),
+  });
+};
+
+// Validate a code and mark it as used atomically.
+// Returns 'ok' | 'invalid' | 'already_used'
+export const validateAndConsumeInviteCode = async (
+  code: string,
+  userId: string
+): Promise<'ok' | 'invalid' | 'already_used'> => {
+  const ref = doc(db, INVITE_CODES_COLLECTION, code.trim().toUpperCase());
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return 'invalid';
+  const data = snap.data() as InviteCode;
+  if (data.used) return 'already_used';
+  await updateDoc(ref, { used: true, usedBy: userId, usedAt: serverTimestamp() });
+  return 'ok';
+};
+
+// Check if a Firebase Auth uid has ever signed in before (has a users doc)
+export const isNewUser = async (userId: string): Promise<boolean> => {
+  const snap = await getDoc(doc(db, USERS_COLLECTION, userId));
+  return !snap.exists();
+};
+
+// Create the users doc for a newly admitted user
+export const createUserDoc = async (userId: string, email: string | null): Promise<void> => {
+  await setDoc(doc(db, USERS_COLLECTION, userId), {
+    uid: userId,
+    email: email ?? '',
+    createdAt: serverTimestamp(),
+  }, { merge: true });
+};
