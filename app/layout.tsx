@@ -10,8 +10,8 @@ export const metadata: Metadata = {
   description: 'Turn your soccer cards into dream teams with AI',
   icons: {
     icon: [
-      { url: '/icon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png', sizes: '192x192' },
+      { url: '/favicon.ico', sizes: '48x48' },
     ],
   },
 }
