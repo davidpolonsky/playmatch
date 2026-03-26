@@ -51,7 +51,7 @@ export default function BasketballFooter() {
     <footer style={{ background: '#0f0a00', borderTop: '1px solid #3d2c00' }} className="mt-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="font-retro text-[8px]" style={{ color: 'rgba(255,255,255,0.3)' }} style={{ letterSpacing: '0.1em' }}>
+          <p className="font-retro text-[8px]" style={{ color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em' }}>
             PlayMatch Games™ 2026
           </p>
           <button
