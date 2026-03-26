@@ -71,32 +71,56 @@ const inferPoints = (ev: BballPlayEvent): number => {
   return 0;
 };
 
-// Parse a checkpoint score out of end_quarter / final event text
-// e.g. "END Q2 — Bulls 54 - Lakers 48" → { home: 54, away: 48 }
-const parseCheckpointScore = (
-  text: string,
-  team1NameLow: string,
-  team2NameLow: string,
-): { home: number; away: number } | null => {
-  const nums = (text.match(/\d+/g) || []).map(Number);
-  // Filter to plausible cumulative scores: 0–200, ignore quarter numbers (1-4) and time values
-  const scores = nums.filter(n => n >= 0 && n <= 200);
-  if (scores.length < 2) return null;
-  // The last two numbers in the text are almost always the two team scores
-  const last2 = scores.slice(-2);
-  // Determine which is home (team1) vs away (team2) by which name appears first
-  const tl = text.toLowerCase();
-  const t1pos = team1NameLow ? tl.indexOf(team1NameLow.split(' ')[0]) : -1;
-  const t2pos = team2NameLow ? tl.indexOf(team2NameLow.split(' ')[0]) : -1;
-  if (t1pos >= 0 && t2pos >= 0 && t1pos !== t2pos) {
-    return t1pos < t2pos
-      ? { home: last2[0], away: last2[1] }
-      : { home: last2[1], away: last2[0] };
-  }
-  return { home: last2[0], away: last2[1] };
+// Parse the embedded [team1Score-team2Score] tag that Gemini appends to every event text
+// e.g. "Curry drills a three. [54-48]" → { home: 54, away: 48 }
+const parseEmbeddedScore = (text: string): { home: number; away: number } | null => {
+  const match = text.match(/\[(\d+)-(\d+)\]\s*$/);
+  if (!match) return null;
+  return { home: parseInt(match[1], 10), away: parseInt(match[2], 10) };
 };
 
+// Strip the embedded [X-Y] tag so it isn't shown in the feed text
+const stripScoreTag = (text: string): string => text.replace(/\s*\[\d+-\d+\]\s*$/, '');
+
 const SCORING_EVENT_TYPES = new Set(['shot_made', 'three_made', 'dunk', 'layup', 'free_throw', 'buzzer_beater']);
+
+// ── Team brand colors for the play-by-play feed ──────────────────────────────
+// Tuned for legibility on the dark basketball background
+const NBA_COLORS: Record<string, string> = {
+  // East
+  celtics: '#00e676', nets: '#a8a8a8', knicks: '#f97316',
+  '76ers': '#5bc8f5', sixers: '#5bc8f5', raptors: '#e8473f',
+  bulls: '#f44336', cavaliers: '#c8973d', pistons: '#4fc3f7',
+  pacers: '#fbbf24', bucks: '#4caf50', hawks: '#e8473f',
+  hornets: '#00e5ff', heat: '#ff6d3b', magic: '#29b6f6',
+  wizards: '#e8473f',
+  // West
+  nuggets: '#ffd740', timberwolves: '#29b6f6', thunder: '#29b6f6',
+  jazz: '#26c6da', suns: '#ff8f3c', kings: '#ba68c8',
+  warriors: '#ffd740', clippers: '#e8473f', lakers: '#fdb927',
+  grizzlies: '#7bafd4', pelicans: '#26c6da', spurs: '#c0c8d0',
+  mavericks: '#29b6f6', mavs: '#29b6f6', rockets: '#f44336',
+  'trail blazers': '#f44336', blazers: '#f44336',
+};
+
+// Custom-team fallback: deterministic color from name hash
+const CUSTOM_PALETTE = [
+  '#64b5f6', '#81c784', '#ffb74d', '#f06292', '#ba68c8',
+  '#4dd0e1', '#a1887f', '#90a4ae', '#fff176', '#80cbc4',
+];
+const hashTeamColor = (name: string): string => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return CUSTOM_PALETTE[Math.abs(h) % CUSTOM_PALETTE.length];
+};
+const getTeamColor = (name: string): string => {
+  if (!name) return '#f97316';
+  const key = name.toLowerCase();
+  for (const [k, v] of Object.entries(NBA_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return hashTeamColor(name);
+};
 
 function RecordBadge({ record }: { record: BballRecord }) {
   return (
@@ -209,14 +233,12 @@ export default function BasketballTeamsPage() {
       setVisibleEvents(prev => [...prev, ev]);
       if (ev.quarter) setCurrentQuarter(ev.quarter);
 
-      // Quarter / game checkpoints: parse score directly from text
-      if (ev.type === 'end_quarter' || ev.type === 'final') {
-        const parsed = parseCheckpointScore(ev.text, team1NameLow, team2NameLow);
-        if (parsed) { setLiveScore(parsed); i++; return; }
-      }
-
-      // Scoring events: use scoringTeam if present, else infer from player names in text
-      if (SCORING_EVENT_TYPES.has(ev.type)) {
+      // Primary: use embedded [X-Y] score tag (present on every event from new prompt)
+      const embedded = parseEmbeddedScore(ev.text);
+      if (embedded) {
+        setLiveScore(embedded);
+      } else if (SCORING_EVENT_TYPES.has(ev.type)) {
+        // Fallback for events without the tag: infer team from scoringTeam or player names
         let scoringTeam = ev.scoringTeam as 'team1' | 'team2' | undefined;
         if (!scoringTeam) {
           const textLow = ev.text.toLowerCase();
@@ -695,68 +717,102 @@ export default function BasketballTeamsPage() {
           </div>
 
           {/* Live Scoreboard */}
-          {(simResult || simulating) && (
-            <div className="mt-6 rounded-xl border p-6" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
-              {currentQuarter > 0 && !streamingDone && (
-                <p className="text-center font-retro text-[8px] mb-3 tracking-widest" style={{ color: 'rgba(249,115,22,0.6)' }}>
-                  Q{currentQuarter}
-                </p>
-              )}
-              <div className="flex items-center justify-between text-center">
-                <div className="flex-1">
-                  <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedHome?.name}</div>
-                  <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.home}</div>
-                </div>
-                <div className="px-6">
-                  <div className="font-retro text-[9px] tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                    {streamingDone ? 'FINAL' : visibleEvents.length > 0 ? 'LIVE' : 'TIP OFF'}
-                  </div>
-                  <div className="font-retro text-lg mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>—</div>
-                </div>
-                <div className="flex-1">
-                  <div className="font-headline text-[11px] mb-2 truncate" style={{ color: 'rgba(241,239,227,0.6)' }}>{selectedAway?.name}</div>
-                  <div className="font-retro text-5xl transition-all duration-300" style={{ color: '#f97316' }}>{liveScore.away}</div>
-                </div>
-              </div>
-              {!streamingDone && visibleEvents.length > 0 && (
-                <p className="mt-3 text-center font-retro text-[8px] animate-pulse" style={{ color: 'rgba(249,115,22,0.5)' }}>● LIVE</p>
-              )}
-              {streamingDone && simResult && (
-                <p className="mt-3 text-center font-headline text-[10px]" style={{ color: '#fbbf24' }}>
-                  ⭐ {simResult.playerOfGame}
-                </p>
-              )}
-            </div>
-          )}
+          {(() => {
+            // Compute team brand colors once — used for both scoreboard and feed
+            const team1Color = selectedHome ? getTeamColor(selectedHome.name) : '#f97316';
+            const team2Color = selectedAway ? getTeamColor(selectedAway.name) : '#f97316';
+            const t1Names = (selectedHome?.players || []).map((p: any) => (p.name || '').toLowerCase()).filter((n: string) => n.length > 2);
+            const t2Names = (selectedAway?.players || []).map((p: any) => (p.name || '').toLowerCase()).filter((n: string) => n.length > 2);
 
-          {/* Play-by-play feed */}
-          {visibleEvents.length > 0 && (
-            <div ref={feedRef} className="mt-4 rounded-xl border overflow-y-auto" style={{ maxHeight: 380, borderColor: '#3d2c00', background: '#0f0a00' }}>
-              <div className="divide-y" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
-                {visibleEvents.filter(ev => ev && ev.type).map((ev, i) => {
-                  const color = EVENT_COLORS[ev.type] || 'border-l-4 border-transparent';
-                  const icon = EVENT_ICONS[ev.type] || '🏀';
-                  const isScore = ['shot_made', 'three_made', 'dunk', 'layup', 'free_throw', 'buzzer_beater'].includes(ev.type);
-                  const isMilestone = ev.type === 'end_quarter' || ev.type === 'final';
-                  return (
-                    <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${color}`}>
-                      <span className="flex-shrink-0 w-8 font-retro text-[7px] pt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Q{ev.quarter}</span>
-                      <span className="flex-shrink-0 text-sm">
-                        {icon === '🏀' ? <img src="/basketball.png" className="w-4 h-4 inline-block" alt="" /> : icon}
-                      </span>
-                      <p className={`text-sm flex-1 leading-snug ${isScore ? 'font-bold' : ''}`}
-                        style={{ color: isScore ? '#f97316' : isMilestone ? '#fbbf24' : 'rgba(241,239,227,0.7)' }}>
-                        {ev.text}
-                        {ev.points && isScore && (
-                          <span className="ml-1 font-retro text-[8px] opacity-70">+{ev.points}</span>
-                        )}
+            return (
+              <>
+                {(simResult || simulating) && (
+                  <div className="mt-6 rounded-xl border p-6" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                    {currentQuarter > 0 && !streamingDone && (
+                      <p className="text-center font-retro text-[8px] mb-3 tracking-widest" style={{ color: 'rgba(249,115,22,0.6)' }}>
+                        Q{currentQuarter}
                       </p>
+                    )}
+                    <div className="flex items-center justify-between text-center">
+                      <div className="flex-1">
+                        <div className="font-headline text-[11px] mb-2 truncate" style={{ color: team1Color + 'cc' }}>{selectedHome?.name}</div>
+                        <div className="font-retro text-5xl transition-all duration-300" style={{ color: team1Color }}>{liveScore.home}</div>
+                      </div>
+                      <div className="px-6">
+                        <div className="font-retro text-[9px] tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                          {streamingDone ? 'FINAL' : visibleEvents.length > 0 ? 'LIVE' : 'TIP OFF'}
+                        </div>
+                        <div className="font-retro text-lg mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>—</div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-headline text-[11px] mb-2 truncate" style={{ color: team2Color + 'cc' }}>{selectedAway?.name}</div>
+                        <div className="font-retro text-5xl transition-all duration-300" style={{ color: team2Color }}>{liveScore.away}</div>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    {!streamingDone && visibleEvents.length > 0 && (
+                      <p className="mt-3 text-center font-retro text-[8px] animate-pulse" style={{ color: 'rgba(249,115,22,0.5)' }}>● LIVE</p>
+                    )}
+                    {streamingDone && simResult && (
+                      <p className="mt-3 text-center font-headline text-[10px]" style={{ color: '#fbbf24' }}>
+                        ⭐ {simResult.playerOfGame}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Play-by-play feed */}
+                {visibleEvents.length > 0 && (
+                  <div ref={feedRef} className="mt-4 rounded-xl border overflow-y-auto" style={{ maxHeight: 380, borderColor: '#3d2c00', background: '#0f0a00' }}>
+                    <div className="divide-y" style={{ borderColor: 'rgba(61,44,0,0.5)' }}>
+                      {visibleEvents.filter(ev => ev && ev.type).map((ev, i) => {
+                        // Determine which team this event belongs to
+                        let eventTeam: 'team1' | 'team2' | null = ev.scoringTeam || null;
+                        if (!eventTeam) {
+                          const tl = ev.text.toLowerCase();
+                          const inT1 = t1Names.some((n: string) => tl.includes(n));
+                          const inT2 = t2Names.some((n: string) => tl.includes(n));
+                          if (inT1 && !inT2) eventTeam = 'team1';
+                          else if (inT2 && !inT1) eventTeam = 'team2';
+                        }
+                        const teamColor = eventTeam === 'team1' ? team1Color : eventTeam === 'team2' ? team2Color : null;
+
+                        const icon = EVENT_ICONS[ev.type] || '🏀';
+                        const isScore = SCORING_EVENT_TYPES.has(ev.type);
+                        const isMilestone = ev.type === 'end_quarter' || ev.type === 'final';
+                        const displayText = stripScoreTag(ev.text);
+
+                        // Text color: team color (full for scores, 70% for others), yellow for milestones, dim white for neutral
+                        const textColor = isMilestone
+                          ? '#fbbf24'
+                          : teamColor
+                          ? (isScore ? teamColor : teamColor + 'b0')
+                          : 'rgba(241,239,227,0.65)';
+
+                        const borderColor = teamColor || (isMilestone ? '#fbbf24' : 'transparent');
+
+                        return (
+                          <div key={i} className="flex items-start gap-3 px-4 py-2.5 border-l-4"
+                            style={{ borderLeftColor: borderColor }}>
+                            <span className="flex-shrink-0 w-8 font-retro text-[7px] pt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Q{ev.quarter}</span>
+                            <span className="flex-shrink-0 text-sm">
+                              {icon === '🏀' ? <img src="/basketball.png" className="w-4 h-4 inline-block" alt="" /> : icon}
+                            </span>
+                            <p className={`text-sm flex-1 leading-snug ${isScore ? 'font-bold' : ''}`}
+                              style={{ color: textColor }}>
+                              {displayText}
+                              {ev.points && isScore && (
+                                <span className="ml-1 font-retro text-[8px] opacity-70">+{ev.points}</span>
+                              )}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Summary */}
           {streamingDone && simResult && (

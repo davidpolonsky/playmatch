@@ -117,16 +117,15 @@ export const simulateMatch = async (
         if (way) {
           rules.push(
             `🚨 WAY OUT OF POSITION — ${player.name} (${naturalPos}, rated ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
-            `MANDATORY RULE — ${player.name} being catastrophically out of position MUST directly contribute to at least 2 of the opponent's goals. ` +
-            `These goals are part of the final scoreline — do not add extra goals beyond your chosen score. ` +
-            `Name ${player.name} explicitly in those goal events. ` +
-            `Do NOT let ${player.name} make any positive contribution — every involvement is a liability.`
+            `MANDATORY RULE — of all the goals the opponent scores in this match, AT LEAST 2 of them must be directly caused by ${player.name}'s inability to perform in this role (do not add extra goals beyond the chosen scoreline — these 2 are included within it). ` +
+            `Both goals must explicitly name ${player.name} in the play-by-play event (e.g. "${player.name} loses their man", "terrible ${naturalPos}-playing-${playingAs} mistake from ${player.name}"). ` +
+            `Do NOT let ${player.name} have any positive moment — every involvement is a liability.`
           );
         } else {
           rules.push(
             `⚠️ MINOR OUT OF POSITION — ${player.name} (${naturalPos}, rated ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
-            `MANDATORY RULE — ${player.name} being out of position must directly contribute to at least 1 of the opponent's goals (part of the final scoreline, not extra). ` +
-            `Name ${player.name} explicitly in that goal event.`
+            `MANDATORY RULE — of all the goals the opponent scores in this match, AT LEAST 1 must be directly caused by ${player.name} being out of position (do not add extra goals beyond the chosen scoreline — this 1 is included within it). ` +
+            `That goal event must explicitly name ${player.name} and describe the positional error.`
           );
         }
       });
@@ -172,18 +171,18 @@ SIMULATION RULES:
 - Use ACTUAL player names from the rosters above — never invent players.
 - High-rated players should make more impactful plays but can still make mistakes.
 
-SCORELINE — Pick a random number 1-10 to decide the match style. Aim for ~6 total goals on average. Even weak teams score.
-  1   → Defensive slog: 2-1 or 1-2 (narrow win, both teams score)
-  2   → Comfortable win: 3-1 or 1-3
-  3   → Open game: 3-2 or 2-3
-  4   → Goal fest: 4-2 or 2-4
-  5   → Thriller draw: 3-3
-  6   → Big win: 4-1 or 1-4
-  7   → End-to-end draw: 2-2, then late winner 3-2 in minute 88-90
-  8   → Comeback: trailing 1-3 at half, rally to 4-3 or 3-3
-  9   → Red card chaos: red card 55-65 mins, still ends up high-scoring (e.g. 4-2, 3-2)
-  10  → Classic upset: lower-rated team wins 2-1 or 3-2 against the odds
-IMPORTANT: Every game must have GOALS from both teams (minimum 1 each) unless one team has a GK playing outfield. Even weak teams find the net. Do NOT end 0-0 or 1-0. Vary winners freely — upsets happen.
+SCORELINE VARIETY — Pick a random number 1-10 and use the matching style. This gives realistic soccer distributions.
+  1   → Goalless draw or 1-0 defensive win (0-0, 1-0, 0-1)
+  2   → Narrow win: 2-0, 0-2
+  3   → Classic close game: 1-1 draw
+  4   → Edgy single-goal win: 2-1, 1-2
+  5   → Comfortable victory: 3-0, 3-1, 0-3, 1-3
+  6   → Tight draw then late winner: 1-1 at 85', someone nicks it 2-1 in 89' or 90+
+  7   → Comeback: losing 0-2 or 1-3 at half, rally to draw or win
+  8   → Extra time drama: 90 mins ends level (1-1 or 2-2), goal in 93-97' decides it
+  9   → Red card chaos: red card mid-second-half swings the game, final 2-1 or 3-1
+  10  → High-scoring thriller: 3-2, 4-2, 3-3 (rare — only if both teams have high avg ratings ≥ 83)
+RULES: Do NOT default to 4-3 or high-scoring games. Most real soccer ends 1-0, 1-1, or 2-1. Only pick style 10 if both teams genuinely have high ratings. Vary the winner — don't always let the higher-rated team score more.
 
 SPECIAL EVENTS (use occasionally, not every game):
 - Red cards: type "redcard", mention the player sent off and minute. A 10-man team concedes more goals.
@@ -223,18 +222,8 @@ Valid event types: kickoff, action, shot, goal, save, foul, card, redcard, corne
     const response = await result.response;
     const text = response.text();
 
-    // Strip markdown fences and any leading/trailing text outside the JSON object
-    let cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    // Extract the outermost JSON object if there's surrounding text
-    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) cleanText = jsonMatch[0];
-
-    try {
-      return JSON.parse(cleanText);
-    } catch (parseError) {
-      console.error('JSON parse failed, raw text:', text.substring(0, 500));
-      throw new Error(`AI returned invalid JSON: ${(parseError as Error).message}`);
-    }
+    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanText);
   } catch (error) {
     console.error('Error simulating match:', error);
     throw error;
@@ -530,8 +519,9 @@ PLAY-BY-PLAY RULES:
 - Generate exactly 48-56 events covering all 4 quarters
 - Include a mix of: tip_off, shot_made (2pts), three_made (3pts), shot_missed, three_missed, dunk, layup, steal, block, turnover, foul, free_throw (1pt), timeout, end_quarter (after each quarter), buzzer_beater (optional), final
 - Every shot_made, three_made, dunk, layup, free_throw, buzzer_beater MUST include "scoringTeam": "team1" or "team2" AND "points": 2 or 3 or 1
-- end_quarter events must state the running score e.g. "END Q1 — ${team1Name} 28 - ${team2Name} 24"
-- final event must state the final score
+- EVERY event "text" field MUST end with the current running score in brackets: [team1Score-team2Score] e.g. "[28-24]" — update this after every scoring play so it is always current
+- end_quarter events format: "END Q1 — ${team1Name} 28 - ${team2Name} 24 [28-24]"
+- final event format: "FINAL — ${team1Name} X - ${team2Name} Y [X-Y]"
 - quarter field must be 1, 2, 3, or 4 (use 4 for overtime too)
 - time field format: "10:34" (minutes:seconds remaining in quarter)
 
@@ -542,10 +532,10 @@ Return ONLY this JSON (no markdown, no extra text):
   "summary": "<2-3 exciting sentences summarizing the game>",
   "playerOfGame": "<Player name> — <one sentence reason>",
   "playByPlay": [
-    { "quarter": 1, "time": "12:00", "type": "tip_off", "text": "<description>" },
-    { "quarter": 1, "time": "11:22", "type": "shot_made", "scoringTeam": "team1", "points": 2, "text": "<description>" },
-    { "quarter": 1, "time": "0:00", "type": "end_quarter", "text": "END Q1 — <score>" },
-    { "quarter": 4, "time": "0:00", "type": "final", "text": "FINAL — ${team1Name} X - ${team2Name} Y" }
+    { "quarter": 1, "time": "12:00", "type": "tip_off", "text": "Jump ball — game underway! [0-0]" },
+    { "quarter": 1, "time": "11:22", "type": "shot_made", "scoringTeam": "team1", "points": 2, "text": "Player drains a mid-range jumper. [2-0]" },
+    { "quarter": 1, "time": "0:00", "type": "end_quarter", "text": "END Q1 — ${team1Name} 28 - ${team2Name} 24 [28-24]" },
+    { "quarter": 4, "time": "0:00", "type": "final", "text": "FINAL — ${team1Name} X - ${team2Name} Y [X-Y]" }
   ]
 }
 
@@ -553,15 +543,8 @@ Valid event types: tip_off, shot_made, three_made, shot_missed, three_missed, du
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    let cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    const jsonMatchB = cleanText.match(/\{[\s\S]*\}/);
-    if (jsonMatchB) cleanText = jsonMatchB[0];
-    try {
-      return JSON.parse(cleanText);
-    } catch (parseError) {
-      console.error('Basketball JSON parse failed, raw text:', text.substring(0, 500));
-      throw new Error(`AI returned invalid JSON: ${(parseError as Error).message}`);
-    }
+    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanText);
   } catch (error) {
     console.error('Error simulating basketball game:', error);
     throw error;
