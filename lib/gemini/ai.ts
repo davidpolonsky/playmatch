@@ -81,26 +81,80 @@ export const simulateMatch = async (
     const ratingGap = Math.abs(team1AvgRating - team2AvgRating);
     const favorite = team1AvgRating >= team2AvgRating ? team1Name : team2Name;
 
-    // Analyze position fit for soccer
-    const soccerPositionNote = (players: any[], formation: string) => {
-      const pos: Record<string, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-      players.forEach((p: any) => { if (pos[p.position] !== undefined) pos[p.position]++; });
-      const issues: string[] = [];
-      // Formation like "4-3-3" → [4 DEF, 3 MID, 3 FWD]
+    // Detailed OOP analysis — identifies specific players, roles, and mandatory simulation instructions
+    const analyzeSoccerLineup = (players: any[], formation: string, teamName: string) => {
       const parts = formation.split('-').map(Number);
-      if (parts.length >= 3) {
-        const [def, mid, fwd] = parts;
-        if (pos['GK'] < 1) issues.push('No GK');
-        if (pos['DEF'] < def) issues.push(`Only ${pos['DEF']} DEF (needs ${def})`);
-        if (pos['MID'] < mid) issues.push(`Only ${pos['MID']} MID (needs ${mid})`);
-        if (pos['FWD'] < fwd) issues.push(`Only ${pos['FWD']} FWD (needs ${fwd})`);
+      if (parts.length < 3) return { summary: 'Unknown formation', mandatoryRules: '' };
+
+      const needed: Record<string, number> = { GK: 1, DEF: parts[0], MID: parts[1], FWD: parts[2] };
+
+      // Group players by their NATURAL position, sorted rating DESC
+      const byPos: Record<string, any[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+      players.forEach((p: any) => { if (byPos[p.position]) byPos[p.position].push(p); });
+      for (const pos of ['GK','DEF','MID','FWD']) byPos[pos].sort((a: any, b: any) => b.rating - a.rating);
+
+      // Identify surplus (OOP players) and deficit (roles to fill)
+      const oopPlayers: Array<{ player: any; naturalPos: string }> = [];
+      const deficitSlots: string[] = [];
+      for (const pos of ['GK','DEF','MID','FWD']) {
+        const have = byPos[pos].length;
+        const need = needed[pos] || 0;
+        if (have > need) byPos[pos].slice(need).forEach((p: any) => oopPlayers.push({ player: p, naturalPos: pos }));
+        if (have < need) for (let i = 0; i < need - have; i++) deficitSlots.push(pos);
       }
-      if (issues.length === 0) return `Well-fitted for ${formation}`;
-      return `MISMATCH in ${formation}: ${issues.join(', ')} — affected positions perform at reduced effectiveness`;
+
+      if (oopPlayers.length === 0) return { summary: `Well-fitted for ${formation}`, mandatoryRules: '' };
+
+      const rules: string[] = [];
+      oopPlayers.forEach(({ player, naturalPos }, i) => {
+        const playingAs = deficitSlots[i] || 'outfield';
+        const gkPlayingOut = naturalPos === 'GK' && playingAs !== 'GK';
+        const outfieldPlayingGK = naturalPos !== 'GK' && playingAs === 'GK';
+        const bigJump = (naturalPos === 'DEF' && playingAs === 'FWD') || (naturalPos === 'FWD' && playingAs === 'DEF');
+
+        if (gkPlayingOut) {
+          rules.push(
+            `🚨 CRITICAL — ${player.name} (GK, ${player.rating}) is playing as ${playingAs} for ${teamName}. ` +
+            `A goalkeeper playing outfield is almost always catastrophic. MANDATORY: ` +
+            `(1) The opposition MUST target ${player.name}'s area repeatedly. ` +
+            `(2) ${player.name} MUST directly cause at least 1 goal against through an error (lost duel, terrible pass, inability to mark). ` +
+            `(3) Reference ${player.name} by name in at least 2 negative play events. ` +
+            `(4) Do NOT let ${player.name} have a quiet or positive game — every involvement is a liability.`
+          );
+        } else if (outfieldPlayingGK) {
+          rules.push(
+            `🚨 CRITICAL — ${player.name} (${naturalPos}, ${player.rating}) is playing as GOALKEEPER for ${teamName}. ` +
+            `An outfield player in goal is almost always catastrophic. MANDATORY: ` +
+            `(1) Shots on target against ${teamName} MUST frequently beat ${player.name} — poor positioning, fumbles, misjudged crosses. ` +
+            `(2) ${player.name} MUST directly allow at least 2 goals that a real GK would have saved. ` +
+            `(3) Reference ${player.name} by name in negative goalkeeping events.`
+          );
+        } else if (bigJump) {
+          rules.push(
+            `⚠️ SEVERE — ${player.name} (${naturalPos}, ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
+            `A ${naturalPos} playing ${playingAs} is a serious mismatch. MANDATORY: ` +
+            `${player.name} should make at least one costly error in this role (misplaced pass leading to danger, fails to track a run, poor touch in a key moment). ` +
+            `Treat their effective rating as 10-15 points lower.`
+          );
+        } else {
+          rules.push(
+            `⚠️ MODERATE — ${player.name} (${naturalPos}, ${player.rating}) is playing ${playingAs} for ${teamName}. ` +
+            `Adjacent position mismatch — they'll be noticeably below peak in this role. ` +
+            `Mention their unconventional position in 1-2 commentary moments. Treat effective rating as 5-8 points lower.`
+          );
+        }
+      });
+
+      const summary = oopPlayers.map(({ player, naturalPos }, i) =>
+        `${player.name} (${naturalPos}→${deficitSlots[i] || 'out'})`
+      ).join(', ');
+
+      return { summary, mandatoryRules: rules.join('\n') };
     };
 
-    const team1PositionNote = soccerPositionNote(team1Players, team1Formation);
-    const team2PositionNote = soccerPositionNote(team2Players, team2Formation);
+    const team1Analysis = analyzeSoccerLineup(team1Players, team1Formation, team1Name);
+    const team2Analysis = analyzeSoccerLineup(team2Players, team2Formation, team2Name);
+    const hasOopRules = team1Analysis.mandatoryRules || team2Analysis.mandatoryRules;
 
     const prompt = `You are an elite soccer match commentator. Simulate a FULL match with live play-by-play commentary between these two teams.
 
@@ -111,9 +165,17 @@ TEAM 2: ${team2Name} (Average Rating: ${team2AvgRating}, Formation: ${team2Forma
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
 
 TACTICAL ANALYSIS:
-- ${team1Name} (${team1Formation}): ${team1PositionNote}
-- ${team2Name} (${team2Formation}): ${team2PositionNote}
-If a team has a MISMATCH, reduce their effective performance accordingly — players out of position make more errors and contribute less.
+- ${team1Name} (${team1Formation}): ${team1Analysis.summary}
+- ${team2Name} (${team2Formation}): ${team2Analysis.summary}
+${hasOopRules ? `
+╔══════════════════════════════════════════════════════════╗
+║        MANDATORY OUT-OF-POSITION SIMULATION RULES       ║
+║  These OVERRIDE normal rating logic. You MUST follow    ║
+║  every instruction below — no exceptions.               ║
+╚══════════════════════════════════════════════════════════╝
+${team1Analysis.mandatoryRules}
+${team2Analysis.mandatoryRules}
+` : ''}
 
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
