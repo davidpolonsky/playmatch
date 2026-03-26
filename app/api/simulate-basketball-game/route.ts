@@ -9,8 +9,20 @@ export async function POST(request: NextRequest) {
     }
     const result = await simulateBasketballGame(team1Name, team1Players, team2Name, team2Players, team1Lineup, team2Lineup);
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in simulate-basketball-game API:', error);
-    return NextResponse.json({ error: 'Failed to simulate game' }, { status: 500 });
+    const msg: string = error?.message || String(error);
+    if (
+      msg.includes('429') ||
+      msg.toLowerCase().includes('quota') ||
+      msg.toLowerCase().includes('rate limit') ||
+      msg.toLowerCase().includes('resource exhausted')
+    ) {
+      return NextResponse.json(
+        { error: 'AI usage limit reached — please wait a minute and try again.' },
+        { status: 429 }
+      );
+    }
+    return NextResponse.json({ error: msg || 'Failed to simulate game. Please try again.' }, { status: 500 });
   }
 }

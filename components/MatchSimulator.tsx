@@ -262,9 +262,10 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
           date: null,
         }).catch(() => {});
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error:', e);
-      alert('Failed to simulate match. Please try again.');
+      const msg = e?.message || 'Failed to simulate match. Please try again.';
+      alert(msg);
     } finally {
       setSimulating(false);
     }

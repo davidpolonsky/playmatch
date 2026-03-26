@@ -31,10 +31,26 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in simulate-match API:', error);
+
+    // Detect Gemini quota / rate-limit errors
+    const msg: string = error?.message || String(error);
+    if (
+      msg.includes('429') ||
+      msg.toLowerCase().includes('quota') ||
+      msg.toLowerCase().includes('rate limit') ||
+      msg.toLowerCase().includes('resource exhausted')
+    ) {
+      return NextResponse.json(
+        { error: 'AI usage limit reached — please wait a minute and try again.' },
+        { status: 429 }
+      );
+    }
+
+    // Surface the real error message so the client can show something useful
     return NextResponse.json(
-      { error: 'Failed to simulate match' },
+      { error: msg || 'Failed to simulate match. Please try again.' },
       { status: 500 }
     );
   }

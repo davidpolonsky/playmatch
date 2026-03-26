@@ -297,8 +297,10 @@ export default function BasketballTeamsPage() {
           opponentScore: data.team1Score, date: null }).catch(() => {});
         setMatchHistories(prev => { const n = { ...prev }; delete n[selectedAway.id!]; return n; });
       }
-    } catch (e) {
-      console.error(e); alert('Failed to simulate game. Please try again.');
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.message || 'Failed to simulate game. Please try again.';
+      alert(msg);
     } finally { setSimulating(false); }
   };
 

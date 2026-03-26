@@ -553,8 +553,15 @@ Valid event types: tip_off, shot_made, three_made, shot_missed, three_missed, du
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleanText);
+    let cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    const jsonMatchB = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatchB) cleanText = jsonMatchB[0];
+    try {
+      return JSON.parse(cleanText);
+    } catch (parseError) {
+      console.error('Basketball JSON parse failed, raw text:', text.substring(0, 500));
+      throw new Error(`AI returned invalid JSON: ${(parseError as Error).message}`);
+    }
   } catch (error) {
     console.error('Error simulating basketball game:', error);
     throw error;
