@@ -736,6 +736,11 @@ export default function BasketballTeamsPage() {
           )}
         </div>
       </main>
+      </div>
+      <Footer />
+    </>
+  );
+}
 
 // ── TeamCard sub-component ──────────────────────────────────────
 function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpandedId, record, copiedId, setCopiedId, historyTeamId, onViewHistory, matchHistories, loadingHistory, onDelete, onRemoveSaved }: {
@@ -872,7 +877,5 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
         </div>
       )}
       </div>
-      <Footer />
-    </>
   );
 }
