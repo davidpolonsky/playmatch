@@ -485,10 +485,13 @@ export default function Dashboard() {
           const selected = tableAllTeams.filter(t => tableTeamIds.has(t.id!));
           const rows = selected.map(team => {
             const r = getRecord(team);
-            const p = r.wins + r.losses + r.ties;
-            const pts = r.wins * 3 + r.ties;
-            const winpct = p > 0 ? (r.wins / p) : 0;
-            return { team, ...r, p, pts, winpct };
+            const wins = r.wins ?? 0;
+            const losses = r.losses ?? 0;
+            const ties = r.ties ?? 0;
+            const p = wins + losses + ties;
+            const pts = wins * 3 + ties;
+            const winpct = p > 0 ? (wins / p) : 0;
+            return { team, wins, losses, ties, p, pts, winpct };
           }).sort((a, b) => tableMetric === 'points' ? (b.pts - a.pts) || (b.wins - a.wins) : b.winpct - a.winpct);
 
           // Available teams not yet added, grouped
