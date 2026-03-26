@@ -332,7 +332,7 @@ export default function Dashboard() {
           <div className="flex gap-1 mb-6 border-b border-fifa-border pb-0 flex-wrap">
             {[
               { key: 'build', label: 'Build Team' },
-              { key: 'teams', label: `My Teams (${savedTeams.length})` },
+              { key: 'teams', label: `Teams (${savedTeams.length})` },
               { key: 'match', label: 'Simulate Match' },
               { key: 'table', label: 'Table' },
             ].map(({ key, label }) => (

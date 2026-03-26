@@ -10,6 +10,10 @@ import {
   getUserLegendaryRecords,
   getTeamRecords,
   TeamRecord,
+  getTeamByShareId,
+  parseShareId,
+  addSavedTeam,
+  getSavedTeamIds,
 } from '@/lib/firebase/firestore';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
 
@@ -105,6 +109,11 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   const [currentScore, setCurrentScore] = useState({ team1: 0, team2: 0 });
   const feedRef = useRef<HTMLDivElement>(null);
 
+  const [addTeamIdInput, setAddTeamIdInput] = useState('');
+  const [addTeamLoading, setAddTeamLoading] = useState(false);
+  const [addTeamError, setAddTeamError] = useState('');
+  const [savedTeamIds, setSavedTeamIds] = useState<string[]>([]);
+
   // Get legendary teams (excluding premium)
   const legendaryTeams = getLegendaryTeams();
 
@@ -115,13 +124,15 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   useEffect(() => {
     const load = async () => {
       try {
-        const [all, legRecs] = await Promise.all([
+        const [all, legRecs, savedIds] = await Promise.all([
           getAllTeams().catch(() => [] as Team[]),
           getUserLegendaryRecords(userId).catch(() => ({} as Record<string, TeamRecord>)),
+          getSavedTeamIds(userId).catch(() => [] as string[]),
         ]);
         const other = all.filter(t => t.userId !== userId);
         setOtherTeams(other);
         setLegendaryRecords(legRecs);
+        setSavedTeamIds(savedIds);
 
         const allIds = [...teams, ...other].map(t => t.id!).filter(Boolean);
         const recs = await getTeamRecords(allIds).catch(() => ({} as Record<string, TeamRecord>));
@@ -131,7 +142,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
       }
     };
     if (userId) load();
-  }, [userId]);
+  }, [userId, teams]);
 
   // Stream events
   useEffect(() => {
@@ -189,6 +200,41 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
       }
     } catch (e) {
       console.error('Failed to update record', e);
+    }
+  };
+
+  const handleAddTeamById = async () => {
+    const raw = parseShareId(addTeamIdInput.trim());
+    if (raw.length !== 7) {
+      setAddTeamError('Enter a valid 7-digit Team ID (e.g. 123-4567).');
+      return;
+    }
+    setAddTeamLoading(true);
+    setAddTeamError('');
+    try {
+      const team = await getTeamByShareId(raw);
+      if (!team) {
+        setAddTeamError('Team not found. Double-check the ID.');
+        return;
+      }
+      if (team.userId === userId) {
+        setAddTeamError("That's your own team!");
+        return;
+      }
+      if (teams.some(t => t.id === team.id) || otherTeams.some(t => t.id === team.id)) {
+        setAddTeamError('Team already available.');
+        return;
+      }
+      await addSavedTeam(userId, team.id!);
+      setOtherTeams(prev => [...prev, team]);
+      setSavedTeamIds(prev => [...prev, team.id!]);
+      const recs = await getTeamRecords([team.id!]).catch(() => ({} as Record<string, TeamRecord>));
+      setTeamRecords(prev => ({ ...prev, ...recs }));
+      setAddTeamIdInput('');
+    } catch {
+      setAddTeamError('Something went wrong. Try again.');
+    } finally {
+      setAddTeamLoading(false);
     }
   };
 
@@ -285,14 +331,14 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
           <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Home Team</label>
           <select value={team1Id} onChange={e => setTeam1Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Home Team</option>
-            <optgroup label="My Teams">
+            <optgroup label="🏠 My Teams">
               {teams.map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
             </optgroup>
             <optgroup label="⭐ Legendary Teams">
               {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
             {otherTeams.filter(t => t.userId !== userId).length > 0 && (
-              <optgroup label="⚔️ Challenge (other users)">
+              <optgroup label="👥 Friends' Teams">
                 {otherTeams.filter(t => t.userId !== userId).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
               </optgroup>
             )}
@@ -323,20 +369,43 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
           <label className="block font-retro text-[9px] text-fifa-mint/70 mb-2 uppercase tracking-widest">Away Team</label>
           <select value={team2Id} onChange={e => setTeam2Id(e.target.value)} className="w-full px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream font-headline text-sm focus:ring-1 focus:ring-fifa-mint focus:outline-none">
             <option value="">Select Away Team</option>
-            <optgroup label="My Teams">
+            <optgroup label="🏠 My Teams">
               {teams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
             </optgroup>
             <optgroup label="⭐ Legendary Teams">
               {legendaryTeams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
             {otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).length > 0 && (
-              <optgroup label="⚔️ Challenge (other users)">
+              <optgroup label="👥 Friends' Teams">
                 {otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
               </optgroup>
             )}
           </select>
           {team2 && <RosterPreview team={team2} record={getRecord(team2)} />}
         </div>
+      </div>
+
+      {/* Add by Team ID */}
+      <div className="mt-4 p-4 bg-fifa-dark border border-fifa-border rounded-xl">
+        <p className="font-retro text-[9px] text-fifa-mint mb-3 tracking-wider">⚔️ Add a Friend's Team by ID</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={addTeamIdInput}
+            onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+            placeholder="Enter ID e.g. 123-4567"
+            className="flex-1 px-3 py-2 bg-fifa-mid border border-fifa-border rounded-lg text-fifa-cream text-sm placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
+          />
+          <button
+            onClick={handleAddTeamById}
+            disabled={addTeamLoading || !addTeamIdInput.trim()}
+            className="btn-primary py-2 px-4 disabled:opacity-30"
+          >
+            {addTeamLoading ? '…' : 'Add'}
+          </button>
+        </div>
+        {addTeamError && <p className="font-headline text-[10px] text-red-400 mt-2">{addTeamError}</p>}
       </div>
 
       {/* Scoreboard */}
