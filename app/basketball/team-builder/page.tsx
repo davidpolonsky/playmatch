@@ -6,6 +6,7 @@ import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { BasketballPlayer, BasketballPosition, BASKETBALL_LINEUPS, BASKETBALL_POSITION_ORDER, BASKETBALL_ROSTER_REQUIREMENTS } from '@/lib/types-basketball';
 import { saveBasketballTeam, saveBasketballRoster, getBasketballRoster } from '@/lib/firebase/firestore-basketball';
+import PixelAvatar from '@/components/PixelAvatar';
 
 // Camera-based card uploader wired to basketball API
 function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
@@ -153,24 +154,55 @@ const POS_COLORS: Record<BasketballPosition, string> = {
   PG: '#f97316', SG: '#fbbf24', SF: '#fb923c', PF: '#f59e0b', C: '#ef4444',
 };
 
+// Auto-fill 5 slots: best rated player per position first, then best remaining bench
+function autoFillSlots(ps: BasketballPlayer[]): (BasketballPlayer | null)[] {
+  const usedIds = new Set<string>();
+  const newSlots: (BasketballPlayer | null)[] = Array(5).fill(null);
+  for (let i = 0; i < BASKETBALL_POSITION_ORDER.length; i++) {
+    const pos = BASKETBALL_POSITION_ORDER[i];
+    const candidates = ps.filter(pl => pl.position === pos && !usedIds.has(pl.id));
+    if (candidates.length > 0) {
+      const top = [...candidates].sort((a, b) => b.rating - a.rating)[0];
+      newSlots[i] = top;
+      usedIds.add(top.id);
+    }
+  }
+  const remaining = [...ps].filter(p => !usedIds.has(p.id)).sort((a, b) => b.rating - a.rating);
+  for (let i = 0; i < newSlots.length; i++) {
+    if (!newSlots[i] && remaining.length > 0) newSlots[i] = remaining.shift()!;
+  }
+  return newSlots;
+}
+
+type DragSource =
+  | { from: 'slot'; slotIdx: number }
+  | { from: 'bench'; playerId: string };
+
 export default function BasketballTeamBuilder() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
   const [players, setPlayers] = useState<BasketballPlayer[]>([]);
+  const [slots, setSlots] = useState<(BasketballPlayer | null)[]>(Array(5).fill(null));
   const [rosterLoaded, setRosterLoaded] = useState(false);
   const [selectedLineup, setSelectedLineup] = useState('Standard');
   const [teamName, setTeamName] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('error');
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
+  const dragSourceRef = useRef<DragSource | null>(null);
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
 
-  // Load saved draft roster on mount
+  // Load saved draft roster on mount + auto-fill slots
   useEffect(() => {
     if (!user) return;
     getBasketballRoster(user.uid).then(saved => {
-      if (saved.length > 0) setPlayers(saved);
+      if (saved.length > 0) {
+        setPlayers(saved);
+        setSlots(autoFillSlots(saved));
+      }
       setRosterLoaded(true);
     }).catch(() => setRosterLoaded(true));
   }, [user]);
@@ -181,61 +213,64 @@ export default function BasketballTeamBuilder() {
     saveBasketballRoster(user.uid, players).catch(() => {});
   }, [players, user, rosterLoaded]);
 
-  const [pinnedLineup, setPinnedLineup] = useState<BasketballPlayer[] | null>(null);
+  // --- Slot management ---
 
-  const getStarting5 = (): BasketballPlayer[] => {
-    if (pinnedLineup) return pinnedLineup;
-    const usedIds = new Set<string>();
-    const result: BasketballPlayer[] = [];
-    // First pass: fill each slot with a position-matched player
-    for (const pos of BASKETBALL_POSITION_ORDER) {
-      const p = players.find(pl => pl.position === pos && !usedIds.has(pl.id));
-      if (p) { result.push(p); usedIds.add(p.id); }
-      else result.push(null as unknown as BasketballPlayer); // placeholder
-    }
-    // Second pass: fill null slots with best available (by rating), any position
-    const bench = [...players]
-      .filter(p => !usedIds.has(p.id))
-      .sort((a, b) => b.rating - a.rating);
-    for (let i = 0; i < result.length; i++) {
-      if (!result[i] && bench.length > 0) {
-        const fill = bench.shift()!;
-        result[i] = fill;
-        usedIds.add(fill.id);
-      }
-    }
-    return result.filter(Boolean);
+  const removeFromSlot = (idx: number) => {
+    setSlots(prev => { const n = [...prev]; n[idx] = null; return n; });
   };
 
-  const generateBestLineup = () => {
-    const usedIds = new Set<string>();
-    const best: BasketballPlayer[] = [];
-    // First pass: best rated player per position
-    for (const pos of BASKETBALL_POSITION_ORDER) {
-      const candidates = players.filter(pl => pl.position === pos && !usedIds.has(pl.id));
-      if (candidates.length > 0) {
-        const top = [...candidates].sort((a, b) => b.rating - a.rating)[0];
-        best.push(top);
-        usedIds.add(top.id);
+  const addBenchPlayerToSlot = (p: BasketballPlayer) => {
+    setSlots(prev => {
+      const n = [...prev];
+      if (n.some(s => s?.id === p.id)) return prev; // already slotted
+      // Prefer the matching position slot
+      const posIdx = BASKETBALL_POSITION_ORDER.indexOf(p.position as BasketballPosition);
+      if (posIdx >= 0 && !n[posIdx]) { n[posIdx] = p; return n; }
+      // Otherwise first empty slot
+      const emptyIdx = n.findIndex(s => s === null);
+      if (emptyIdx >= 0) { n[emptyIdx] = p; }
+      return n;
+    });
+  };
+
+  const removeFromRoster = (id: string) => {
+    setPlayers(prev => prev.filter(x => x.id !== id));
+    setSlots(prev => prev.map(s => s?.id === id ? null : s));
+  };
+
+  const handleDrop = (targetSlotIdx: number) => {
+    const src = dragSourceRef.current;
+    if (!src) return;
+    setSlots(prev => {
+      const n = [...prev];
+      if (src.from === 'bench') {
+        const p = players.find(x => x.id === src.playerId);
+        if (!p) return prev;
+        // Remove from any existing slot
+        const existingIdx = n.findIndex(s => s?.id === p.id);
+        if (existingIdx >= 0) n[existingIdx] = null;
+        // Place into target (displaced player goes to bench — slot becomes their spot)
+        n[targetSlotIdx] = p;
       } else {
-        best.push(null as unknown as BasketballPlayer); // placeholder
+        // Swap two slots
+        const temp = n[targetSlotIdx];
+        n[targetSlotIdx] = n[src.slotIdx];
+        n[src.slotIdx] = temp;
       }
-    }
-    // Second pass: fill empty slots with best remaining
-    const bench = [...players]
-      .filter(p => !usedIds.has(p.id))
-      .sort((a, b) => b.rating - a.rating);
-    for (let i = 0; i < best.length; i++) {
-      if (!best[i] && bench.length > 0) {
-        const fill = bench.shift()!;
-        best[i] = fill;
-        usedIds.add(fill.id);
-      }
-    }
-    const lineup = best.filter(Boolean);
-    setPinnedLineup(lineup);
+      return n;
+    });
+    dragSourceRef.current = null;
+    setDragOverSlot(null);
+  };
+
+  // --- Best lineup ---
+
+  const generateBestLineup = () => {
+    const newSlots = autoFillSlots(players);
+    setSlots(newSlots);
+    const lineup = newSlots.filter(Boolean) as BasketballPlayer[];
     const avg = lineup.length > 0 ? Math.round(lineup.reduce((s, p) => s + p.rating, 0) / lineup.length) : 0;
-    const outOfPos = lineup.filter((p, idx) => p.position !== BASKETBALL_POSITION_ORDER[idx]).length;
+    const outOfPos = newSlots.filter((p, idx) => p && p.position !== BASKETBALL_POSITION_ORDER[idx]).length;
     if (lineup.length === 5 && outOfPos === 0) {
       setMessage(`⚡ Best lineup generated! Avg rating: ${avg}`);
     } else if (lineup.length === 5) {
@@ -246,10 +281,12 @@ export default function BasketballTeamBuilder() {
     setMessageType(lineup.length === 5 ? 'success' : 'error');
   };
 
+  // --- Save ---
+
   const handleSave = async () => {
     if (!teamName.trim()) { setMessage('Enter a team name.'); setMessageType('error'); return; }
-    const starting5 = getStarting5();
-    if (players.length < 5) { setMessage(`Need at least 5 players to build a starting 5.`); setMessageType('error'); return; }
+    const starting5 = slots.filter(Boolean) as BasketballPlayer[];
+    if (starting5.length < 5) { setMessage('Fill all 5 lineup slots to save.'); setMessageType('error'); return; }
     setSaving(true);
     try {
       await saveBasketballTeam({ name: teamName, userId: user!.uid, lineup: selectedLineup, players: starting5 });
@@ -264,6 +301,8 @@ export default function BasketballTeamBuilder() {
     }
   };
 
+  // --- Loading ---
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0a00' }}>
@@ -275,9 +314,14 @@ export default function BasketballTeamBuilder() {
     );
   }
 
+  // --- Derived state ---
+
+  const slottedIds = new Set(slots.filter(Boolean).map(p => p!.id));
+  const bench = players.filter(p => !slottedIds.has(p.id));
+  const filledSlots = slots.filter(Boolean).length;
+
   const grouped: Record<string, number> = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
   players.forEach(p => { if (grouped[p.position] !== undefined) grouped[p.position]++; });
-  const starting5 = getStarting5();
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #0f0a00 0%, #1c1200 60%, #0f0a00 100%)' }}>
@@ -307,15 +351,29 @@ export default function BasketballTeamBuilder() {
         <h2 className="font-retro text-[13px] mb-6 tracking-wider" style={{ color: '#f97316' }}>🏗 Team Builder</h2>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: scanner + players */}
+
+          {/* Left: scanner + bench */}
           <div className="lg:col-span-1 space-y-4">
+
             {/* Scanner */}
             <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
               <h3 className="font-retro text-[10px] mb-4 tracking-wider flex items-center gap-1.5" style={{ color: '#f97316' }}>
                 <img src="/camera.png" className="w-3.5 h-3.5" alt="" /> Scan Cards
               </h3>
               <BasketballCardUploader
-                onPlayerAdded={p => setPlayers(prev => [...prev, p])}
+                onPlayerAdded={p => {
+                  setPlayers(prev => [...prev, p]);
+                  // Auto-slot into first matching empty slot
+                  setSlots(prev => {
+                    const n = [...prev];
+                    if (n.some(s => s?.id === p.id)) return n;
+                    const posIdx = BASKETBALL_POSITION_ORDER.indexOf(p.position as BasketballPosition);
+                    if (posIdx >= 0 && !n[posIdx]) { n[posIdx] = p; return n; }
+                    const emptyIdx = n.findIndex(s => s === null);
+                    if (emptyIdx >= 0) n[emptyIdx] = p;
+                    return n;
+                  });
+                }}
                 onError={msg => { setMessage(msg); setMessageType('error'); }}
                 onSuccess={msg => { setMessage(msg); setMessageType('success'); }}
               />
@@ -324,10 +382,13 @@ export default function BasketballTeamBuilder() {
               )}
             </div>
 
-            {/* Scanned players */}
+            {/* Bench */}
             <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-              <h3 className="font-retro text-[10px] mb-4 tracking-wider" style={{ color: '#f97316' }}>
-                Scanned Players ({players.length})
+              <h3 className="font-retro text-[10px] mb-3 tracking-wider" style={{ color: '#f97316' }}>
+                Bench ({bench.length})
+                {bench.length > 0 && (
+                  <span className="ml-2 font-headline text-[8px] normal-case" style={{ color: 'rgba(255,255,255,0.3)' }}>drag or + to slot</span>
+                )}
               </h3>
 
               {/* Position breakdown */}
@@ -344,21 +405,42 @@ export default function BasketballTeamBuilder() {
                 </div>
               )}
 
-              {players.length === 0 ? (
+              {bench.length === 0 && players.length === 0 ? (
                 <p className="font-retro text-[8px] text-center py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No players yet — scan cards to start</p>
+              ) : bench.length === 0 ? (
+                <p className="font-retro text-[8px] text-center py-3" style={{ color: 'rgba(255,255,255,0.3)' }}>All players in lineup ✓</p>
               ) : (
                 <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                  {players.map(p => (
-                    <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors"
+                  {bench.map(p => (
+                    <div key={p.id}
+                      draggable
+                      onDragStart={() => { dragSourceRef.current = { from: 'bench', playerId: p.id }; }}
+                      onDragEnd={() => { dragSourceRef.current = null; setDragOverSlot(null); }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing"
                       style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                      <PixelAvatar
+                        skinTone={p.skinTone as any}
+                        hairColor={p.hairColor as any}
+                        hairStyle={p.hairStyle as any}
+                        size={28}
+                      />
                       <span className="font-retro text-[7px] w-6 flex-shrink-0" style={{ color: POS_COLORS[p.position] }}>{p.position}</span>
                       <span className="font-headline text-[11px] text-white flex-1 truncate">{p.name}</span>
                       <span className="font-headline text-[10px] font-bold"
                         style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
                         {p.rating}
                       </span>
-                      <button onClick={() => { setPlayers(prev => prev.filter(x => x.id !== p.id)); setPinnedLineup(null); }}
-                        className="text-white/20 hover:text-red-400 p-0.5 transition-colors">
+                      <button
+                        onClick={() => addBenchPlayerToSlot(p)}
+                        title="Add to lineup"
+                        className="w-5 h-5 flex items-center justify-center rounded transition-colors font-bold text-sm leading-none flex-shrink-0"
+                        style={{ color: '#f97316', opacity: 0.7 }}>
+                        +
+                      </button>
+                      <button
+                        onClick={() => removeFromRoster(p.id)}
+                        title="Remove from roster"
+                        className="text-white/20 hover:text-red-400 p-0.5 transition-colors flex-shrink-0">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -372,77 +454,123 @@ export default function BasketballTeamBuilder() {
 
           {/* Right: lineup + save */}
           <div className="lg:col-span-2 space-y-4">
+
             {/* Starting 5 */}
             <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
               <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
                 <h3 className="font-retro text-[10px] tracking-wider" style={{ color: '#f97316' }}>
                   Starting 5
-                  <span className="ml-2" style={{ color: starting5.length === 5 ? '#f97316' : 'rgba(255,255,255,0.3)' }}>
-                    ({starting5.length}/5)
+                  <span className="ml-2" style={{ color: filledSlots === 5 ? '#f97316' : 'rgba(255,255,255,0.3)' }}>
+                    ({filledSlots}/5)
                   </span>
                 </h3>
                 <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={generateBestLineup}
-                  disabled={players.length === 0}
-                  className="font-retro text-[8px] py-1.5 px-3 rounded-lg transition-all disabled:opacity-30"
-                  style={{ background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
-                  ⚡ Best Lineup
-                </button>
-                <select value={selectedLineup}
-                  onChange={e => setSelectedLineup(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg font-headline text-[11px] focus:outline-none focus:ring-1"
-                  style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}>
-                  {Object.keys(BASKETBALL_LINEUPS).map(l => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
+                  <button
+                    onClick={generateBestLineup}
+                    disabled={players.length === 0}
+                    className="font-retro text-[8px] py-1.5 px-3 rounded-lg transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
+                    ⚡ Best Lineup
+                  </button>
+                  <select value={selectedLineup}
+                    onChange={e => setSelectedLineup(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg font-headline text-[11px] focus:outline-none focus:ring-1"
+                    style={{ background: '#0f0a00', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}>
+                    {Object.keys(BASKETBALL_LINEUPS).map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <p className="font-headline text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 {BASKETBALL_LINEUPS[selectedLineup]?.description}
               </p>
 
-              {/* Position slots */}
+              {/* Position slots — drag targets */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {BASKETBALL_POSITION_ORDER.map((pos, idx) => {
-                  const player = starting5[idx] ?? null;
+                  const player = slots[idx] ?? null;
                   const isOutOfPos = player && player.position !== pos;
+                  const isDragTarget = dragOverSlot === idx;
                   return (
-                    <div key={pos} className="flex items-center gap-3 p-3 rounded-xl border transition-all"
+                    <div key={pos}
+                      draggable={!!player}
+                      onDragStart={() => { if (player) dragSourceRef.current = { from: 'slot', slotIdx: idx }; }}
+                      onDragEnd={() => { dragSourceRef.current = null; setDragOverSlot(null); }}
+                      onDragOver={e => { e.preventDefault(); setDragOverSlot(idx); }}
+                      onDragLeave={e => {
+                        // Only clear if leaving the slot entirely (not entering a child)
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverSlot(null);
+                      }}
+                      onDrop={e => { e.preventDefault(); handleDrop(idx); }}
+                      className="flex items-center gap-3 p-3 rounded-xl border transition-all"
                       style={{
-                        background: player ? '#0f0a00' : 'rgba(15,10,0,0.4)',
-                        borderColor: isOutOfPos ? 'rgba(251,191,36,0.5)' : player ? POS_COLORS[pos] + '60' : '#3d2c00',
+                        background: isDragTarget ? 'rgba(249,115,22,0.1)' : player ? '#0f0a00' : 'rgba(15,10,0,0.4)',
+                        borderColor: isDragTarget
+                          ? 'rgba(249,115,22,0.7)'
+                          : isOutOfPos
+                          ? 'rgba(251,191,36,0.5)'
+                          : player
+                          ? POS_COLORS[pos] + '60'
+                          : '#3d2c00',
+                        cursor: player ? 'grab' : 'default',
+                        minHeight: 68,
                       }}>
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center font-retro text-[8px] flex-shrink-0"
-                        style={{ background: player ? POS_COLORS[pos] + '20' : '#1c1200', color: POS_COLORS[pos], border: `1px solid ${POS_COLORS[pos]}40` }}>
-                        {pos}
+                      {/* Avatar or position badge */}
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+                        style={{
+                          background: player ? POS_COLORS[pos] + '20' : '#1c1200',
+                          border: `1px solid ${POS_COLORS[pos]}40`,
+                        }}>
+                        {player
+                          ? <PixelAvatar
+                              skinTone={player.skinTone as any}
+                              hairColor={player.hairColor as any}
+                              hairStyle={player.hairStyle as any}
+                              size={48}
+                            />
+                          : <span className="font-retro text-[8px]" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                        }
                       </div>
+
                       {player ? (
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-headline text-[12px] text-white truncate">{player.name}</span>
-                            {isOutOfPos && (
-                              <span className="font-retro text-[7px] px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
-                                {player.position} oop
-                              </span>
-                            )}
+                        <>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                              <span className="font-retro text-[7px]" style={{ color: POS_COLORS[pos] }}>{pos}</span>
+                              {isOutOfPos && (
+                                <span className="font-retro text-[7px] px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                                  {player.position} oop
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-headline text-[12px] text-white truncate">{player.name}</div>
+                            <div className="font-headline text-[10px] font-bold"
+                              style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
+                              {player.rating}
+                            </div>
                           </div>
-                          <div className="font-headline text-[10px] font-bold" style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
-                            {player.rating}
-                          </div>
-                        </div>
+                          <button
+                            onClick={() => removeFromSlot(idx)}
+                            title="Remove from lineup"
+                            className="text-white/20 hover:text-red-400 p-0.5 transition-colors flex-shrink-0">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </>
                       ) : (
-                        <span className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                          No {pos} scanned yet
+                        <span className="font-headline text-[10px]" style={{ color: isDragTarget ? 'rgba(249,115,22,0.6)' : 'rgba(255,255,255,0.25)' }}>
+                          {isDragTarget ? `Drop here for ${pos}` : `No ${pos} — drag or use +`}
                         </span>
                       )}
                     </div>
                   );
                 })}
               </div>
+
               {/* Out-of-position warning */}
-              {starting5.some((p, idx) => p && p.position !== BASKETBALL_POSITION_ORDER[idx]) && (
+              {slots.some((p, idx) => p && p.position !== BASKETBALL_POSITION_ORDER[idx]) && (
                 <p className="mt-3 font-headline text-[10px] text-center" style={{ color: 'rgba(251,191,36,0.6)' }}>
                   ⚠️ Out-of-position players hurt performance — but you can still save and play!
                 </p>
@@ -458,13 +586,14 @@ export default function BasketballTeamBuilder() {
                   onKeyDown={e => e.key === 'Enter' && handleSave()}
                   className="w-full px-4 py-2.5 rounded-lg text-white font-headline text-sm focus:outline-none focus:ring-1"
                   style={{ background: '#0f0a00', border: '1px solid #3d2c00', outlineColor: '#f97316' }} />
-                <button onClick={handleSave} disabled={saving || players.length < 5}
+                <button onClick={handleSave} disabled={saving || filledSlots < 5}
                   className="w-full py-3 rounded-lg font-retro text-[9px] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.3)' }}>
-                  {saving ? 'Saving…' : players.length < 5 ? `Need ${5 - players.length} more players` : '✅ Save Team'}
+                  {saving ? 'Saving…' : filledSlots < 5 ? `Fill ${5 - filledSlots} more slot${5 - filledSlots > 1 ? 's' : ''}` : '✅ Save Team'}
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       </main>
