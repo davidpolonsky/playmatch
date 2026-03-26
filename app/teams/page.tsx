@@ -118,6 +118,7 @@ export default function TeamsPage() {
   const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingPhrase, setLoadingPhrase] = useState('');
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const [challengeTeamId, setChallengeTeamId] = useState<string | null>(null);
   const [challengeEmail, setChallengeEmail] = useState('');
@@ -383,9 +384,14 @@ export default function TeamsPage() {
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (!confirm('Are you sure you want to delete this team?')) return;
-    try { await deleteTeam(teamId); await loadTeams(); }
+    setTeamToDelete(teamId);
+  };
+
+  const confirmDeleteTeam = async () => {
+    if (!teamToDelete) return;
+    try { await deleteTeam(teamToDelete); await loadTeams(); }
     catch { alert('Failed to delete team'); }
+    finally { setTeamToDelete(null); }
   };
 
   const handleSimulate = async () => {
@@ -494,6 +500,23 @@ export default function TeamsPage() {
             <div className="flex-1 min-w-0">
               <h3 className="font-headline text-[13px] text-white flex items-center gap-2 flex-wrap">
                 {team.name}
+                {isOwn && (
+                  <>
+                    <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      [{(team as Team).shareId ? formatShareId((team as Team).shareId!) : '…'}]
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleCopyId(team as Team); }}
+                      title="Copy Team ID"
+                      className="p-0.5 transition-colors"
+                      style={{ color: isCopied ? '#7ee8c4' : 'rgba(255,255,255,0.25)' }}
+                    >
+                      {isCopied ? <span className="font-retro text-[8px]">✓</span> : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                      )}
+                    </button>
+                  </>
+                )}
                 {isLegendary && <span className="text-[9px] font-retro text-fifa-amber">LEGEND</span>}
                 {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">RIVAL</span>}
               </h3>
@@ -504,27 +527,15 @@ export default function TeamsPage() {
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {isOwn && team.id && (
-                <>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleEmailChallenge(team as Team); }}
-                    title="Challenge someone by email"
-                    className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleCopyId(team as Team); }}
-                    title="Copy Team ID to share"
-                    className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
-                  >
-                    {isCopied
-                      ? <span className="font-retro text-[8px] text-fifa-mint">✓</span>
-                      : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    }
-                  </button>
-                </>
+                <button
+                  onClick={e => { e.stopPropagation(); handleEmailChallenge(team as Team); }}
+                  title="Challenge someone by email"
+                  className="text-white/30 hover:text-fifa-mint p-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </button>
               )}
               {isOwn && (
                 <button
@@ -563,13 +574,6 @@ export default function TeamsPage() {
               <RecordBadge record={record} />
             )}
           </div>
-
-          {/* Share ID on own cards */}
-          {isOwn && (
-            <p className="font-retro text-[8px] text-white/20 mt-1.5">
-              ID: {(team as Team).shareId ? formatShareId((team as Team).shareId!) : '…'}
-            </p>
-          )}
         </button>
 
         {/* Expanded roster */}
@@ -953,6 +957,30 @@ export default function TeamsPage() {
             </>
           )}
         </div>
+
+        {/* Delete confirmation dialog */}
+        {teamToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setTeamToDelete(null)}>
+            <div className="rounded-xl border p-6 mx-4 max-w-sm w-full" style={{ background: '#1a1f1b', borderColor: '#2a3b2e' }} onClick={e => e.stopPropagation()}>
+              <h3 className="font-headline text-[14px] text-fifa-cream mb-3">Delete Team?</h3>
+              <p className="font-body text-[11px] mb-6 text-fifa-cream/60">This action cannot be undone. Your team will be permanently deleted.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmDeleteTeam}
+                  className="flex-1 py-2 rounded-lg font-retro text-[9px] transition-all"
+                  style={{ background: '#f44336', color: '#fff' }}>
+                  Delete
+                </button>
+                <button
+                  onClick={() => setTeamToDelete(null)}
+                  className="flex-1 py-2 rounded-lg font-retro text-[9px] border transition-colors"
+                  style={{ borderColor: '#2a3b2e', color: 'rgba(255,255,255,0.6)' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Email Challenge Modal */}

@@ -154,6 +154,7 @@ export default function BasketballTeamsPage() {
   const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
   const [matchHistories, setMatchHistories] = useState<Record<string, BballHistoryEntry[]>>({});
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
 
   // Simulator state
   const [selectedHome, setSelectedHome] = useState<AnyBballTeam | null>(null);
@@ -860,7 +861,7 @@ export default function BasketballTeamsPage() {
                     copiedId={copiedId} setCopiedId={setCopiedId}
                     historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
                     matchHistories={matchHistories} loadingHistory={loadingHistory}
-                    onDelete={async (id) => { if (!confirm('Delete this team?')) return; await deleteBasketballTeam(id); await loadTeams(); }}
+                    onDelete={(id) => setTeamToDelete(id)}
                     onChallenge={t => { setChallengeTeam(t); setChallengeEmail(''); setChallengeSent(false); }}
                   />
                 ))
@@ -879,6 +880,34 @@ export default function BasketballTeamsPage() {
                     />
                   ))}
                 </>
+              )}
+
+              {/* Delete confirmation dialog */}
+              {teamToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setTeamToDelete(null)}>
+                  <div className="rounded-xl border p-6 mx-4 max-w-sm w-full" style={{ background: '#1c1200', borderColor: '#3d2c00' }} onClick={e => e.stopPropagation()}>
+                    <h3 className="font-headline text-[14px] text-white mb-3">Delete Team?</h3>
+                    <p className="font-body text-[11px] mb-6" style={{ color: 'rgba(255,255,255,0.6)' }}>This action cannot be undone. Your team will be permanently deleted.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          await deleteBasketballTeam(teamToDelete);
+                          await loadTeams();
+                          setTeamToDelete(null);
+                        }}
+                        className="flex-1 py-2 rounded-lg font-retro text-[9px] transition-all"
+                        style={{ background: '#f44336', color: '#fff' }}>
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setTeamToDelete(null)}
+                        className="flex-1 py-2 rounded-lg font-retro text-[9px] border transition-colors"
+                        style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           ) : (
@@ -1167,6 +1196,18 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
           <div className="flex-1 min-w-0">
             <h3 className="font-headline text-[13px] text-white flex items-center gap-2 flex-wrap">
               {team.name}
+              {isOwn && (
+                <>
+                  <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    [{(team as BballTeamDoc).shareId ? formatShareId((team as BballTeamDoc).shareId!) : '…'}]
+                  </span>
+                  <button onClick={handleCopy} title="Copy Team ID" className="p-0.5 transition-colors" style={{ color: isCopied ? '#f97316' : 'rgba(255,255,255,0.25)' }}>
+                    {isCopied ? <span className="font-retro text-[8px]">✓</span> : (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    )}
+                  </button>
+                </>
+              )}
               {isLeg && <span className="font-retro text-[8px]" style={{ color: '#fbbf24' }}>LEGEND</span>}
               {isSaved && <span className="font-retro text-[8px]" style={{ color: 'rgba(249,115,22,0.7)' }}>RIVAL</span>}
             </h3>
@@ -1186,11 +1227,6 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                </button>
-                <button onClick={handleCopy} title="Copy Team ID" className="p-1 transition-colors" style={{ color: isCopied ? '#f97316' : 'rgba(255,255,255,0.3)' }}>
-                  {isCopied ? <span className="font-retro text-[8px]">✓</span> : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                  )}
                 </button>
                 {onDelete && (
                   <button onClick={e => { e.stopPropagation(); onDelete(team.id!); }} className="p-1 transition-colors text-white/20 hover:text-red-400">
@@ -1225,11 +1261,6 @@ function TeamCard({ team, isOwn = false, isSaved = false, expandedId, setExpande
             </button>
           ) : <RecordBadge record={record} />}
         </div>
-        {isOwn && (
-          <p className="font-retro text-[8px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
-            ID: {(team as BballTeamDoc).shareId ? formatShareId((team as BballTeamDoc).shareId!) : '…'}
-          </p>
-        )}
       </button>
 
       {/* Expanded roster */}
