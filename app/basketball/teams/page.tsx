@@ -14,6 +14,7 @@ import {
 import { saveTablePreferences, getTablePreferences } from '@/lib/firebase/firestore';
 import { LEGENDARY_BASKETBALL_TEAMS, LegendaryBasketballTeam } from '@/lib/legendary-basketball-teams';
 import { BASKETBALL_POSITION_ORDER, BasketballPosition } from '@/lib/types-basketball';
+import BasketballTeamBuilderContent from '@/components/BasketballTeamBuilderContent';
 
 type AnyBballTeam = BballTeamDoc | LegendaryBasketballTeam;
 
@@ -142,7 +143,7 @@ export default function BasketballTeamsPage() {
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, BballRecord>>({});
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'simulate' | 'my-teams' | 'teams' | 'standings'>('simulate');
+  const [activeTab, setActiveTab] = useState<'build-team' | 'simulate' | 'my-teams' | 'teams' | 'standings'>('build-team');
   // Standings state
   const [standingsTeamIds, setStandingsTeamIds] = useState<Set<string>>(new Set());
   const [standingsMetric, setStandingsMetric] = useState<'winpct' | 'gb'>('winpct');
@@ -555,7 +556,7 @@ export default function BasketballTeamsPage() {
             { key: 'standings', label: 'Standings' },
           ] as const).map(({ key, label }) => (
             <button key={key}
-              onClick={() => key === 'build-team' ? router.push('/basketball/team-builder') : setActiveTab(key)}
+              onClick={() => setActiveTab(key)}
               className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
                 activeTab === key ? 'border-bball-orange text-bball-orange' : 'border-transparent text-white/30 hover:text-white/60'
               }`}>
@@ -565,6 +566,11 @@ export default function BasketballTeamsPage() {
         </div>
 
         <div className="space-y-6">
+
+        {/* ── Build Team ── */}
+        {activeTab === 'build-team' && (
+          <BasketballTeamBuilderContent onSaved={() => { loadTeams(); setActiveTab('my-teams'); }} />
+        )}
 
         {/* ── Game Simulator ── */}
         {activeTab === 'simulate' && (
