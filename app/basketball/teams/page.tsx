@@ -462,11 +462,14 @@ export default function BasketballTeamsPage() {
   }
 
   const isHomeLegendary = selectedHome && 'isLegendary' in selectedHome && (selectedHome as any).isLegendary;
+  const isHomeOwnTeam = selectedHome && !('isLegendary' in selectedHome && (selectedHome as any).isLegendary) && myTeams.some(t => t.id === selectedHome.id);
   const notHome = (t: AnyBballTeam) => t.id !== selectedHome?.id;
+  const friendsTeams = allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id));
   const awayOptions = (isHomeLegendary
     ? legendaryTeams
-    : [...myTeams, ...legendaryTeams, ...savedTeams,
-       ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))]
+    : isHomeOwnTeam
+      ? [...myTeams, ...legendaryTeams, ...savedTeams, ...friendsTeams]
+      : [...myTeams, ...legendaryTeams]
   ).filter(notHome);
 
   const browseTeams: AnyBballTeam[] = [
@@ -576,7 +579,8 @@ export default function BasketballTeamsPage() {
         {/* ── Game Simulator ── */}
         {activeTab === 'simulate' && (
         <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-          <h2 className="font-retro text-[11px] mb-6 tracking-wider" style={{ color: '#f97316' }}>⚡ Game Simulator</h2>
+          <h2 className="font-retro text-[11px] mb-2 tracking-wider" style={{ color: '#f97316' }}>⚡ Game Simulator</h2>
+          <p className="font-headline text-[10px] mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>Simulate games with your teams. Friends' teams can only play against your teams.</p>
 
           {/* Team selectors */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
@@ -594,7 +598,7 @@ export default function BasketballTeamsPage() {
                 }}
                 className={SELECT_CLS} style={SELECT_STYLE}>
                 <option value="">Select home team…</option>
-                <optgroup label="Your Teams">
+                <optgroup label="🏠 My Teams">
                   {myTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
                 </optgroup>
                 <optgroup label="🏆 Legendary Teams">
@@ -658,22 +662,18 @@ export default function BasketballTeamsPage() {
                   </optgroup>
                 ) : (
                   <>
-                    <optgroup label="Your Teams">
+                    <optgroup label="🏠 My Teams">
                       {myTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
                     </optgroup>
                     <optgroup label="🏆 Legendary Teams">
                       {legendaryTeams.filter(notHome).map(t => <option key={t.id} value={t.id}>{t.name} ({t.era})</option>)}
                     </optgroup>
-                    {savedTeams.length > 0 && (
-                      <optgroup label="⚔️ Rival Teams">
+                    {isHomeOwnTeam && (savedTeams.length > 0 || friendsTeams.length > 0) && (
+                      <optgroup label="👥 Friends' Teams">
                         {savedTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
+                        {friendsTeams.filter(notHome).map(t => <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>)}
                       </optgroup>
                     )}
-                    <optgroup label="All Other Teams">
-                      {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).filter(notHome).map(t => (
-                        <option key={t.id} value={t.id!}>{t.name} ({t.lineup})</option>
-                      ))}
-                    </optgroup>
                   </>
                 )}
               </select>
@@ -703,25 +703,6 @@ export default function BasketballTeamsPage() {
             </div>
           </div>
 
-          {/* Add rival by ID */}
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="font-retro text-[8px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Add rival by ID:</span>
-            <input type="text" value={addTeamIdInput}
-              onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
-              placeholder="123-4567"
-              className="w-28 px-2 py-1 rounded text-sm font-headline focus:outline-none"
-              style={{ ...SELECT_STYLE, fontSize: '12px' }} />
-            <button onClick={handleAddTeamById} disabled={addTeamLoading || !addTeamIdInput.trim()}
-              className="font-retro text-[8px] py-1 px-3 rounded-lg border disabled:opacity-30 transition-colors"
-              style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-              {addTeamLoading ? '…' : '+ Add'}
-            </button>
-            {addTeamError && <span className="font-retro text-[8px] text-red-400">{addTeamError}</span>}
-            {!addTeamError && savedTeams.length > 0 && (
-              <span className="font-retro text-[8px]" style={{ color: 'rgba(249,115,22,0.5)' }}>{savedTeams.length} rival{savedTeams.length !== 1 ? 's' : ''}</span>
-            )}
-          </div>
 
           {/* Live Scoreboard */}
           {(() => {
