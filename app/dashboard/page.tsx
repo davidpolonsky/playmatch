@@ -6,9 +6,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
+import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
 import CardUploader from '@/components/CardUploader';
 import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
 import InteractivePlayerList from '@/components/InteractivePlayerList';
@@ -25,7 +26,14 @@ export default function Dashboard() {
   const [formation, setFormation] = useState('4-3-3');
   const [teamName, setTeamName] = useState('');
   const [savedTeams, setSavedTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'build' | 'teams' | 'match'>('build');
+  const [activeTab, setActiveTab] = useState<'build' | 'teams' | 'match' | 'table'>('build');
+  // League Table state
+  const [tableTeamIds, setTableTeamIds] = useState<Set<string>>(new Set());
+  const [tableMetric, setTableMetric] = useState<'points' | 'winpct'>('points');
+  const [tableAllTeams, setTableAllTeams] = useState<(Team | LegendaryTeam)[]>([]);
+  const [tableRecords, setTableRecords] = useState<Record<string, TeamRecord>>({});
+  const [tableLegendaryRecords, setTableLegendaryRecords] = useState<Record<string, TeamRecord>>({});
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [notification, setNotification] = useState<{
     message: string;
     type: 'success' | 'error' | 'info';
@@ -52,6 +60,23 @@ export default function Dashboard() {
       loadUserRoster();
     }
   }, [user]);
+
+  // Load all teams + records when Table tab is opened
+  useEffect(() => {
+    if (activeTab !== 'table' || !user) return;
+    (async () => {
+      const legendaryTeams = getLegendaryTeams();
+      const [all, legRecs] = await Promise.all([
+        getAllTeams().catch(() => [] as Team[]),
+        getUserLegendaryRecords(user.uid).catch(() => ({} as Record<string, TeamRecord>)),
+      ]);
+      const ids = all.filter(t => t.id).map(t => t.id!);
+      const recs = ids.length ? await getTeamRecords(ids).catch(() => ({} as Record<string, TeamRecord>)) : {};
+      setTableAllTeams([...all, ...legendaryTeams]);
+      setTableRecords(recs);
+      setTableLegendaryRecords(legRecs);
+    })();
+  }, [activeTab, user]);
 
   const loadUserTeams = async () => {
     if (!user) return;
@@ -304,6 +329,7 @@ export default function Dashboard() {
               { key: 'build', label: 'Build Team' },
               { key: 'teams', label: `My Teams (${savedTeams.length})` },
               { key: 'match', label: 'Simulate Match' },
+              { key: 'table', label: 'Table' },
             ].map(({ key, label }) => (
               <button
                 key={key}
@@ -450,6 +476,129 @@ export default function Dashboard() {
         {activeTab === 'match' && (
           <MatchSimulator teams={savedTeams} userId={user.uid} userEmail={user.email || undefined} />
         )}
+
+        {activeTab === 'table' && (() => {
+          const getRecord = (team: Team | LegendaryTeam): TeamRecord => {
+            const isLeg = 'isLegendary' in team && team.isLegendary;
+            return (isLeg ? tableLegendaryRecords[team.id!] : tableRecords[team.id!]) ?? { wins: 0, losses: 0, ties: 0 };
+          };
+          const selected = tableAllTeams.filter(t => tableTeamIds.has(t.id!));
+          const rows = selected.map(team => {
+            const r = getRecord(team);
+            const p = r.wins + r.losses + r.ties;
+            const pts = r.wins * 3 + r.ties;
+            const winpct = p > 0 ? (r.wins / p) : 0;
+            return { team, ...r, p, pts, winpct };
+          }).sort((a, b) => tableMetric === 'points' ? (b.pts - a.pts) || (b.wins - a.wins) : b.winpct - a.winpct);
+
+          // Available teams not yet added, grouped
+          const myTeams = tableAllTeams.filter(t => !('isLegendary' in t && t.isLegendary) && (t as Team).userId === user.uid);
+          const friendTeams = tableAllTeams.filter(t => !('isLegendary' in t && t.isLegendary) && (t as Team).userId !== user.uid);
+          const legendTeams = tableAllTeams.filter(t => 'isLegendary' in t && t.isLegendary);
+
+          const toggle = (id: string) => setTableTeamIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+          });
+
+          return (
+            <div className="space-y-4">
+              {/* Controls bar */}
+              <div className="flex flex-wrap justify-between items-center gap-3">
+                {/* Metric toggle */}
+                <div className="flex rounded-lg overflow-hidden border border-fifa-border">
+                  {(['points', 'winpct'] as const).map(m => (
+                    <button key={m} onClick={() => setTableMetric(m)}
+                      className={`px-3 py-1.5 font-retro text-[9px] tracking-wider transition-colors ${tableMetric === m ? 'bg-fifa-mint text-black' : 'text-white/40 hover:text-white/70'}`}>
+                      {m === 'points' ? 'Points' : 'Win%'}
+                    </button>
+                  ))}
+                </div>
+                {/* Add teams button */}
+                <button onClick={() => setTablePickerOpen(o => !o)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-retro text-[9px] tracking-wider transition-colors border-fifa-mint/40 text-fifa-mint hover:bg-fifa-mint/10">
+                  {tablePickerOpen ? '✕ Close' : '＋ Add Teams'}
+                </button>
+              </div>
+
+              {/* Team picker panel */}
+              {tablePickerOpen && (
+                <div className="card space-y-4">
+                  {[
+                    { label: 'My Teams', teams: myTeams },
+                    { label: 'Friends\' Teams', teams: friendTeams },
+                    { label: 'Legendary Teams', teams: legendTeams },
+                  ].filter(g => g.teams.length > 0).map(group => (
+                    <div key={group.label}>
+                      <p className="font-retro text-[8px] text-white/30 uppercase tracking-widest mb-2">{group.label}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.teams.map(team => {
+                          const on = tableTeamIds.has(team.id!);
+                          const isLeg = 'isLegendary' in team && team.isLegendary;
+                          return (
+                            <button key={team.id} onClick={() => toggle(team.id!)}
+                              className={`px-3 py-1.5 rounded-lg font-headline text-[11px] border transition-all ${
+                                on
+                                  ? isLeg ? 'bg-yellow-400/20 border-yellow-400/60 text-yellow-300' : 'bg-fifa-mint/20 border-fifa-mint/60 text-fifa-mint'
+                                  : 'border-white/10 text-white/50 hover:border-white/30'
+                              }`}>
+                              {on && <span className="mr-1 text-[9px]">✓</span>}{team.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Table */}
+              {rows.length === 0 ? (
+                <div className="card text-center py-12">
+                  <p className="font-retro text-[9px] text-white/20 tracking-wider">ADD TEAMS TO BUILD YOUR TABLE</p>
+                  <p className="font-headline text-[11px] text-white/30 mt-2">Click "＋ Add Teams" to choose from your teams, friends, or legends</p>
+                </div>
+              ) : (
+                <div className="card overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-fifa-border">
+                        {['#', 'Team', 'P', 'W', 'D', 'L', tableMetric === 'points' ? 'Pts' : 'Win%'].map((h, i) => (
+                          <th key={h} className={`py-2 font-retro text-[8px] text-white/30 tracking-wider ${i === 1 ? 'text-left pl-2' : 'text-center'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, i) => {
+                        const isLeg = 'isLegendary' in row.team && row.team.isLegendary;
+                        return (
+                          <tr key={row.team.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                            <td className="py-2.5 text-center font-retro text-[9px] text-white/30 w-8">{i + 1}</td>
+                            <td className="py-2.5 pl-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-headline text-[12px] text-white">{row.team.name}</span>
+                                {isLeg && <span className="font-retro text-[7px] text-yellow-400/70">LEGEND</span>}
+                              </div>
+                            </td>
+                            {[row.p, row.wins, row.ties, row.losses].map((v, j) => (
+                              <td key={j} className="py-2.5 text-center font-headline text-[12px] text-white/60">{v}</td>
+                            ))}
+                            <td className="py-2.5 text-center">
+                              <span className="font-retro text-[10px] text-fifa-mint">
+                                {tableMetric === 'points' ? row.pts : `${(row.winpct * 100).toFixed(0)}%`}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         </div>
       </main>
 

@@ -82,7 +82,11 @@ export default function BasketballTeamsPage() {
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, BballRecord>>({});
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'my-teams' | 'teams'>('my-teams');
+  const [activeTab, setActiveTab] = useState<'my-teams' | 'teams' | 'standings'>('my-teams');
+  // Standings state
+  const [standingsTeamIds, setStandingsTeamIds] = useState<Set<string>>(new Set());
+  const [standingsMetric, setStandingsMetric] = useState<'winpct' | 'gb'>('winpct');
+  const [standingsPickerOpen, setStandingsPickerOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
@@ -140,34 +144,16 @@ export default function BasketballTeamsPage() {
     const events = simResult.playByPlay.filter(e => e && e.type && e.text);
     const msPerEvent = Math.round(100000 / Math.max(events.length, 1));
     let i = 0;
-    // Infer points from event type when the AI omits the points field
-    const inferPoints = (ev: BballPlayEvent): number => {
-      if (ev.points) return ev.points;
-      if (ev.type === 'three_made') return 3;
-      if (ev.type === 'free_throw') return 1;
-      if (['shot_made', 'dunk', 'layup', 'buzzer_beater'].includes(ev.type)) return 2;
-      return 0;
-    };
-
     const interval = setInterval(() => {
-      if (i >= events.length) {
-        clearInterval(interval);
-        setStreamingDone(true);
-        // Snap to the authoritative final score so the board always matches the result
-        setLiveScore({ home: simResult.team1Score, away: simResult.team2Score });
-        return;
-      }
+      if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
       const ev = events[i];
       setVisibleEvents(prev => [...prev, ev]);
       if (ev.quarter) setCurrentQuarter(ev.quarter);
-      if (ev.scoringTeam) {
-        const pts = inferPoints(ev);
-        if (pts > 0) {
-          setLiveScore(prev => ({
-            home: prev.home + (ev.scoringTeam === 'team1' ? pts : 0),
-            away: prev.away + (ev.scoringTeam === 'team2' ? pts : 0),
-          }));
-        }
+      if (ev.scoringTeam && ev.points) {
+        setLiveScore(prev => ({
+          home: prev.home + (ev.scoringTeam === 'team1' ? ev.points! : 0),
+          away: prev.away + (ev.scoringTeam === 'team2' ? ev.points! : 0),
+        }));
       }
       i++;
     }, msPerEvent);
@@ -315,10 +301,8 @@ export default function BasketballTeamsPage() {
           opponentScore: data.team1Score, date: null }).catch(() => {});
         setMatchHistories(prev => { const n = { ...prev }; delete n[selectedAway.id!]; return n; });
       }
-    } catch (e: any) {
-      console.error(e);
-      const msg = e?.message || 'Failed to simulate game. Please try again.';
-      alert(msg);
+    } catch (e) {
+      console.error(e); alert('Failed to simulate game. Please try again.');
     } finally { setSimulating(false); }
   };
 
@@ -659,7 +643,7 @@ export default function BasketballTeamsPage() {
         {/* ── Teams List ── */}
         <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
           <div className="flex gap-1 mb-6 border-b pb-0" style={{ borderColor: '#3d2c00' }}>
-            {[{ key: 'my-teams', label: 'My Teams' }, { key: 'teams', label: 'Teams' }].map(({ key, label }) => (
+            {[{ key: 'my-teams', label: 'My Teams' }, { key: 'teams', label: 'Teams' }, { key: 'standings', label: 'Standings' }].map(({ key, label }) => (
               <button key={key} onClick={() => setActiveTab(key as typeof activeTab)}
                 className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
                   activeTab === key ? 'border-bball-orange text-bball-orange' : 'border-transparent text-white/30 hover:text-white/60'
@@ -674,7 +658,7 @@ export default function BasketballTeamsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
               <p className="mt-3 font-retro text-[8px] text-bball-orange/40 animate-pulse">Loading teams…</p>
             </div>
-          ) : activeTab === 'my-teams' ? (
+          ) : activeTab === 'standings' ? null : activeTab === 'my-teams' ? (
             <div className="space-y-3">
               {myTeams.length === 0 ? (
                 <div className="text-center py-12">
@@ -744,6 +728,150 @@ export default function BasketballTeamsPage() {
               )}
             </div>
           )}
+
+          {/* ── Standings tab ── */}
+          {!loadingTeams && activeTab === 'standings' && (() => {
+            const allAvail: AnyBballTeam[] = [
+              ...myTeams,
+              ...savedTeams,
+              ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)),
+              ...legendaryTeams,
+            ];
+
+            const getRecord = (team: AnyBballTeam): BballRecord => {
+              const isLeg = 'isLegendary' in team && team.isLegendary;
+              return (isLeg ? legendaryRecords[team.id!] : teamRecords[team.id!]) ?? { wins: 0, losses: 0 };
+            };
+
+            const selected = allAvail.filter(t => standingsTeamIds.has(t.id!));
+            const sorted = [...selected].sort((a, b) => {
+              const ra = getRecord(a), rb = getRecord(b);
+              const ga = ra.wins + ra.losses, gb = rb.wins + rb.losses;
+              const pctA = ga > 0 ? ra.wins / ga : 0;
+              const pctB = gb > 0 ? rb.wins / gb : 0;
+              return pctB - pctA || rb.wins - ra.wins;
+            });
+
+            // GB calc: leader is sorted[0]
+            const leader = sorted[0] ? getRecord(sorted[0]) : null;
+            const gb = (team: AnyBballTeam) => {
+              if (!leader) return 0;
+              const r = getRecord(team);
+              return ((leader.wins - r.wins) + (r.losses - leader.losses)) / 2;
+            };
+
+            const toggleStandings = (id: string) => setStandingsTeamIds(prev => {
+              const next = new Set(prev);
+              next.has(id) ? next.delete(id) : next.add(id);
+              return next;
+            });
+
+            const myGroup = allAvail.filter(t => !('isLegendary' in t && t.isLegendary) && (t as BballTeamDoc).userId === user?.uid);
+            const friendGroup = allAvail.filter(t => !('isLegendary' in t && t.isLegendary) && (t as BballTeamDoc).userId !== user?.uid);
+            const legGroup = allAvail.filter(t => 'isLegendary' in t && t.isLegendary);
+
+            return (
+              <div className="space-y-4">
+                {/* Controls */}
+                <div className="flex flex-wrap justify-between items-center gap-3">
+                  <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: '#3d2c00' }}>
+                    {(['winpct', 'gb'] as const).map(m => (
+                      <button key={m} onClick={() => setStandingsMetric(m)}
+                        className="px-3 py-1.5 font-retro text-[9px] tracking-wider transition-colors"
+                        style={standingsMetric === m ? { background: '#f97316', color: '#0f0a00' } : { color: 'rgba(255,255,255,0.3)' }}>
+                        {m === 'winpct' ? 'Win%' : 'GB'}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setStandingsPickerOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-retro text-[9px] tracking-wider transition-colors"
+                    style={{ border: '1px solid rgba(249,115,22,0.4)', color: '#f97316' }}>
+                    {standingsPickerOpen ? '✕ Close' : '＋ Add Teams'}
+                  </button>
+                </div>
+
+                {/* Picker */}
+                {standingsPickerOpen && (
+                  <div className="rounded-xl border p-4 space-y-4" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                    {[
+                      { label: 'My Teams', teams: myGroup },
+                      { label: 'Friends\' Teams', teams: friendGroup },
+                      { label: 'Legendary Teams', teams: legGroup },
+                    ].filter(g => g.teams.length > 0).map(group => (
+                      <div key={group.label}>
+                        <p className="font-retro text-[8px] tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.2)' }}>{group.label.toUpperCase()}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {group.teams.map(team => {
+                            const on = standingsTeamIds.has(team.id!);
+                            const isLeg = 'isLegendary' in team && team.isLegendary;
+                            return (
+                              <button key={team.id} onClick={() => toggleStandings(team.id!)}
+                                className="px-3 py-1.5 rounded-lg font-headline text-[11px] border transition-all"
+                                style={{
+                                  borderColor: on ? (isLeg ? 'rgba(251,191,36,0.6)' : 'rgba(249,115,22,0.6)') : 'rgba(255,255,255,0.1)',
+                                  background: on ? (isLeg ? 'rgba(251,191,36,0.15)' : 'rgba(249,115,22,0.15)') : 'transparent',
+                                  color: on ? (isLeg ? '#fbbf24' : '#f97316') : 'rgba(255,255,255,0.4)',
+                                }}>
+                                {on && <span className="mr-1 text-[9px]">✓</span>}{team.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Standings table */}
+                {sorted.length === 0 ? (
+                  <div className="text-center py-12 rounded-xl border" style={{ borderColor: '#3d2c00' }}>
+                    <p className="font-retro text-[9px] tracking-wider" style={{ color: 'rgba(255,255,255,0.2)' }}>ADD TEAMS TO BUILD YOUR STANDINGS</p>
+                    <p className="font-headline text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Click "＋ Add Teams" to choose from your teams, friends, or legends</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border overflow-x-auto" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b" style={{ borderColor: '#3d2c00' }}>
+                          {['#', 'Team', 'W', 'L', standingsMetric === 'winpct' ? 'Win%' : 'GB'].map((h, i) => (
+                            <th key={h} className={`py-2.5 font-retro text-[8px] tracking-wider ${i === 1 ? 'text-left pl-3' : 'text-center'}`}
+                              style={{ color: 'rgba(255,255,255,0.25)' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map((team, i) => {
+                          const r = getRecord(team);
+                          const total = r.wins + r.losses;
+                          const pct = total > 0 ? r.wins / total : 0;
+                          const isLeg = 'isLegendary' in team && team.isLegendary;
+                          const gbVal = gb(team);
+                          return (
+                            <tr key={team.id} className="border-b transition-colors" style={{ borderColor: 'rgba(61,44,0,0.4)' }}>
+                              <td className="py-2.5 text-center font-retro text-[9px] w-8" style={{ color: 'rgba(255,255,255,0.25)' }}>{i + 1}</td>
+                              <td className="py-2.5 pl-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-headline text-[12px] text-white">{team.name}</span>
+                                  {isLeg && <span className="font-retro text-[7px]" style={{ color: '#fbbf24' }}>LEGEND</span>}
+                                </div>
+                              </td>
+                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(249,115,22,0.8)' }}>{r.wins}</td>
+                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(248,113,113,0.7)' }}>{r.losses}</td>
+                              <td className="py-2.5 text-center font-retro text-[10px]" style={{ color: '#f97316' }}>
+                                {standingsMetric === 'winpct'
+                                  ? (total > 0 ? `${(pct * 100).toFixed(1)}%` : '—')
+                                  : (i === 0 ? '—' : gbVal === 0 ? '0' : gbVal % 1 === 0 ? gbVal.toString() : gbVal.toFixed(1))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </main>
     </div>
