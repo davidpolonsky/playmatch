@@ -22,17 +22,15 @@ export default function BasketballHome() {
   }, [router]);
 
   useEffect(() => {
-    // Detect user location to show "Soccer" for US, "Football" for others
-    fetch('https://ipapi.co/json/')
+    // Use our own API route which reads Vercel's x-vercel-ip-country header — no CORS issues
+    fetch('/api/geo')
       .then(res => res.json())
       .then(data => {
         if (data.country_code === 'US') {
           setSoccerLabel('Soccer');
         }
       })
-      .catch(() => {
-        // If detection fails, keep default "Football"
-      });
+      .catch(() => {});
   }, []);
 
   const handleSignIn = async () => {
