@@ -1053,8 +1053,8 @@ export default function BasketballTeamsPage() {
                       <tbody>
                         {sorted.map((team, i) => {
                           const r = getRecord(team);
-                          const total = r.wins + r.losses;
-                          const pct = total > 0 ? r.wins / total : 0;
+                          const total = (r.wins ?? 0) + (r.losses ?? 0);
+                          const pct = total > 0 ? (r.wins ?? 0) / total : 0;
                           const isLeg = 'isLegendary' in team && team.isLegendary;
                           const gbVal = gb(team);
                           return (
@@ -1066,11 +1066,11 @@ export default function BasketballTeamsPage() {
                                   {isLeg && <span className="font-retro text-[7px]" style={{ color: '#fbbf24' }}>LEGEND</span>}
                                 </div>
                               </td>
-                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(249,115,22,0.8)' }}>{r.wins}</td>
-                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(248,113,113,0.7)' }}>{r.losses}</td>
+                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(249,115,22,0.8)' }}>{r.wins ?? 0}</td>
+                              <td className="py-2.5 text-center font-headline text-[12px]" style={{ color: 'rgba(248,113,113,0.7)' }}>{r.losses ?? 0}</td>
                               <td className="py-2.5 text-center font-retro text-[10px]" style={{ color: '#f97316' }}>
                                 {standingsMetric === 'winpct'
-                                  ? (total > 0 ? `${(pct * 100).toFixed(1)}%` : '—')
+                                  ? `${(total > 0 ? pct * 100 : 0).toFixed(1)}%`
                                   : (i === 0 ? '—' : gbVal === 0 ? '0' : gbVal % 1 === 0 ? gbVal.toString() : gbVal.toFixed(1))}
                               </td>
                             </tr>
