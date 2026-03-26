@@ -576,6 +576,11 @@ export default function Dashboard() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-headline text-[13px] text-fifa-cream">{team.name}</h3>
+                        {!isLegendary && (team as Team).shareId && (
+                          <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                            [{formatShareId((team as Team).shareId!)}]
+                          </span>
+                        )}
                         {isLegendary && <span className="text-[9px] font-retro text-fifa-amber">LEGEND</span>}
                         {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">SAVED</span>}
                       </div>

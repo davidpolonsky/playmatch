@@ -666,17 +666,20 @@ export default function TeamsPage() {
 
         {/* ── Match Simulator ── */}
         <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
-          <h2 className="font-retro text-[11px] text-fifa-mint mb-6 tracking-wider">⚡ Match Simulator</h2>
+          <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">⚡ Match Simulator</h2>
+          <p className="font-headline text-[10px] text-white/50 mb-6">Simulate matches with your teams. Friends' teams can only play against your teams.</p>
 
           {/* Team selectors */}
           {(() => {
             const isHomeLegendary = selectedHome && 'isLegendary' in selectedHome && (selectedHome as any).isLegendary;
+            const isHomeOwnTeam = selectedHome && !('isLegendary' in selectedHome && (selectedHome as any).isLegendary) && myTeams.some(t => t.id === selectedHome.id);
             const homeOptions: AnyTeam[] = [...myTeams, ...legendaryTeams];
             const notHome = (t: AnyTeam) => t.id !== selectedHome?.id;
             const awayOptions: AnyTeam[] = (isHomeLegendary
               ? legendaryTeams
-              : [...myTeams, ...legendaryTeams, ...savedTeams,
-                 ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id))]
+              : isHomeOwnTeam
+                ? [...myTeams, ...legendaryTeams, ...savedTeams, ...friendsTeams]
+                : [...myTeams, ...legendaryTeams]
             ).filter(notHome);
             return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
@@ -749,7 +752,7 @@ export default function TeamsPage() {
                     <optgroup label="⭐ Legendary Teams">
                       {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.formation})</option>)}
                     </optgroup>
-                    {(savedTeams.length > 0 || friendsTeams.length > 0) && (
+                    {isHomeOwnTeam && (savedTeams.length > 0 || friendsTeams.length > 0) && (
                       <optgroup label="👥 Friends' Teams">
                         {savedTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}
                         {friendsTeams.map(t => <option key={t.id} value={t.id!}>{t.name} ({getFormation(t.formation)})</option>)}

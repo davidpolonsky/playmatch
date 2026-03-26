@@ -319,11 +319,12 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
 
   const team1 = getTeamById(team1Id);
   const team2 = getTeamById(team2Id);
+  const isHomeOwnTeam = team1 && !('isLegendary' in team1 && team1.isLegendary) && teams.some(t => t.id === team1.id);
 
   return (
     <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6 max-w-4xl mx-auto">
       <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">⚽ MATCH SIMULATOR</h2>
-      <p className="font-headline text-[10px] text-white/50 mb-6">Pick any two teams — including rivals' teams. Records update for both sides.</p>
+      <p className="font-headline text-[10px] text-white/50 mb-6">Simulate matches with your teams. Friends' teams can only play against your teams.</p>
 
       {/* Team selectors */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start mb-2">
@@ -337,11 +338,6 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
             <optgroup label="⭐ Legendary Teams">
               {legendaryTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
-            {otherTeams.filter(t => t.userId !== userId).length > 0 && (
-              <optgroup label="👥 Friends' Teams">
-                {otherTeams.filter(t => t.userId !== userId).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
-              </optgroup>
-            )}
           </select>
           {team1 && <RosterPreview team={team1} record={getRecord(team1)} />}
         </div>
@@ -375,7 +371,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
             <optgroup label="⭐ Legendary Teams">
               {legendaryTeams.filter(t => t.id !== team1Id).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </optgroup>
-            {otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).length > 0 && (
+            {isHomeOwnTeam && otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).length > 0 && (
               <optgroup label="👥 Friends' Teams">
                 {otherTeams.filter(t => t.userId !== userId && t.id !== team1Id).map(t => <option key={t.id} value={t.id!}>{t.name}</option>)}
               </optgroup>
