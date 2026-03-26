@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 
 interface CardUploaderProps {
-  onPlayerAdded: (player: any) => void;
+  onPlayerAdded: (player: any) => boolean | void;
   onError?: (message: string) => void;
   onSuccess?: (message: string) => void;
   userId: string;
@@ -107,8 +107,10 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
         return;
       }
 
-      onPlayerAdded(result);
-      onSuccess?.(`⚽ ${result.name} added! (${result.position} · ${result.rating})`);
+      const accepted = onPlayerAdded(result);
+      if (accepted !== false) {
+        onSuccess?.(`⚽ ${result.name} added! (${result.position} · ${result.rating})`);
+      }
     } catch {
       onError?.('Failed to analyze card. Check your connection and try again.');
     } finally {

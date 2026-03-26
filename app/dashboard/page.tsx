@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences, getSavedTeamIds, getTeam, addSavedTeam, removeSavedTeam, getTeamByShareId, parseShareId, formatShareId } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences, getSavedTeamIds, getTeam, addSavedTeam, removeSavedTeam, getTeamByShareId, parseShareId, formatShareId, getMatchHistory, MatchHistoryEntry } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
@@ -49,6 +49,10 @@ export default function Dashboard() {
   const [addTeamIdInput, setAddTeamIdInput] = useState('');
   const [addTeamLoading, setAddTeamLoading] = useState(false);
   const [addTeamError, setAddTeamError] = useState('');
+  // Match history state for Teams tab
+  const [historyTeamId, setHistoryTeamId] = useState<string | null>(null);
+  const [matchHistories, setMatchHistories] = useState<Record<string, MatchHistoryEntry[]>>({});
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Show notification function
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -199,6 +203,20 @@ export default function Dashboard() {
     setSavedFriendsTeams(prev => prev.filter(t => t.id !== teamId));
   };
 
+  const handleViewHistory = async (teamId: string) => {
+    if (historyTeamId === teamId) { setHistoryTeamId(null); return; }
+    setHistoryTeamId(teamId);
+    if (matchHistories[teamId]) return; // already cached
+    setLoadingHistory(true);
+    try {
+      const history = await getMatchHistory(teamId, 10);
+      setMatchHistories(prev => ({ ...prev, [teamId]: history }));
+    } catch (e) {
+      console.error('getMatchHistory failed:', e);
+      setMatchHistories(prev => ({ ...prev, [teamId]: [] }));
+    } finally { setLoadingHistory(false); }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -208,19 +226,47 @@ export default function Dashboard() {
     }
   };
 
-  const handlePlayerAdded = async (player: Player) => {
-    if (!user) return;
+  const handlePlayerAdded = async (player: Player): Promise<boolean | void> => {
+    if (!user) return false;
+
+    // ── Year-based duplicate detection ──────────────────────────────
+    const incomingName = (player.name || '').toLowerCase().trim();
+    const incomingYear = (player.year || '').trim();
+    const matches = players.filter(p => (p.name || '').toLowerCase().trim() === incomingName);
+    let baseRoster = players; // may be updated if we rename existing entries
+    if (matches.length > 0) {
+      // Same name + same year (or both yearless) → reject outright
+      const sameYear = matches.some(p => (p.year || '').trim() === incomingYear);
+      if (sameYear) {
+        const label = incomingYear ? `${player.name} '${incomingYear.slice(-2)}` : player.name;
+        showNotification(`Already have ${label} — duplicate rejected`, 'error');
+        return false;
+      }
+      // Different years — suffix any existing players that haven't been suffixed yet
+      const suffix = (y: string) => y ? ` '${y.slice(-2)}` : '';
+      baseRoster = players.map(p => {
+        if ((p.name || '').toLowerCase().trim() === incomingName && !(p.name || '').includes("'")) {
+          return { ...p, name: `${p.name}${suffix(p.year || '')}` };
+        }
+        return p;
+      });
+      setPlayers(baseRoster);
+      await saveUserRoster(user.uid, baseRoster).catch(() => {});
+      // Suffix the incoming player name too
+      player = { ...player, name: `${player.name}${suffix(incomingYear)}` };
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     // Check rate limits before adding
     const limitCheck = await checkCardUploadLimit(user.uid, 1);
     if (!limitCheck.allowed) {
-      alert(limitCheck.reason || 'Upload limit reached');
+      showNotification(limitCheck.reason || 'Upload limit reached', 'error');
       return;
     }
 
     // Generate unique ID for the player
     const playerWithId = { ...player, id: crypto.randomUUID() };
-    const newPlayers = [...players, playerWithId];
+    const newPlayers = [...baseRoster, playerWithId];
     setPlayers(newPlayers);
 
     // Save to Firebase and increment count
@@ -562,9 +608,10 @@ export default function Dashboard() {
           const renderTeamCard = (team: Team | LegendaryTeam, isOwn = false, isSaved = false) => {
             const isLegendary = 'isLegendary' in team && team.isLegendary;
             const isExpanded = expandedTeamId === team.id;
-            const record = isLegendary ? legendaryRecords[team.id!] : allTeamRecords[team.id!];
+            const record = (isLegendary ? legendaryRecords[team.id!] : allTeamRecords[team.id!]) ?? { wins: 0, losses: 0, ties: 0 };
             const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
             team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
+            const isShowingHistory = !isLegendary && team.id && historyTeamId === team.id;
 
             return (
               <div key={team.id} className="bg-fifa-dark rounded-xl border border-fifa-border overflow-hidden">
@@ -576,13 +623,13 @@ export default function Dashboard() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-headline text-[13px] text-fifa-cream">{team.name}</h3>
-                        {!isLegendary && (team as Team).shareId && (
+                        {isOwn && !isLegendary && (team as Team).shareId && (
                           <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
                             [{formatShareId((team as Team).shareId!)}]
                           </span>
                         )}
                         {isLegendary && <span className="text-[9px] font-retro text-fifa-amber">LEGEND</span>}
-                        {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">SAVED</span>}
+                        {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">RIVAL</span>}
                       </div>
                       {isLegendary && 'description' in team && (
                         <p className="font-body text-[10px] text-fifa-amber/70 mb-1">{(team as any).description}</p>
@@ -594,13 +641,43 @@ export default function Dashboard() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRemoveFriendTeam(team.id!); }}
                           className="text-white/20 hover:text-red-400 p-1 font-retro text-[9px]"
+                          title="Remove rival"
                         >✕</button>
                       )}
                       <span className="text-white/20 text-[10px]">{isExpanded ? '▲' : '▼'}</span>
                     </div>
                   </div>
+
+                  {/* Position counts + W/L/T record */}
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="flex gap-3 font-headline text-[10px] text-white/60">
+                      {POSITION_ORDER.map(pos => (
+                        <span key={pos}>{pos} {grouped[pos].length}</span>
+                      ))}
+                    </div>
+                    {!isLegendary && team.id ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleViewHistory(team.id!); }}
+                        className="hover:opacity-70 transition-opacity"
+                        title="View match history"
+                      >
+                        <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
+                          <span className="text-fifa-mint">{record.wins ?? 0}W</span>
+                          <span className="text-red-400">{record.losses ?? 0}L</span>
+                          <span className="text-white/60">{record.ties ?? 0}T</span>
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
+                        <span className="text-fifa-mint">{record.wins ?? 0}W</span>
+                        <span className="text-red-400">{record.losses ?? 0}L</span>
+                        <span className="text-white/60">{record.ties ?? 0}T</span>
+                      </span>
+                    )}
+                  </div>
                 </button>
 
+                {/* Expanded roster */}
                 {isExpanded && (
                   <div className="border-t border-fifa-border px-4 pb-4 pt-3">
                     {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
@@ -618,6 +695,46 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ))}
+                    {isSaved && team.id && (team as Team).shareId && (
+                      <p className="font-retro text-[8px] text-white/20 mt-2">
+                        ID: {formatShareId((team as Team).shareId!)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Match history panel */}
+                {isShowingHistory && (
+                  <div className="border-t border-fifa-border px-4 pb-4 pt-3">
+                    <h4 className="font-retro text-[8px] text-fifa-mint/60 uppercase mb-3">Match History</h4>
+                    {loadingHistory && !matchHistories[team.id!] ? (
+                      <p className="font-headline text-[10px] text-white/30 animate-pulse">Loading…</p>
+                    ) : (matchHistories[team.id!] ?? []).length === 0 ? (
+                      <p className="font-headline text-[10px] text-white/30">No history yet — only games played after history tracking was added are recorded.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(matchHistories[team.id!] ?? []).map((entry, i) => {
+                          const date = entry.date
+                            ? new Date((entry.date as any).seconds * 1000).toLocaleDateString()
+                            : '—';
+                          const rc = entry.result === 'win' ? 'text-fifa-mint' : entry.result === 'loss' ? 'text-red-400' : 'text-white/30';
+                          const rl = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
+                          const opponentExists = entry.opponentId === 'legendary' ||
+                            allUserTeams.some(t => t.id === entry.opponentId);
+                          const opponentDisplay = opponentExists
+                            ? entry.opponentName
+                            : `${entry.opponentName} - Retired`;
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-xs">
+                              <span className="font-retro text-[7px] text-white/25 w-16 flex-shrink-0">{date}</span>
+                              <span className="flex-1 truncate text-fifa-cream/60">vs {opponentDisplay}</span>
+                              <span className="font-headline text-[10px] text-white/40">{entry.teamScore}–{entry.opponentScore}</span>
+                              <span className={`font-retro text-[9px] w-4 text-right ${rc}`}>{rl}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -8,7 +8,7 @@ import PixelAvatar from '@/components/PixelAvatar';
 
 // Camera-based card uploader wired to basketball API
 function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
-  onPlayerAdded: (p: BasketballPlayer) => void;
+  onPlayerAdded: (p: BasketballPlayer) => boolean | void;
   onError?: (msg: string) => void;
   onSuccess?: (msg: string) => void;
 }) {
@@ -79,8 +79,10 @@ function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
           onError?.('Card analyzed but missing data. Try a clearer photo.'); return;
         }
         const player: BasketballPlayer = { ...result, id: crypto.randomUUID(), imageUrl: '' };
-        onPlayerAdded(player);
-        onSuccess?.(`🏀 ${result.name} added! (${result.position} · ${result.rating})`);
+        const accepted = onPlayerAdded(player);
+        if (accepted !== false) {
+          onSuccess?.(`🏀 ${result.name} added! (${result.position} · ${result.rating})`);
+        }
       } catch {
         onError?.('Failed to analyze card. Check your connection and try again.');
       } finally {
@@ -262,6 +264,55 @@ export default function BasketballTeamBuilderContent({ onSaved }: Props) {
     setDragOverSlot(null);
   };
 
+  // --- Player added from scanner (with year-based duplicate detection) ---
+
+  const handlePlayerAdded = (p: BasketballPlayer): boolean | void => {
+    const incomingName = (p.name || '').toLowerCase().trim();
+    const incomingYear = (p.year || '').trim();
+    const matches = players.filter(x => (x.name || '').toLowerCase().trim() === incomingName);
+    let baseRoster = players;
+    let incoming = p;
+
+    if (matches.length > 0) {
+      const sameYear = matches.some(x => (x.year || '').trim() === incomingYear);
+      if (sameYear) {
+        const label = incomingYear ? `${p.name} '${incomingYear.slice(-2)}` : p.name;
+        setMessage(`Already have ${label} — duplicate rejected`);
+        setMessageType('error');
+        return false;
+      }
+      // Different years: suffix existing and incoming names
+      const suffix = (y: string) => y ? ` '${y.slice(-2)}` : '';
+      baseRoster = players.map(x => {
+        if ((x.name || '').toLowerCase().trim() === incomingName && !(x.name || '').includes("'")) {
+          return { ...x, name: `${x.name}${suffix(x.year || '')}` };
+        }
+        return x;
+      });
+      incoming = { ...p, name: `${p.name}${suffix(incomingYear)}` };
+      setPlayers(baseRoster);
+      // Update slots to reflect renamed players
+      setSlots(prev => prev.map(s => {
+        if (!s) return s;
+        const renamed = baseRoster.find(x => x.id === s.id);
+        return renamed ?? s;
+      }));
+    }
+
+    const newPlayers = [...baseRoster, incoming];
+    setPlayers(newPlayers);
+    // Auto-slot into first matching empty slot
+    setSlots(prev => {
+      const n = [...prev];
+      if (n.some(s => s?.id === incoming.id)) return n;
+      const posIdx = BASKETBALL_POSITION_ORDER.indexOf(incoming.position as BasketballPosition);
+      if (posIdx >= 0 && !n[posIdx]) { n[posIdx] = incoming; return n; }
+      const emptyIdx = n.findIndex(s => s === null);
+      if (emptyIdx >= 0) n[emptyIdx] = incoming;
+      return n;
+    });
+  };
+
   // --- Best lineup ---
 
   const generateBestLineup = () => {
@@ -322,19 +373,7 @@ export default function BasketballTeamBuilderContent({ onSaved }: Props) {
               <img src="/camera.png" className="w-3.5 h-3.5" alt="" /> Scan Cards
             </h3>
             <BasketballCardUploader
-              onPlayerAdded={p => {
-                setPlayers(prev => [...prev, p]);
-                // Auto-slot into first matching empty slot
-                setSlots(prev => {
-                  const n = [...prev];
-                  if (n.some(s => s?.id === p.id)) return n;
-                  const posIdx = BASKETBALL_POSITION_ORDER.indexOf(p.position as BasketballPosition);
-                  if (posIdx >= 0 && !n[posIdx]) { n[posIdx] = p; return n; }
-                  const emptyIdx = n.findIndex(s => s === null);
-                  if (emptyIdx >= 0) n[emptyIdx] = p;
-                  return n;
-                });
-              }}
+              onPlayerAdded={handlePlayerAdded}
               onError={msg => { setMessage(msg); setMessageType('error'); }}
               onSuccess={msg => { setMessage(msg); setMessageType('success'); }}
             />
