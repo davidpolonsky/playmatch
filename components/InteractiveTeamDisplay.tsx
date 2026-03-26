@@ -13,13 +13,71 @@ interface InteractiveTeamDisplayProps {
   onAddToTeam: (playerId: string) => void;
 }
 
-// Format name as "J. Smith"
+type PositionKey = 'GK' | 'DEF' | 'MID' | 'FWD';
+const POSITION_ROW_ORDER: PositionKey[] = ['GK', 'DEF', 'MID', 'FWD'];
+
 function formatPlayerName(name: string): string {
   const parts = name.trim().split(' ');
   if (parts.length === 1) return name;
-  const firstInitial = parts[0][0];
-  const lastName = parts[parts.length - 1];
-  return `${firstInitial}. ${lastName}`;
+  return `${parts[0][0]}. ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Assign all team players to formation slots.
+ * In-position players fill their natural row first.
+ * OOP players spill into empty slots in other rows (top-down: GK → DEF → MID → FWD).
+ * Returns a map of positionKey → array of (player | null) for each slot in that row.
+ * Also returns a set of player IDs that ended up in a mismatched slot.
+ */
+function assignSlots(
+  players: Player[],
+  formation: Formation,
+  outOfPositionIds: Set<string>
+): {
+  slots: Record<PositionKey, (Player | null)[]>;
+  slotOopIds: Set<string>;
+} {
+  // Build per-position buckets: matching players first (sorted by rating desc)
+  const inPos: Record<PositionKey, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  const oop: Player[] = [];
+
+  for (const p of players) {
+    if (outOfPositionIds.has(p.id)) {
+      oop.push(p);
+    } else {
+      inPos[p.position as PositionKey].push(p);
+    }
+  }
+
+  // Sort each bucket by rating desc so best players claim first slots
+  for (const pos of POSITION_ROW_ORDER) inPos[pos].sort((a, b) => b.rating - a.rating);
+
+  // Fill slots: each position row has `formation.positions[pos]` slots
+  const slots: Record<PositionKey, (Player | null)[]> = {
+    GK:  Array(formation.positions.GK).fill(null),
+    DEF: Array(formation.positions.DEF).fill(null),
+    MID: Array(formation.positions.MID).fill(null),
+    FWD: Array(formation.positions.FWD).fill(null),
+  };
+
+  for (const pos of POSITION_ROW_ORDER) {
+    inPos[pos].forEach((p, i) => { if (i < slots[pos].length) slots[pos][i] = p; });
+  }
+
+  // Distribute OOP players into first available null slots (GK → DEF → MID → FWD)
+  const slotOopIds = new Set<string>();
+  const oopQueue = [...oop];
+  for (const pos of POSITION_ROW_ORDER) {
+    for (let i = 0; i < slots[pos].length; i++) {
+      if (slots[pos][i] === null && oopQueue.length > 0) {
+        const p = oopQueue.shift()!;
+        slots[pos][i] = p;
+        slotOopIds.add(p.id);
+      }
+    }
+  }
+
+  return { slots, slotOopIds };
 }
 
 export default function InteractiveTeamDisplay({
@@ -31,59 +89,37 @@ export default function InteractiveTeamDisplay({
   onAddToTeam,
 }: InteractiveTeamDisplayProps) {
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
-  const [dragOverPosition, setDragOverPosition] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
 
-  const playersByPosition = {
-    GK: players.filter((p) => p.position === 'GK'),
-    DEF: players.filter((p) => p.position === 'DEF'),
-    MID: players.filter((p) => p.position === 'MID'),
-    FWD: players.filter((p) => p.position === 'FWD'),
-  };
+  const { slots, slotOopIds } = assignSlots(players, formation, outOfPositionIds);
+  // Combined set: players that are OOP (either excess of their position OR placed in a wrong-position slot)
+  const allOopIds = new Set([...outOfPositionIds, ...slotOopIds]);
 
-  // Get available players for each position (not in starting 11)
   const playerIds = new Set(players.map(p => p.id));
-  const availableByPosition = {
-    GK: allPlayers.filter(p => p.position === 'GK' && !playerIds.has(p.id)),
-    DEF: allPlayers.filter(p => p.position === 'DEF' && !playerIds.has(p.id)),
-    MID: allPlayers.filter(p => p.position === 'MID' && !playerIds.has(p.id)),
-    FWD: allPlayers.filter(p => p.position === 'FWD' && !playerIds.has(p.id)),
-  };
 
-  // Players that exceed the formation quota (shown below the grid)
-  const overflowPlayers = players.filter(p => outOfPositionIds.has(p.id));
+  // Available players not already in the team, for the + button
+  const available = allPlayers.filter(p => !playerIds.has(p.id)).sort((a, b) => b.rating - a.rating);
 
-  const handleDragStart = (playerId: string) => {
-    setDraggedPlayerId(playerId);
-  };
+  const handleDragStart = (playerId: string) => setDraggedPlayerId(playerId);
+  const handleDragEnd = () => { setDraggedPlayerId(null); setDragOverSlot(null); };
+  const handleDragOver = (e: React.DragEvent, slotKey: string) => { e.preventDefault(); setDragOverSlot(slotKey); };
 
-  const handleDragEnd = () => {
-    setDraggedPlayerId(null);
-    setDragOverPosition(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent, position: string) => {
-    e.preventDefault();
-    setDragOverPosition(position);
-  };
-
-  const handleDrop = (e: React.DragEvent, position: string) => {
+  const handleDrop = (e: React.DragEvent, _slotKey: string) => {
     e.preventDefault();
     if (draggedPlayerId) {
-      const draggedPlayer = allPlayers.find(p => p.id === draggedPlayerId);
-      if (draggedPlayer && draggedPlayer.position === position) {
-        if (playerIds.has(draggedPlayerId)) {
-          onRemoveFromTeam(draggedPlayerId);
-        } else {
-          onAddToTeam(draggedPlayerId);
-        }
+      if (playerIds.has(draggedPlayerId)) {
+        // Drag within team — remove then let parent re-add (noop swap for now)
+        onRemoveFromTeam(draggedPlayerId);
+      } else {
+        onAddToTeam(draggedPlayerId);
       }
     }
     setDraggedPlayerId(null);
-    setDragOverPosition(null);
+    setDragOverSlot(null);
   };
 
-  const renderPlayerCard = (player: Player, forceOutOfPosition?: boolean) => {
-    const isOOP = forceOutOfPosition || outOfPositionIds.has(player.id);
+  const renderPlayerCard = (player: Player) => {
+    const isOOP = allOopIds.has(player.id);
     return (
       <div
         key={player.id}
@@ -91,41 +127,31 @@ export default function InteractiveTeamDisplay({
         onDragStart={() => handleDragStart(player.id)}
         onDragEnd={handleDragEnd}
         className={`relative rounded-lg p-2 shadow-md hover:shadow-lg transition-all text-center cursor-move group w-20 ${
-          isOOP
-            ? 'bg-white border-2 border-red-500'
-            : 'bg-white border-2 border-gray-300'
+          isOOP ? 'bg-white border-2 border-red-500' : 'bg-white border-2 border-gray-300'
         }`}
       >
-        {/* Out-of-position warning badge */}
+        {/* Out-of-position indicator */}
         {isOOP && (
-          <div className="absolute -top-2 -left-2 w-5 h-5 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold z-10"
-            title="Out of position">
+          <div
+            className="absolute -top-2 -left-2 w-5 h-5 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold z-10"
+            title="Out of position — will perform worse in simulation"
+          >
             !
           </div>
         )}
 
-        {/* X button to remove */}
+        {/* Remove button */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveFromTeam(player.id);
-          }}
+          onClick={(e) => { e.stopPropagation(); onRemoveFromTeam(player.id); }}
           className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 flex items-center justify-center z-10 font-bold"
           title="Remove from team"
         >
           ✕
         </button>
 
-        {/* Pixel avatar */}
         <div className="flex justify-center mb-1">
-          <PixelAvatar
-            skinTone={player.skinTone}
-            hairColor={player.hairColor}
-            hairStyle={player.hairStyle}
-            size={32}
-          />
+          <PixelAvatar skinTone={player.skinTone} hairColor={player.hairColor} hairStyle={player.hairStyle} size={32} />
         </div>
-
         <div className="font-headline text-[10px] mb-0.5 text-fifa-amber font-bold truncate leading-tight">
           {formatPlayerName(player.name)}
         </div>
@@ -133,32 +159,32 @@ export default function InteractiveTeamDisplay({
           {player.position}
         </div>
         <div className="mt-0.5 text-sm font-bold text-blue-600">{player.rating}</div>
-        {player.isHistorical && (
-          <div className="mt-0.5 text-[7px] text-purple-600">★</div>
-        )}
+        {player.isHistorical && <div className="mt-0.5 text-[7px] text-purple-600">★</div>}
       </div>
     );
   };
 
-  const renderEmptySlot = (position: 'GK' | 'DEF' | 'MID' | 'FWD', index: number) => {
-    const available = availableByPosition[position].sort((a, b) => b.rating - a.rating);
-    const isDragOver = dragOverPosition === `${position}-${index}`;
+  const renderEmptySlot = (pos: PositionKey, slotIndex: number) => {
+    const slotKey = `${pos}-${slotIndex}`;
+    const isDragOver = dragOverSlot === slotKey;
+    // Best available to suggest — prefer same-position, then any
+    const best = available.find(p => p.position === pos) ?? available[0];
 
     return (
       <div
-        key={`empty-${position}-${index}`}
-        onDragOver={(e) => handleDragOver(e, `${position}-${index}`)}
-        onDrop={(e) => handleDrop(e, position)}
+        key={slotKey}
+        onDragOver={(e) => handleDragOver(e, slotKey)}
+        onDrop={(e) => handleDrop(e, slotKey)}
         className={`bg-white/10 rounded-lg p-2 shadow-md w-20 h-24 flex flex-col items-center justify-center border-2 border-dashed transition-all ${
           isDragOver ? 'border-fifa-mint bg-fifa-mint/10' : 'border-gray-400'
         }`}
       >
-        <span className="text-white/60 text-[9px] font-retro mb-1">{position}</span>
-        {available.length > 0 && (
+        <span className="text-white/60 text-[9px] font-retro mb-1">{pos}</span>
+        {best && (
           <button
-            onClick={() => onAddToTeam(available[0].id)}
+            onClick={() => onAddToTeam(best.id)}
             className="text-fifa-mint hover:text-fifa-cream transition-colors text-lg"
-            title={`Add ${formatPlayerName(available[0].name)}`}
+            title={`Add ${best.name} (${best.position} · ${best.rating})`}
           >
             +
           </button>
@@ -167,20 +193,15 @@ export default function InteractiveTeamDisplay({
     );
   };
 
-  const renderPositionRow = (position: 'GK' | 'DEF' | 'MID' | 'FWD', count: number) => {
-    // Only show in-position players in the formation grid (those NOT in outOfPositionIds)
-    const posPlayers = playersByPosition[position]
-      .filter(p => !outOfPositionIds.has(p.id))
-      .slice(0, count);
-    const emptySlots = count - posPlayers.length;
+  const renderRow = (pos: PositionKey) => (
+    <div className="flex justify-center gap-2 flex-wrap">
+      {slots[pos].map((player, i) =>
+        player ? renderPlayerCard(player) : renderEmptySlot(pos, i)
+      )}
+    </div>
+  );
 
-    return (
-      <div className="flex justify-center gap-2 flex-wrap">
-        {posPlayers.map(p => renderPlayerCard(p))}
-        {Array.from({ length: emptySlots }).map((_, i) => renderEmptySlot(position, i))}
-      </div>
-    );
-  };
+  const oopCount = allOopIds.size;
 
   return (
     <div className="formation-grid space-y-4">
@@ -188,46 +209,16 @@ export default function InteractiveTeamDisplay({
         {formation.name} Formation
       </div>
 
-      {/* Forward */}
-      <div className="space-y-2">
-        {renderPositionRow('FWD', formation.positions.FWD)}
-      </div>
-
-      {/* Midfield */}
-      <div className="space-y-2">
-        {renderPositionRow('MID', formation.positions.MID)}
-      </div>
-
-      {/* Defense */}
-      <div className="space-y-2">
-        {renderPositionRow('DEF', formation.positions.DEF)}
-      </div>
-
-      {/* Goalkeeper */}
-      <div className="space-y-2">
-        {renderPositionRow('GK', formation.positions.GK)}
-      </div>
-
-      {/* Out-of-position overflow row */}
-      {overflowPlayers.length > 0 && (
-        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/5 p-3">
-          <div className="text-center font-retro text-[8px] text-red-400 mb-2 tracking-wider uppercase">
-            ⚠ Out of Position
-          </div>
-          <div className="flex justify-center gap-2 flex-wrap">
-            {overflowPlayers.map(p => renderPlayerCard(p, true))}
-          </div>
-          <p className="text-center font-headline text-[9px] text-red-300/70 mt-2">
-            These players exceed the {formation.name} quota for their position — they'll perform worse in simulation.
-          </p>
-        </div>
-      )}
+      <div className="space-y-2">{renderRow('FWD')}</div>
+      <div className="space-y-2">{renderRow('MID')}</div>
+      <div className="space-y-2">{renderRow('DEF')}</div>
+      <div className="space-y-2">{renderRow('GK')}</div>
 
       <div className="text-center bg-fifa-dark/50 rounded-lg p-3 mt-4 border border-fifa-border">
         {players.length === 11 ? (
-          <p className="font-retro text-[9px] text-fifa-mint mb-1">
-            {overflowPlayers.length > 0
-              ? `✓ 11 players — but ${overflowPlayers.length} out of position`
+          <p className={`font-retro text-[9px] mb-1 ${oopCount > 0 ? 'text-red-400' : 'text-fifa-mint'}`}>
+            {oopCount > 0
+              ? `⚠ 11 players — ${oopCount} out of position (red border)`
               : '✓ Complete team'}
           </p>
         ) : (
@@ -239,6 +230,11 @@ export default function InteractiveTeamDisplay({
               Click + on empty slots or drag from roster
             </p>
           </>
+        )}
+        {oopCount > 0 && (
+          <p className="font-headline text-[9px] text-red-300/60 mt-1">
+            Out-of-position players will underperform in simulation
+          </p>
         )}
       </div>
     </div>
