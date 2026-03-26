@@ -9,6 +9,7 @@ import {
   getAllTeams,
   TeamRecord,
   MatchHistoryEntry,
+  formatShareId,
 } from '@/lib/firebase/firestore';
 import { getLegendaryTeams } from '@/lib/legendary-teams';
 
@@ -41,6 +42,8 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Load all teams (to check if opponents still exist)
   useEffect(() => {
@@ -71,15 +74,27 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
   }, [teams]);
 
   const handleDelete = async (teamId: string) => {
-    if (!confirm('Are you sure you want to delete this team?')) return;
+    setTeamToDelete(teamId);
+  };
 
+  const confirmDeleteTeam = async () => {
+    if (!teamToDelete) return;
     try {
-      await deleteTeam(teamId);
+      await deleteTeam(teamToDelete);
       onTeamsChange();
     } catch (error) {
       console.error('Error deleting team:', error);
       alert('Failed to delete team');
+    } finally {
+      setTeamToDelete(null);
     }
+  };
+
+  const handleCopyId = (team: Team) => {
+    const display = team.shareId ? team.shareId : team.id!;
+    navigator.clipboard.writeText(display).catch(() => {});
+    setCopiedId(team.id!);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleToggleExpand = (teamId: string) => {
@@ -180,7 +195,25 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-headline text-[13px] text-fifa-cream truncate">{team.name}</h3>
+                    <h3 className="font-headline text-[13px] text-fifa-cream flex items-center gap-2 flex-wrap">
+                      {team.name}
+                      <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                        [{team.shareId ? formatShareId(team.shareId) : '…'}]
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyId(team);
+                        }}
+                        title="Copy Team ID"
+                        className="p-0.5 transition-colors"
+                        style={{ color: copiedId === team.id ? '#7ee8c4' : 'rgba(255,255,255,0.25)' }}
+                      >
+                        {copiedId === team.id ? <span className="font-retro text-[8px]">✓</span> : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        )}
+                      </button>
+                    </h3>
                     <p className="font-headline text-[11px] text-fifa-mint/60 mt-1">{team.formation}</p>
                   </div>
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
@@ -346,6 +379,30 @@ export default function TeamList({ teams, onTeamsChange }: TeamListProps) {
                 className="px-4 py-2.5 bg-fifa-dark border border-fifa-border rounded-lg font-retro text-[9px] text-white/60 hover:text-white transition-colors"
                 disabled={sendingInvite}
               >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {teamToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setTeamToDelete(null)}>
+          <div className="rounded-xl border p-6 mx-4 max-w-sm w-full" style={{ background: '#1a1f1b', borderColor: '#2a3b2e' }} onClick={e => e.stopPropagation()}>
+            <h3 className="font-headline text-[14px] text-fifa-cream mb-3">Delete Team?</h3>
+            <p className="font-body text-[11px] mb-6 text-fifa-cream/60">This action cannot be undone. Your team will be permanently deleted.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmDeleteTeam}
+                className="flex-1 py-2 rounded-lg font-retro text-[9px] transition-all"
+                style={{ background: '#f44336', color: '#fff' }}>
+                Delete
+              </button>
+              <button
+                onClick={() => setTeamToDelete(null)}
+                className="flex-1 py-2 rounded-lg font-retro text-[9px] border transition-colors"
+                style={{ borderColor: '#2a3b2e', color: 'rgba(255,255,255,0.6)' }}>
                 Cancel
               </button>
             </div>
