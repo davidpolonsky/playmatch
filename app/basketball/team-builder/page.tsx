@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -102,13 +103,16 @@ function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
   if (!cameraActive) {
     return (
       <div className="text-center py-6">
-        <div className="text-5xl mb-4">📷</div>
+        <div className="mb-4 inline-block">
+          <Image src="/camera.png" alt="Camera" width={80} height={80} className="mx-auto" style={{ imageRendering: 'pixelated' }} unoptimized />
+        </div>
         <p className="font-headline text-[11px] text-white/70 mb-1">Scan a basketball card</p>
         <p className="font-headline text-[10px] text-white/30 mb-5">Point camera at an NBA or basketball card</p>
         <button onClick={startCamera}
-          className="w-full py-3 rounded-lg font-retro text-[9px] transition-all"
+          className="w-full py-3 rounded-lg font-retro text-[9px] transition-all flex items-center justify-center gap-2"
           style={{ background: '#f97316', color: '#0f0a00' }}>
-          📷 Open Camera
+          <Image src="/camera.png" alt="" width={16} height={16} style={{ imageRendering: 'pixelated' }} unoptimized />
+          Open Camera
         </button>
       </div>
     );
@@ -236,7 +240,10 @@ export default function BasketballTeamBuilder() {
           <div className="lg:col-span-1 space-y-4">
             {/* Scanner */}
             <div className="rounded-xl border p-5" style={{ background: '#1c1200', borderColor: '#3d2c00' }}>
-              <h3 className="font-retro text-[10px] mb-4 tracking-wider" style={{ color: '#f97316' }}>📷 Scan Cards</h3>
+              <h3 className="font-retro text-[10px] mb-4 tracking-wider flex items-center gap-2" style={{ color: '#f97316' }}>
+                <Image src="/camera.png" alt="" width={14} height={14} style={{ imageRendering: 'pixelated' }} unoptimized />
+                Scan Cards
+              </h3>
               <BasketballCardUploader
                 onPlayerAdded={p => setPlayers(prev => [...prev, p])}
                 onError={msg => { setMessage(msg); setMessageType('error'); }}

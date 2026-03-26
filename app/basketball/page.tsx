@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
 import { signInWithGoogle } from '@/lib/firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -71,7 +72,9 @@ export default function BasketballHome() {
           </div>
 
           {/* Logo */}
-          <div className="mb-6 text-7xl">🏀</div>
+          <div className="mb-6 inline-block">
+            <Image src="/basketball.png" alt="Basketball" width={96} height={96} className="mx-auto" style={{ imageRendering: 'pixelated' }} unoptimized priority />
+          </div>
 
           <h1 className="font-headline text-4xl sm:text-5xl text-white mb-2 tracking-tight">
             PlayMatch
