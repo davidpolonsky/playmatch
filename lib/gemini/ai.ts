@@ -79,7 +79,7 @@ export const simulateMatch = async (
     const ratingGap = Math.abs(team1AvgRating - team2AvgRating);
     const favorite = team1AvgRating >= team2AvgRating ? team1Name : team2Name;
 
-    const prompt = `You are an elite soccer match commentator. Simulate a FULL 90-minute match with live play-by-play commentary between these two teams.
+    const prompt = `You are an elite soccer match commentator. Simulate a FULL match with live play-by-play commentary between these two teams.
 
 TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating})
 ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
@@ -96,14 +96,29 @@ SIMULATION RULES:
 - Use ACTUAL player names from the rosters above — never invent players.
 - High-rated players should make more impactful plays but can still make mistakes.
 
+SCORELINE VARIETY — THIS IS CRITICAL. Roll a dice and pick ONE of these scoreline styles (roughly equal probability):
+  1. Low-scoring tight game: 1-0, 0-0, 1-1, 2-1
+  2. Comfortable win: 3-1, 3-0, 4-1
+  3. High-scoring thriller: 3-3, 4-2, 4-3, 5-2, 3-4
+  4. Comeback: team losing 0-2 or 1-3 at half, then equalises or wins
+  5. Extra time drama: 90 minutes ends level (e.g. 2-2), then a goal in 93', 95', or 97' decides it
+  6. Red card chaos: a red card (type "redcard") in the 2nd half changes the game
+You MUST NOT default to 2-1. If you keep getting 2-1 you are broken. Vary it every time.
+
+SPECIAL EVENTS (use occasionally, not every game):
+- Red cards: type "redcard", mention the player sent off and minute. A 10-man team concedes more goals.
+- Extra time: if the 90-minute score is level, add 2-5 events in minutes 91-97, then a winner or penalties note.
+- Penalties: if still level after extra time, add a type "penalties" event with a result.
+- Big upsets and late drama make the best stories.
+
 PLAY-BY-PLAY RULES:
-- Generate exactly 45-55 events covering the full 90 minutes
+- Generate exactly 45-55 events covering the full match
 - Minutes should be roughly chronological (small jumps, e.g. 1, 3, 6, 9, 12...)
-- Include a mix of: possession play, passes, dribbles, shots saved, shots missed, goals (with 2-3 events of buildup before each goal), fouls, corners, free kicks, yellow cards occasionally, halftime, and fulltime
+- Include a mix of: possession play, passes, dribbles, shots saved, shots missed, goals (with 2-3 events of buildup before each goal), fouls, corners, free kicks, yellow cards, halftime, and fulltime
 - Each goal MUST be preceded by at least 2 buildup events
 - Goals must include a running scoreline e.g. "[Team1] 1 - 0 [Team2]"
 - Halftime event at minute 45 must state the score
-- Fulltime event at minute 90 must state the final score
+- Fulltime event at minute 90 (or last minute of extra time) must state the final score
 - Every goal event MUST include a "scoringTeam" field: "team1" if ${team1Name} scored, "team2" if ${team2Name} scored
 
 Return ONLY this JSON (no markdown, no extra text):
@@ -122,7 +137,7 @@ Return ONLY this JSON (no markdown, no extra text):
   ]
 }
 
-Valid event types: kickoff, action, shot, goal, save, foul, card, corner, freekick, halftime, fulltime`;
+Valid event types: kickoff, action, shot, goal, save, foul, card, redcard, corner, freekick, halftime, fulltime, penalties`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
