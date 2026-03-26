@@ -405,7 +405,7 @@ export default function BasketballTeamsPage() {
                         <button onClick={handleSendInvite} disabled={!inviteEmail.trim() || inviteSending}
                           className="flex-1 py-2 rounded-lg font-retro text-[8px] disabled:opacity-30 transition-all"
                           style={{ background: '#f97316', color: '#0f0a00' }}>
-                          {inviteSending ? 'Sending…' : 'Send Invite 🏀'}
+                          {inviteSending ? 'Sending…' : <span className="flex items-center justify-center gap-1">Send Invite <img src="/basketball.png" className="w-3.5 h-3.5 inline-block" alt="" /></span>}
                         </button>
                         <button onClick={() => setShowInvite(false)}
                           className="py-2 px-3 rounded-lg font-retro text-[8px] border transition-colors"
@@ -493,7 +493,7 @@ export default function BasketballTeamsPage() {
                     </svg>
                     {loadingPhrase || 'Loading…'}
                   </span>
-                ) : '🏀 Tip Off'}
+                ) : <span className="flex items-center justify-center gap-1.5"><img src="/basketball.png" className="w-4 h-4" alt="" /> Tip Off</span>}
               </button>
             </div>
 
@@ -620,7 +620,9 @@ export default function BasketballTeamsPage() {
                   return (
                     <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${color}`}>
                       <span className="flex-shrink-0 w-8 font-retro text-[7px] pt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Q{ev.quarter}</span>
-                      <span className="flex-shrink-0 text-sm">{icon}</span>
+                      <span className="flex-shrink-0 text-sm">
+                        {icon === '🏀' ? <img src="/basketball.png" className="w-4 h-4 inline-block" alt="" /> : icon}
+                      </span>
                       <p className={`text-sm flex-1 leading-snug ${isScore ? 'font-bold' : ''}`}
                         style={{ color: isScore ? '#f97316' : isMilestone ? '#fbbf24' : 'rgba(241,239,227,0.7)' }}>
                         {ev.text}
@@ -666,7 +668,9 @@ export default function BasketballTeamsPage() {
             <div className="space-y-3">
               {myTeams.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="text-4xl mb-3">🏀</div>
+                  <div className="mb-3">
+                    <img src="/basketball.png" className="w-12 h-12 mx-auto" alt="Basketball" />
+                  </div>
                   <p className="font-retro text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No teams yet</p>
                   <button onClick={() => router.push('/basketball/team-builder')}
                     className="font-retro text-[9px] py-2 px-6 rounded-lg transition-all"

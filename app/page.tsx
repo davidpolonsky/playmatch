@@ -57,7 +57,7 @@ export default function Home() {
             </button>
             <button onClick={() => router.push('/basketball')}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white/50 font-retro text-[8px] hover:text-white/70 transition-colors">
-              🏀 Basketball
+              <img src="/basketball.png" className="w-4 h-4" alt="" /> Basketball
             </button>
           </div>
 

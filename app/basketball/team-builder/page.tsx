@@ -139,7 +139,7 @@ function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
         <button onClick={captureAndAnalyze} disabled={!videoReady}
           className="flex-1 py-3 rounded-lg font-retro text-[9px] disabled:opacity-30 transition-all"
           style={{ background: '#f97316', color: '#0f0a00' }}>
-          📸 Capture
+          <img src="/camera.png" className="w-4 h-4 inline-block mr-1" alt="" /> Capture
         </button>
         <button onClick={stopCamera}
           className="px-4 py-3 rounded-lg font-retro text-[9px] border border-bball-border text-white/60 hover:text-white transition-colors">
@@ -215,7 +215,9 @@ export default function BasketballTeamBuilder() {
       {/* Nav */}
       <nav style={{ background: '#0f0a00', borderBottom: '1px solid #3d2c00' }}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4 flex-wrap">
-          <h1 className="font-retro text-[11px] tracking-wider" style={{ color: '#f97316' }}>🏀 PlayMatch</h1>
+          <h1 className="font-retro text-[11px] tracking-wider flex items-center gap-1.5" style={{ color: '#f97316' }}>
+            <img src="/basketball.png" className="w-4 h-4" alt="" /> PlayMatch
+          </h1>
           <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => router.push('/basketball/teams')}
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"

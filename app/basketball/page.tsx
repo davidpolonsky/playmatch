@@ -67,7 +67,7 @@ export default function BasketballHome() {
               ⚽ {soccerLabel}
             </button>
             <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-bball-orange bg-bball-orange/10 text-bball-orange font-retro text-[8px]">
-              🏀 Basketball
+              <img src="/basketball.png" className="w-4 h-4" alt="" /> Basketball
             </button>
           </div>
 
