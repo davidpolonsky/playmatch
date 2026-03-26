@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences, getSavedTeamIds, getTeam, addSavedTeam, removeSavedTeam, getTeamByShareId, parseShareId, formatShareId } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
@@ -40,6 +40,15 @@ export default function Dashboard() {
     type: 'success' | 'error' | 'info';
     show: boolean;
   }>({ message: '', type: 'info', show: false });
+  // Teams tab state
+  const [allUserTeams, setAllUserTeams] = useState<Team[]>([]);
+  const [savedFriendsTeams, setSavedFriendsTeams] = useState<Team[]>([]);
+  const [legendaryRecords, setLegendaryRecords] = useState<Record<string, TeamRecord>>({});
+  const [allTeamRecords, setAllTeamRecords] = useState<Record<string, TeamRecord>>({});
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [addTeamIdInput, setAddTeamIdInput] = useState('');
+  const [addTeamLoading, setAddTeamLoading] = useState(false);
+  const [addTeamError, setAddTeamError] = useState('');
 
   // Show notification function
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -65,6 +74,37 @@ export default function Dashboard() {
       }).catch(() => {});
     }
   }, [user]);
+
+  // Load all teams + records when Teams tab is opened
+  useEffect(() => {
+    if (activeTab !== 'teams' || !user) return;
+    (async () => {
+      try {
+        const [all, savedIds, legRecs] = await Promise.all([
+          getAllTeams().catch(() => [] as Team[]),
+          getSavedTeamIds(user.uid).catch(() => [] as string[]),
+          getUserLegendaryRecords(user.uid).catch(() => ({} as Record<string, TeamRecord>)),
+        ]);
+        setAllUserTeams(all);
+        setLegendaryRecords(legRecs);
+
+        // Load saved friends teams
+        const myTeamIds = new Set(savedTeams.map(t => t.id));
+        const savedRaw = await Promise.all(
+          savedIds.filter(id => !myTeamIds.has(id)).map(id => getTeam(id).catch(() => null))
+        );
+        const savedFull = savedRaw.filter(t => t != null) as Team[];
+        setSavedFriendsTeams(savedFull);
+
+        // Load records for all teams
+        const allTeamIds = [...savedTeams, ...savedFull, ...all].map(t => t.id!).filter(Boolean);
+        const recs = await getTeamRecords(allTeamIds).catch(() => ({} as Record<string, TeamRecord>));
+        setAllTeamRecords(recs);
+      } catch (e) {
+        console.error('Failed to load teams', e);
+      }
+    })();
+  }, [activeTab, user, savedTeams]);
 
   // Load all teams + records when Table tab is opened
   useEffect(() => {
@@ -116,6 +156,47 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error loading roster:', error);
     }
+  };
+
+  const handleAddTeamById = async () => {
+    if (!user) return;
+    const raw = parseShareId(addTeamIdInput.trim());
+    if (raw.length !== 7) {
+      setAddTeamError('Enter a valid 7-digit Team ID (e.g. 123-4567).');
+      return;
+    }
+    setAddTeamLoading(true);
+    setAddTeamError('');
+    try {
+      const team = await getTeamByShareId(raw);
+      if (!team) {
+        setAddTeamError('Team not found. Double-check the ID.');
+        return;
+      }
+      if (team.userId === user.uid) {
+        setAddTeamError("That's your own team!");
+        return;
+      }
+      if (savedTeams.some(t => t.id === team.id) || savedFriendsTeams.some(t => t.id === team.id)) {
+        setAddTeamError('You already have this team.');
+        return;
+      }
+      await addSavedTeam(user.uid, team.id!);
+      setSavedFriendsTeams(prev => [...prev, team]);
+      const recs = await getTeamRecords([team.id!]).catch(() => ({} as Record<string, TeamRecord>));
+      setAllTeamRecords(prev => ({ ...prev, ...recs }));
+      setAddTeamIdInput('');
+    } catch {
+      setAddTeamError('Something went wrong. Try again.');
+    } finally {
+      setAddTeamLoading(false);
+    }
+  };
+
+  const handleRemoveFriendTeam = async (teamId: string) => {
+    if (!user) return;
+    await removeSavedTeam(user.uid, teamId).catch(() => {});
+    setSavedFriendsTeams(prev => prev.filter(t => t.id !== teamId));
   };
 
   const handleSignOut = async () => {
@@ -474,26 +555,128 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeTab === 'teams' && (
-          <div className="space-y-6">
-            <TeamList teams={savedTeams} onTeamsChange={loadUserTeams} />
+        {activeTab === 'teams' && (() => {
+          const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
+          const friendsTeams = allUserTeams.filter(t => t.userId !== user?.uid && !savedFriendsTeams.some(s => s.id === t.id));
 
-            {/* Legendary Teams Section */}
-            <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
-              <h2 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider">⭐ LEGENDARY TEAMS</h2>
-              <p className="font-headline text-[10px] text-white/50 mb-4">Classic teams from FIFA history</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {getLegendaryTeams().map(team => (
-                  <div key={team.id} className="bg-fifa-dark rounded-lg border border-fifa-border p-3">
-                    <h3 className="font-headline text-[12px] text-fifa-cream mb-1">{team.name}</h3>
-                    <p className="font-body text-[9px] text-fifa-amber/70 mb-2">{(team as any).description}</p>
-                    <p className="font-headline text-[10px] text-fifa-mint/60">{team.formation}</p>
+          const renderTeamCard = (team: Team | LegendaryTeam, isOwn = false, isSaved = false) => {
+            const isLegendary = 'isLegendary' in team && team.isLegendary;
+            const isExpanded = expandedTeamId === team.id;
+            const record = isLegendary ? legendaryRecords[team.id!] : allTeamRecords[team.id!];
+            const grouped: Record<string, typeof team.players> = { GK: [], DEF: [], MID: [], FWD: [] };
+            team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
+
+            return (
+              <div key={team.id} className="bg-fifa-dark rounded-xl border border-fifa-border overflow-hidden">
+                <button
+                  onClick={() => setExpandedTeamId(isExpanded ? null : team.id!)}
+                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-headline text-[13px] text-fifa-cream">{team.name}</h3>
+                        {isLegendary && <span className="text-[9px] font-retro text-fifa-amber">LEGEND</span>}
+                        {isSaved && <span className="text-[9px] font-retro text-fifa-mint/60">SAVED</span>}
+                      </div>
+                      {isLegendary && 'description' in team && (
+                        <p className="font-body text-[10px] text-fifa-amber/70 mb-1">{(team as any).description}</p>
+                      )}
+                      <p className="font-headline text-[11px] text-fifa-mint/60">{team.formation}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isSaved && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoveFriendTeam(team.id!); }}
+                          className="text-white/20 hover:text-red-400 p-1 font-retro text-[9px]"
+                        >✕</button>
+                      )}
+                      <span className="text-white/20 text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                    </div>
                   </div>
-                ))}
+                </button>
+
+                {isExpanded && (
+                  <div className="border-t border-fifa-border px-4 pb-4 pt-3">
+                    {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
+                      <div key={pos} className="mb-2">
+                        <span className="font-retro text-[8px] text-fifa-mint/60 uppercase block mb-1">{pos}</span>
+                        <div className="space-y-1">
+                          {grouped[pos].map((p, i) => (
+                            <div key={i} className="flex justify-between text-sm">
+                              <span className="text-fifa-cream/80">{p.name}</span>
+                              <span className={`font-headline text-[11px] font-bold ${
+                                p.rating >= 90 ? 'text-fifa-amber' : p.rating >= 80 ? 'text-fifa-mint' : 'text-white/40'
+                              }`}>{p.rating}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            );
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* Add by Team ID */}
+              <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
+                <p className="font-retro text-[9px] text-fifa-mint mb-3 tracking-wider">⚔️ Add a Friend's Team by ID</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={addTeamIdInput}
+                    onChange={e => { setAddTeamIdInput(e.target.value); setAddTeamError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleAddTeamById()}
+                    placeholder="Enter ID e.g. 123-4567"
+                    className="flex-1 px-3 py-2 bg-fifa-dark border border-fifa-border rounded-lg text-fifa-cream text-sm placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
+                  />
+                  <button
+                    onClick={handleAddTeamById}
+                    disabled={addTeamLoading || !addTeamIdInput.trim()}
+                    className="btn-primary py-2 px-4 disabled:opacity-30"
+                  >
+                    {addTeamLoading ? '…' : 'Add'}
+                  </button>
+                </div>
+                {addTeamError && <p className="font-headline text-[10px] text-red-400 mt-2">{addTeamError}</p>}
+              </div>
+
+              {/* My Teams */}
+              <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
+                <h2 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider">🏠 MY TEAMS ({savedTeams.length})</h2>
+                {savedTeams.length === 0 ? (
+                  <p className="font-headline text-[11px] text-white/40">No teams saved yet. Build and save your first team!</p>
+                ) : (
+                  <div className="space-y-3">
+                    {savedTeams.map(team => renderTeamCard(team, true))}
+                  </div>
+                )}
+              </div>
+
+              {/* Legendary Teams */}
+              <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
+                <h2 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider">⭐ LEGENDARY TEAMS</h2>
+                <div className="space-y-3">
+                  {getLegendaryTeams().map(team => renderTeamCard(team))}
+                </div>
+              </div>
+
+              {/* Friends' Teams */}
+              {(savedFriendsTeams.length > 0 || friendsTeams.length > 0) && (
+                <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6">
+                  <h2 className="font-retro text-[11px] text-fifa-mint mb-4 tracking-wider">👥 FRIENDS' TEAMS</h2>
+                  <div className="space-y-3">
+                    {savedFriendsTeams.map(team => renderTeamCard(team, false, true))}
+                    {friendsTeams.map(team => renderTeamCard(team))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'match' && (
           <MatchSimulator teams={savedTeams} userId={user.uid} userEmail={user.email || undefined} />
