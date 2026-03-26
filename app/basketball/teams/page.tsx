@@ -140,16 +140,34 @@ export default function BasketballTeamsPage() {
     const events = simResult.playByPlay.filter(e => e && e.type && e.text);
     const msPerEvent = Math.round(100000 / Math.max(events.length, 1));
     let i = 0;
+    // Infer points from event type when the AI omits the points field
+    const inferPoints = (ev: BballPlayEvent): number => {
+      if (ev.points) return ev.points;
+      if (ev.type === 'three_made') return 3;
+      if (ev.type === 'free_throw') return 1;
+      if (['shot_made', 'dunk', 'layup', 'buzzer_beater'].includes(ev.type)) return 2;
+      return 0;
+    };
+
     const interval = setInterval(() => {
-      if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
+      if (i >= events.length) {
+        clearInterval(interval);
+        setStreamingDone(true);
+        // Snap to the authoritative final score so the board always matches the result
+        setLiveScore({ home: simResult.team1Score, away: simResult.team2Score });
+        return;
+      }
       const ev = events[i];
       setVisibleEvents(prev => [...prev, ev]);
       if (ev.quarter) setCurrentQuarter(ev.quarter);
-      if (ev.scoringTeam && ev.points) {
-        setLiveScore(prev => ({
-          home: prev.home + (ev.scoringTeam === 'team1' ? ev.points! : 0),
-          away: prev.away + (ev.scoringTeam === 'team2' ? ev.points! : 0),
-        }));
+      if (ev.scoringTeam) {
+        const pts = inferPoints(ev);
+        if (pts > 0) {
+          setLiveScore(prev => ({
+            home: prev.home + (ev.scoringTeam === 'team1' ? pts : 0),
+            away: prev.away + (ev.scoringTeam === 'team2' ? pts : 0),
+          }));
+        }
       }
       i++;
     }, msPerEvent);
