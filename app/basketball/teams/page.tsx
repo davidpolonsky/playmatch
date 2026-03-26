@@ -71,6 +71,33 @@ const inferPoints = (ev: BballPlayEvent): number => {
   return 0;
 };
 
+// Parse a checkpoint score out of end_quarter / final event text
+// e.g. "END Q2 — Bulls 54 - Lakers 48" → { home: 54, away: 48 }
+const parseCheckpointScore = (
+  text: string,
+  team1NameLow: string,
+  team2NameLow: string,
+): { home: number; away: number } | null => {
+  const nums = (text.match(/\d+/g) || []).map(Number);
+  // Filter to plausible cumulative scores: 0–200, ignore quarter numbers (1-4) and time values
+  const scores = nums.filter(n => n >= 0 && n <= 200);
+  if (scores.length < 2) return null;
+  // The last two numbers in the text are almost always the two team scores
+  const last2 = scores.slice(-2);
+  // Determine which is home (team1) vs away (team2) by which name appears first
+  const tl = text.toLowerCase();
+  const t1pos = team1NameLow ? tl.indexOf(team1NameLow.split(' ')[0]) : -1;
+  const t2pos = team2NameLow ? tl.indexOf(team2NameLow.split(' ')[0]) : -1;
+  if (t1pos >= 0 && t2pos >= 0 && t1pos !== t2pos) {
+    return t1pos < t2pos
+      ? { home: last2[0], away: last2[1] }
+      : { home: last2[1], away: last2[0] };
+  }
+  return { home: last2[0], away: last2[1] };
+};
+
+const SCORING_EVENT_TYPES = new Set(['shot_made', 'three_made', 'dunk', 'layup', 'free_throw', 'buzzer_beater']);
+
 function RecordBadge({ record }: { record: BballRecord }) {
   return (
     <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
@@ -163,27 +190,54 @@ export default function BasketballTeamsPage() {
     setStreamingDone(false);
     setLiveScore({ home: 0, away: 0 });
     setCurrentQuarter(1);
+
     const events = simResult.playByPlay.filter(e => e && e.type && e.text);
     const msPerEvent = Math.round(100000 / Math.max(events.length, 1));
+
+    // Build lowercase name lists for scoring team inference when Gemini omits scoringTeam
+    const team1NameLow = (selectedHome?.name || '').toLowerCase();
+    const team2NameLow = (selectedAway?.name || '').toLowerCase();
+    const team1PlayerNames = (selectedHome?.players || [])
+      .map((p: any) => (p.name || '').toLowerCase()).filter(Boolean);
+    const team2PlayerNames = (selectedAway?.players || [])
+      .map((p: any) => (p.name || '').toLowerCase()).filter(Boolean);
+
     let i = 0;
     const interval = setInterval(() => {
       if (i >= events.length) { clearInterval(interval); setStreamingDone(true); return; }
       const ev = events[i];
       setVisibleEvents(prev => [...prev, ev]);
       if (ev.quarter) setCurrentQuarter(ev.quarter);
-      if (ev.scoringTeam) {
+
+      // Quarter / game checkpoints: parse score directly from text
+      if (ev.type === 'end_quarter' || ev.type === 'final') {
+        const parsed = parseCheckpointScore(ev.text, team1NameLow, team2NameLow);
+        if (parsed) { setLiveScore(parsed); i++; return; }
+      }
+
+      // Scoring events: use scoringTeam if present, else infer from player names in text
+      if (SCORING_EVENT_TYPES.has(ev.type)) {
+        let scoringTeam = ev.scoringTeam as 'team1' | 'team2' | undefined;
+        if (!scoringTeam) {
+          const textLow = ev.text.toLowerCase();
+          const inTeam1 = team1PlayerNames.some(n => n.length > 2 && textLow.includes(n));
+          const inTeam2 = team2PlayerNames.some(n => n.length > 2 && textLow.includes(n));
+          if (inTeam1 && !inTeam2) scoringTeam = 'team1';
+          else if (inTeam2 && !inTeam1) scoringTeam = 'team2';
+        }
         const pts = inferPoints(ev);
-        if (pts > 0) {
+        if (scoringTeam && pts > 0) {
           setLiveScore(prev => ({
-            home: prev.home + (ev.scoringTeam === 'team1' ? pts : 0),
-            away: prev.away + (ev.scoringTeam === 'team2' ? pts : 0),
+            home: prev.home + (scoringTeam === 'team1' ? pts : 0),
+            away: prev.away + (scoringTeam === 'team2' ? pts : 0),
           }));
         }
       }
+
       i++;
     }, msPerEvent);
     return () => clearInterval(interval);
-  }, [simResult]);
+  }, [simResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;

@@ -192,8 +192,15 @@ export default function BasketballTeamBuilder() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('error');
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
   const dragSourceRef = useRef<DragSource | null>(null);
+  const [soccerLabel, setSoccerLabel] = useState('Football');
 
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
+
+  useEffect(() => {
+    fetch('/api/geo').then(r => r.json()).then(d => {
+      if (d.country_code === 'US') setSoccerLabel('Soccer');
+    }).catch(() => {});
+  }, []);
 
   // Load saved draft roster on mount + auto-fill slots
   useEffect(() => {
@@ -336,6 +343,11 @@ export default function BasketballTeamBuilder() {
               className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"
               style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
               ← My Teams
+            </button>
+            <button onClick={() => router.push('/dashboard')}
+              className="font-retro text-[9px] py-1.5 px-3 rounded-lg border transition-colors"
+              style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
+              ⚽ {soccerLabel}
             </button>
             <span className="font-headline text-[10px] hidden sm:block" style={{ color: 'rgba(241,239,227,0.4)' }}>{user?.displayName}</span>
             <button onClick={signOut}
