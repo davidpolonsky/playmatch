@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
@@ -23,6 +23,8 @@ function HomeContent() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteError, setInviteError] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  // Prevent the auth listener from redirecting while we're validating an invite
+  const handlingInvite = useRef(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -43,7 +45,8 @@ function HomeContent() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(false);
-      if (user) router.push('/dashboard');
+      // Don't auto-redirect if handleInviteSignIn is in the middle of validating
+      if (user && !handlingInvite.current) router.push('/dashboard');
     });
     return () => unsubscribe();
   }, [router]);
@@ -69,10 +72,11 @@ function HomeContent() {
     if (inviteLoading) return;
     setInviteError('');
 
-    // If a code is required (non-legacy flow), validate it before signing in
     const codeToValidate = inviteCode.trim().toUpperCase();
-    const requiresCode = codeToValidate !== '';
 
+    // Block the onAuthStateChanged listener from auto-redirecting
+    // so we can validate the code and sign out if needed
+    handlingInvite.current = true;
     setInviteLoading(true);
     try {
       const user = await signInWithGoogle();
@@ -83,8 +87,8 @@ function HomeContent() {
       if (newUser) {
         // New user must have a valid invite code
         if (!codeToValidate) {
-          // No code supplied — sign them out and prompt
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('Please enter your invite code to create an account.');
           setInviteLoading(false);
           return;
@@ -93,12 +97,14 @@ function HomeContent() {
         const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
         if (result === 'invalid') {
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('That invite code is not valid. Double-check and try again.');
           setInviteLoading(false);
           return;
         }
         if (result === 'already_used') {
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('That invite code has already been used.');
           setInviteLoading(false);
           return;
@@ -108,8 +114,10 @@ function HomeContent() {
       }
 
       // Existing user OR newly admitted — redirect to dashboard
+      handlingInvite.current = false;
       router.push('/dashboard');
     } catch (e: any) {
+      handlingInvite.current = false;
       setInviteError('Sign in failed: ' + (e.message || 'unknown error'));
       setInviteLoading(false);
     }

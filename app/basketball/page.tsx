@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
@@ -24,6 +24,7 @@ function BasketballHomeContent() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteError, setInviteError] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const handlingInvite = useRef(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,7 +43,7 @@ function BasketballHomeContent() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setLoading(false);
-      if (user) router.push('/basketball/teams');
+      if (user && !handlingInvite.current) router.push('/basketball/teams');
     });
     return () => unsub();
   }, [router]);
@@ -76,6 +77,7 @@ function BasketballHomeContent() {
 
     const codeToValidate = inviteCode.trim().toUpperCase();
 
+    handlingInvite.current = true;
     setInviteLoading(true);
     try {
       const user = await signInWithGoogle();
@@ -86,6 +88,7 @@ function BasketballHomeContent() {
       if (newUser) {
         if (!codeToValidate) {
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('Please enter your invite code to create an account.');
           setInviteLoading(false);
           return;
@@ -94,12 +97,14 @@ function BasketballHomeContent() {
         const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
         if (result === 'invalid') {
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('That invite code is not valid. Double-check and try again.');
           setInviteLoading(false);
           return;
         }
         if (result === 'already_used') {
           await signOut(auth);
+          handlingInvite.current = false;
           setInviteError('That invite code has already been used.');
           setInviteLoading(false);
           return;
@@ -107,8 +112,10 @@ function BasketballHomeContent() {
         await createUserDoc(user.uid, user.email);
       }
 
+      handlingInvite.current = false;
       router.push('/basketball/teams');
     } catch (e: any) {
+      handlingInvite.current = false;
       setInviteError('Sign in failed: ' + (e.message || 'unknown error'));
       setInviteLoading(false);
     }
