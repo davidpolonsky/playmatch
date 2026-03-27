@@ -580,10 +580,14 @@ export const createInviteCode = async (code: string, createdFor?: string): Promi
 
 // Validate a code and mark it as used atomically.
 // Returns 'ok' | 'invalid' | 'already_used'
+// PLAY-000000 is a permanent master code that always succeeds.
 export const validateAndConsumeInviteCode = async (
   code: string,
   userId: string
 ): Promise<'ok' | 'invalid' | 'already_used'> => {
+  // Master code — always valid, never consumed from Firestore
+  if (code.trim().toUpperCase() === 'PLAY-000000') return 'ok';
+
   const ref = doc(db, INVITE_CODES_COLLECTION, code.trim().toUpperCase());
   const snap = await getDoc(ref);
   if (!snap.exists()) return 'invalid';
