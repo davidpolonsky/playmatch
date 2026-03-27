@@ -143,7 +143,7 @@ export default function BasketballTeamsPage() {
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
   const [legendaryRecords, setLegendaryRecords] = useState<Record<string, BballRecord>>({});
   const [loadingTeams, setLoadingTeams] = useState(true);
-  const [activeTab, setActiveTab] = useState<'build-team' | 'simulate' | 'my-teams' | 'teams' | 'standings'>('build-team');
+  const [activeTab, setActiveTab] = useState<'build-team' | 'simulate' | 'teams' | 'standings'>('build-team');
   // Standings state
   const [standingsTeamIds, setStandingsTeamIds] = useState<Set<string>>(new Set());
   const [standingsMetric, setStandingsMetric] = useState<'winpct' | 'gb'>('winpct');
@@ -555,8 +555,7 @@ export default function BasketballTeamsPage() {
         <div className="flex gap-1 mb-6 flex-wrap" style={{ borderBottom: '1px solid #3d2c00', paddingBottom: 0 }}>
           {([
             { key: 'build-team', label: 'Build Team' },
-            { key: 'my-teams', label: `My Teams (${myTeams.length})` },
-            { key: 'teams', label: 'Teams' },
+            { key: 'teams', label: `Teams (${myTeams.length})` },
             { key: 'simulate', label: 'Simulate' },
             { key: 'standings', label: 'Standings' },
           ] as const).map(({ key, label }) => (
@@ -574,7 +573,7 @@ export default function BasketballTeamsPage() {
 
         {/* ── Build Team ── */}
         {activeTab === 'build-team' && (
-          <BasketballTeamBuilderContent onSaved={() => { loadTeams(); setActiveTab('my-teams'); }} />
+          <BasketballTeamBuilderContent onSaved={() => { loadTeams(); setActiveTab('teams'); }} />
         )}
 
         {/* ── Game Simulator ── */}
@@ -813,44 +812,56 @@ export default function BasketballTeamsPage() {
         </div>
         )}
 
-        {/* ── Teams List (My Teams + Teams tabs) ── */}
-        {(activeTab === 'my-teams' || activeTab === 'teams') && (
+        {/* ── Teams tab: My Teams + Legendary + Rivals + Friends (mirrors soccer layout) ── */}
+        {activeTab === 'teams' && (
         <div className="rounded-xl border p-6" style={{ background: '#1c1200', borderColor: '#3d2c00', boxShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
           {loadingTeams ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bball-orange mx-auto" />
               <p className="mt-3 font-retro text-[8px] text-bball-orange/40 animate-pulse">Loading teams…</p>
             </div>
-          ) : activeTab === 'my-teams' ? (
+          ) : (
             <div className="space-y-3">
+              {/* ── My Teams ── */}
+              <h2 className="font-retro text-[9px] mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>🏠 MY TEAMS ({myTeams.length})</h2>
               {myTeams.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="mb-3">
-                    <img src="/basketball.png" className="w-12 h-12 mx-auto" alt="Basketball" />
-                  </div>
+                <div className="text-center py-8">
+                  <img src="/basketball.png" className="w-10 h-10 mx-auto mb-3" alt="Basketball" />
                   <p className="font-retro text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No teams yet</p>
-                  <button onClick={() => router.push('/basketball/team-builder')}
+                  <button onClick={() => setActiveTab('build-team')}
                     className="font-retro text-[9px] py-2 px-6 rounded-lg transition-all"
                     style={{ background: '#f97316', color: '#0f0a00' }}>
                     Build Your First Team
                   </button>
                 </div>
-              ) : (
-                myTeams.map(team => (
-                  <TeamCard key={team.id} team={team} isOwn
-                    expandedId={expandedId} setExpandedId={setExpandedId}
-                    record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
-                    copiedId={copiedId} setCopiedId={setCopiedId}
-                    historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
-                    matchHistories={matchHistories} loadingHistory={loadingHistory}
-                    onDelete={(id) => setTeamToDelete(id)}
-                    onChallenge={t => { setChallengeTeam(t); setChallengeEmail(''); setChallengeSent(false); }}
-                  />
-                ))
-              )}
+              ) : myTeams.map(team => (
+                <TeamCard key={team.id} team={team} isOwn
+                  expandedId={expandedId} setExpandedId={setExpandedId}
+                  record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
+                  copiedId={copiedId} setCopiedId={setCopiedId}
+                  historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
+                  matchHistories={matchHistories} loadingHistory={loadingHistory}
+                  onDelete={(id) => setTeamToDelete(id)}
+                  onChallenge={t => { setChallengeTeam(t); setChallengeEmail(''); setChallengeSent(false); }}
+                />
+              ))}
+
+              {/* ── Legendary Teams ── */}
+              <h2 className="font-retro text-[9px] mt-8 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>🏆 LEGENDARY TEAMS</h2>
+              {legendaryTeams.map(team => (
+                <TeamCard key={team.id} team={team}
+                  expandedId={expandedId} setExpandedId={setExpandedId}
+                  record={legendaryRecords[team.id] ?? { wins: 0, losses: 0 }}
+                  copiedId={copiedId} setCopiedId={setCopiedId}
+                  historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
+                  matchHistories={matchHistories} loadingHistory={loadingHistory}
+                />
+              ))}
+
+              {/* ── Rival Teams (saved) ── */}
               {savedTeams.length > 0 && (
                 <>
-                  <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>⚔️ Rival Teams</h3>
+                  <h2 className="font-retro text-[9px] mt-8 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>⚔️ RIVAL TEAMS</h2>
                   {savedTeams.map(team => (
                     <TeamCard key={team.id} team={team} isSaved
                       expandedId={expandedId} setExpandedId={setExpandedId}
@@ -864,50 +875,11 @@ export default function BasketballTeamsPage() {
                 </>
               )}
 
-              {/* Delete confirmation dialog */}
-              {teamToDelete && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setTeamToDelete(null)}>
-                  <div className="rounded-xl border p-6 mx-4 max-w-sm w-full" style={{ background: '#1c1200', borderColor: '#3d2c00' }} onClick={e => e.stopPropagation()}>
-                    <h3 className="font-headline text-[14px] text-white mb-3">Delete Team?</h3>
-                    <p className="font-body text-[11px] mb-6" style={{ color: 'rgba(255,255,255,0.6)' }}>This action cannot be undone. Your team will be permanently deleted.</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={async () => {
-                          await deleteBasketballTeam(teamToDelete);
-                          await loadTeams();
-                          setTeamToDelete(null);
-                        }}
-                        className="flex-1 py-2 rounded-lg font-retro text-[9px] transition-all"
-                        style={{ background: '#f44336', color: '#fff' }}>
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setTeamToDelete(null)}
-                        className="flex-1 py-2 rounded-lg font-retro text-[9px] border transition-colors"
-                        style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <h3 className="font-retro text-[9px] mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🏆 Legendary Teams</h3>
-              {legendaryTeams.map(team => (
-                <TeamCard key={team.id} team={team}
-                  expandedId={expandedId} setExpandedId={setExpandedId}
-                  record={legendaryRecords[team.id] ?? { wins: 0, losses: 0 }}
-                  copiedId={copiedId} setCopiedId={setCopiedId}
-                  historyTeamId={null} onViewHistory={() => {}}
-                  matchHistories={{}} loadingHistory={false}
-                />
-              ))}
-              {allTeams.filter(t => t.userId !== user?.uid).length > 0 && (
+              {/* ── Friends' Teams (other users) ── */}
+              {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).length > 0 && (
                 <>
-                  <h3 className="font-retro text-[9px] mt-6 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.6)' }}>🌍 Other Players' Teams</h3>
-                  {allTeams.filter(t => t.userId !== user?.uid).map(team => (
+                  <h2 className="font-retro text-[9px] mt-8 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>🌍 FRIENDS' TEAMS</h2>
+                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(team => (
                     <TeamCard key={team.id} team={team}
                       expandedId={expandedId} setExpandedId={setExpandedId}
                       record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
@@ -918,9 +890,28 @@ export default function BasketballTeamsPage() {
                   ))}
                 </>
               )}
+
+              {/* Delete confirmation dialog */}
+              {teamToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setTeamToDelete(null)}>
+                  <div className="rounded-xl border p-6 mx-4 max-w-sm w-full" style={{ background: '#1c1200', borderColor: '#3d2c00' }} onClick={e => e.stopPropagation()}>
+                    <h3 className="font-headline text-[14px] text-white mb-3">Delete Team?</h3>
+                    <p className="font-body text-[11px] mb-6" style={{ color: 'rgba(255,255,255,0.6)' }}>This action cannot be undone. Your team will be permanently deleted.</p>
+                    <div className="flex gap-2">
+                      <button onClick={async () => { await deleteBasketballTeam(teamToDelete); await loadTeams(); setTeamToDelete(null); }}
+                        className="flex-1 py-2 rounded-lg font-retro text-[9px] transition-all" style={{ background: '#f44336', color: '#fff' }}>
+                        Delete
+                      </button>
+                      <button onClick={() => setTeamToDelete(null)}
+                        className="flex-1 py-2 rounded-lg font-retro text-[9px] border transition-colors" style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.6)' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
         </div>
         )}
 

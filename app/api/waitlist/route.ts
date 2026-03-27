@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
     const sportLabel = sport === 'basketball' ? 'Basketball 🏀' : 'Soccer ⚽';
     const notifyEmail = 'info@playmatch.games';
+    const signupTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' EST';
 
     if (SENDGRID_CONFIGURED) {
       await sgMail.send({
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
           name: 'PlayMatch Waitlist',
         },
         subject: `New waitlist signup — PlayMatch ${sportLabel}`,
-        text: `New waitlist signup:\n\nEmail: ${email}\nSport: ${sportLabel}\n\nTo invite them, send a challenge email from within the app.`,
+        text: `New waitlist signup:\n\nEmail: ${email}\nSport: ${sportLabel}\nTime: ${signupTime}\n\nTo invite them, send a challenge email from within the app.`,
         html: `
 <!DOCTYPE html>
 <html>
@@ -31,7 +32,8 @@ export async function POST(req: NextRequest) {
     <p style="margin:0 0 6px;color:#4ade80;font-size:11px;letter-spacing:3px;font-weight:bold;text-transform:uppercase;">PlayMatch Waitlist</p>
     <h2 style="margin:0 0 20px;color:#fff;font-size:18px;">New Signup — ${sportLabel}</h2>
     <p style="margin:0 0 8px;font-size:14px;"><strong style="color:#4ade80;">Email:</strong> ${email}</p>
-    <p style="margin:0;font-size:14px;"><strong style="color:#4ade80;">Sport:</strong> ${sportLabel}</p>
+    <p style="margin:0 0 8px;font-size:14px;"><strong style="color:#4ade80;">Sport:</strong> ${sportLabel}</p>
+    <p style="margin:0;font-size:14px;"><strong style="color:#4ade80;">Time:</strong> ${signupTime}</p>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1e5c33;">
       <p style="margin:0;color:#6b7280;font-size:11px;">To let them in, send them a challenge invite from within the app — that link includes <code>?invited=true</code> so they can sign up with Google.</p>
     </div>

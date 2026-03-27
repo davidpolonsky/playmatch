@@ -1,0 +1,145 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface BizStats {
+  users: number;
+  soccerCards: number;
+  basketballCards: number;
+  soccerTeams: number;
+  basketballTeams: number;
+  soccerSims: number;
+  basketballSims: number;
+  perUser: {
+    email: string;
+    soccerTeams: number;
+    basketballTeams: number;
+    soccerSims: number;
+    basketballSims: number;
+    soccerCards: number;
+  }[];
+  waitlist: number;
+}
+
+export default function BizIntel() {
+  const [secret, setSecret] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [stats, setStats] = useState<BizStats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchStats = async (s: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/bizintel', {
+        headers: { 'x-admin-secret': s },
+      });
+      if (res.status === 401) { setError('Wrong secret.'); setLoading(false); return; }
+      if (!res.ok) throw new Error('Failed to load stats');
+      const data = await res.json();
+      setStats(data);
+      setAuthed(true);
+    } catch (e: any) {
+      setError(e.message || 'Error loading stats');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchStats(secret);
+  };
+
+  if (!authed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-72">
+          <p className="font-mono text-xs text-white/40 text-center tracking-widest uppercase">PlayMatch BizIntel</p>
+          <input
+            type="password"
+            placeholder="Admin secret"
+            value={secret}
+            onChange={e => setSecret(e.target.value)}
+            className="px-4 py-3 rounded-lg font-mono text-sm bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+          />
+          {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+          <button type="submit" disabled={loading || !secret}
+            className="py-2 rounded-lg font-mono text-xs bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-40">
+            {loading ? 'Loading…' : 'Enter'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (!stats) return null;
+
+  const totalTeams = stats.soccerTeams + stats.basketballTeams;
+  const totalSims = stats.soccerSims + stats.basketballSims;
+  const totalCards = stats.soccerCards + stats.basketballCards;
+
+  const Stat = ({ label, value, sub }: { label: string; value: number | string; sub?: string }) => (
+    <div className="rounded-xl border border-white/10 p-5 bg-white/5">
+      <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase mb-1">{label}</p>
+      <p className="font-mono text-3xl font-bold text-white">{value}</p>
+      {sub && <p className="font-mono text-[10px] text-white/30 mt-1">{sub}</p>}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen p-8" style={{ background: '#0a0a0a', fontFamily: 'monospace' }}>
+      <div className="max-w-5xl mx-auto">
+
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-white font-mono text-lg tracking-widest uppercase">PlayMatch · BizIntel</h1>
+          <button onClick={() => { setAuthed(false); setStats(null); setSecret(''); }}
+            className="font-mono text-[10px] text-white/30 hover:text-white/60 transition-colors">
+            Sign out
+          </button>
+        </div>
+
+        {/* Top-line stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Stat label="Users" value={stats.users} sub={`+${stats.waitlist} waitlist`} />
+          <Stat label="Cards Uploaded" value={totalCards} sub={`${stats.soccerCards} soccer · ${stats.basketballCards} bball`} />
+          <Stat label="Teams Created" value={totalTeams} sub={`${stats.soccerTeams} soccer · ${stats.basketballTeams} bball`} />
+          <Stat label="Simulations" value={totalSims} sub={`${stats.soccerSims} soccer · ${stats.basketballSims} bball`} />
+        </div>
+
+        {/* Per-user table */}
+        <div className="rounded-xl border border-white/10 overflow-hidden">
+          <div className="px-5 py-3 border-b border-white/10 bg-white/5">
+            <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase">Per-User Breakdown</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                {['User', 'Soccer Teams', 'Bball Teams', 'Soccer Sims', 'Bball Sims', 'Cards'].map(h => (
+                  <th key={h} className="px-4 py-2 text-left font-mono text-[9px] text-white/30 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stats.perUser.sort((a, b) => (b.soccerTeams + b.basketballTeams) - (a.soccerTeams + a.basketballTeams)).map((u, i) => (
+                <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{u.email || '(unknown)'}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerTeams}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballTeams}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-center font-mono text-[10px] text-white/20 mt-6">
+          Last updated: {new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST
+        </p>
+      </div>
+    </div>
+  );
+}
