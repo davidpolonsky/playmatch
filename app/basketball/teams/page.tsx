@@ -556,6 +556,7 @@ export default function BasketballTeamsPage() {
           {([
             { key: 'build-team', label: 'Build Team' },
             { key: 'my-teams', label: `My Teams (${myTeams.length})` },
+            { key: 'teams', label: 'Teams' },
             { key: 'simulate', label: 'Simulate' },
             { key: 'standings', label: 'Standings' },
           ] as const).map(({ key, label }) => (

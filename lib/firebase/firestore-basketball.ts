@@ -146,14 +146,22 @@ export const saveBballHistory = async (entry: Omit<BballHistoryEntry, 'id'>): Pr
 };
 
 export const getBballHistory = async (teamId: string, maxResults = 10): Promise<BballHistoryEntry[]> => {
+  // Use only a simple where filter (no composite index needed) and sort client-side
   const q = query(
     collection(db, BBALL_HISTORY),
     where('teamId', '==', teamId),
-    orderBy('date', 'desc'),
-    limit(maxResults)
+    limit(50)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as BballHistoryEntry));
+  const entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as BballHistoryEntry));
+  // Sort newest-first client-side and cap at maxResults
+  return entries
+    .sort((a, b) => {
+      const aS = (a.date as any)?.seconds ?? 0;
+      const bS = (b.date as any)?.seconds ?? 0;
+      return bS - aS;
+    })
+    .slice(0, maxResults);
 };
 
 // ── Basketball Roster (draft player pool, persists across sessions) ─────────
