@@ -25,6 +25,7 @@ interface BizStats {
     soccerSims: number;
     basketballSims: number;
     soccerCards: number;
+    basketballCards: number;
   }[];
   waitlist: number;
   waitlistEntries: WaitlistEntry[];
@@ -135,7 +136,7 @@ export default function BizIntel() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10">
-                {['User', 'Soccer Teams', 'Bball Teams', 'Soccer Sims', 'Bball Sims', 'Cards'].map(h => (
+                {['User', 'Soccer Teams', 'Bball Teams', 'Soccer Sims', 'Bball Sims', 'Soccer Cards', 'Bball Cards'].map(h => (
                   <th key={h} className="px-4 py-2 text-left font-mono text-[9px] text-white/30 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -151,6 +152,7 @@ export default function BizIntel() {
                     <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
                     <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
                     <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballCards}</td>
                   </tr>
                 ))}
             </tbody>

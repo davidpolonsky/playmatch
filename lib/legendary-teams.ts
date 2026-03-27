@@ -174,6 +174,33 @@ const manchesterUnited1999: LegendaryTeam = {
   ],
 };
 
+// England 2026 World Cup
+const england2026: LegendaryTeam = {
+  id: 'legendary-england-2026',
+  name: 'England 2026 World Cup',
+  formation: '4-3-3',
+  userId: 'legendary',
+  description: 'England\'s golden generation at the 2026 World Cup. Bellingham, Kane, Saka — it\'s coming home.',
+  isLegendary: true,
+  players: [
+    // GK
+    { id: 'eng-1', name: 'Jordan Pickford', position: 'GK', rating: 83, imageUrl: '', isHistorical: false, year: '2026' },
+    // DEF
+    { id: 'eng-2', name: 'Trent Alexander-Arnold', position: 'DEF', rating: 87, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-3', name: 'John Stones', position: 'DEF', rating: 85, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-4', name: 'Marc Guehi', position: 'DEF', rating: 83, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-5', name: 'Kieran Trippier', position: 'DEF', rating: 82, imageUrl: '', isHistorical: false, year: '2026' },
+    // MID
+    { id: 'eng-6', name: 'Declan Rice', position: 'MID', rating: 88, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-7', name: 'Jude Bellingham', position: 'MID', rating: 91, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-8', name: 'Phil Foden', position: 'MID', rating: 89, imageUrl: '', isHistorical: false, year: '2026' },
+    // FWD
+    { id: 'eng-9', name: 'Bukayo Saka', position: 'FWD', rating: 89, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-10', name: 'Harry Kane', position: 'FWD', rating: 90, imageUrl: '', isHistorical: false, year: '2026' },
+    { id: 'eng-11', name: 'Cole Palmer', position: 'FWD', rating: 87, imageUrl: '', isHistorical: false, year: '2026' },
+  ],
+};
+
 // Wrexham AFC 2024-2026 (Current Squad)
 const wrexhamCurrent: LegendaryTeam = {
   id: 'legendary-wrexham-2024',
@@ -232,6 +259,7 @@ export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   barcelonaDreamTeam,
   tottenhamLegends,
   usmnt2026,
+  england2026,
   brazil1970,
   realMadridGalacticos,
   manchesterUnited1999,

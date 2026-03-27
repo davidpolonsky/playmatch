@@ -60,7 +60,8 @@ export async function GET(req: NextRequest) {
       basketballTeamsSnap,
       soccerSimsSnap,
       basketballSimsSnap,
-      rateLimitsSnap,
+      soccerRostersSnap,
+      bballRostersSnap,
       waitlistSnap,
     ] = await Promise.all([
       db.collection('users').get(),
@@ -68,7 +69,8 @@ export async function GET(req: NextRequest) {
       db.collection('basketballTeams').get(),
       db.collection('matchHistory').get(),
       db.collection('basketballHistory').get(),
-      db.collection('rateLimits').get(),
+      db.collection('rosters').get(),
+      db.collection('basketballRosters').get(),
       db.collection('waitlist').orderBy('createdAt', 'desc').get(),
     ]);
 
@@ -111,14 +113,22 @@ export async function GET(req: NextRequest) {
       if (uid) bballSimsByUser[uid] = (bballSimsByUser[uid] || 0) + 1;
     });
 
-    // Soccer cards uploaded per user
-    // rateLimits doc IDs are: `${userId}_${YYYY-MM-DD}` — extract uid by splitting on first `_`
+    // Soccer cards: count players in each user's roster doc
     const soccerCardsByUser: Record<string, number> = {};
-    rateLimitsSnap.docs.forEach(d => {
-      const underscoreIdx = d.id.indexOf('_');
-      if (underscoreIdx === -1) return;
-      const uid = d.id.substring(0, underscoreIdx);
-      soccerCardsByUser[uid] = (soccerCardsByUser[uid] || 0) + (d.data().cardUploads || 0);
+    soccerRostersSnap.docs.forEach(d => {
+      const uid = d.data().userId;
+      if (!uid) return;
+      const count = Array.isArray(d.data().players) ? d.data().players.length : 0;
+      soccerCardsByUser[uid] = (soccerCardsByUser[uid] || 0) + count;
+    });
+
+    // Basketball cards: count players in each user's basketball roster doc
+    const bballCardsByUser: Record<string, number> = {};
+    bballRostersSnap.docs.forEach(d => {
+      const uid = d.data().userId;
+      if (!uid) return;
+      const count = Array.isArray(d.data().players) ? d.data().players.length : 0;
+      bballCardsByUser[uid] = (bballCardsByUser[uid] || 0) + count;
     });
 
     // Build per-user breakdown (union of all known UIDs)
@@ -128,6 +138,7 @@ export async function GET(req: NextRequest) {
       ...Object.keys(soccerSimsByUser),
       ...Object.keys(bballSimsByUser),
       ...Object.keys(soccerCardsByUser),
+      ...Object.keys(bballCardsByUser),
       ...Object.keys(authEmails),
       ...usersSnap.docs.map(d => d.id),
     ]);
@@ -140,6 +151,7 @@ export async function GET(req: NextRequest) {
       soccerSims: soccerSimsByUser[uid] || 0,
       basketballSims: bballSimsByUser[uid] || 0,
       soccerCards: soccerCardsByUser[uid] || 0,
+      basketballCards: bballCardsByUser[uid] || 0,
     }));
 
     // Waitlist entries with emails
@@ -153,7 +165,7 @@ export async function GET(req: NextRequest) {
       users: allUids.size,
       authUsers: Object.keys(authEmails).length,
       soccerCards: Object.values(soccerCardsByUser).reduce((a, b) => a + b, 0),
-      basketballCards: 0, // basketball card uploads not tracked via rateLimits yet
+      basketballCards: Object.values(bballCardsByUser).reduce((a, b) => a + b, 0),
       soccerTeams: soccerTeamsSnap.size,
       basketballTeams: basketballTeamsSnap.size,
       soccerSims: soccerSimsSnap.size,

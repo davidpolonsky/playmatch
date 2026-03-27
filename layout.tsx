@@ -7,9 +7,16 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'PlayMatch - Build Your Dream Team',
-  description: 'Turn your soccer cards into dream teams with AI',
+  description: 'Scan your soccer cards, build your ultimate lineup, and simulate matches against legends.',
   icons: {
     icon: '/favicon.ico',
+  },
+  openGraph: {
+    title: 'PlayMatch - Build Your Dream Team',
+    description: 'Scan your soccer cards, build your ultimate lineup, and simulate matches against legends.',
+    url: 'https://playmatch.games',
+    siteName: 'PlayMatch',
+    type: 'website',
   },
 }
 
