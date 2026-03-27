@@ -99,7 +99,7 @@ export default function InteractivePlayerList({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`font-retro text-[8px] px-1.5 py-0.5 rounded ${POSITION_COLORS[player.position]}`}>
                   {player.position}
                 </span>
@@ -108,6 +108,18 @@ export default function InteractivePlayerList({
                   player.rating >= 80 ? 'text-fifa-mint' :
                   'text-white/60'
                 }`}>{player.rating}</span>
+                {player.rarity === 'legendary' && (
+                  <span className="font-retro text-[7px] px-1.5 py-0.5 rounded border"
+                    style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.4)' }}>
+                    ✦ LEGENDARY
+                  </span>
+                )}
+                {player.rarity === 'rare' && (
+                  <span className="font-retro text-[7px] px-1.5 py-0.5 rounded border"
+                    style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.4)' }}>
+                    ◆ RARE
+                  </span>
+                )}
               </div>
             </div>
 

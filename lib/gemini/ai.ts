@@ -17,7 +17,9 @@ export const analyzePlayerCard = async (imageBase64: string) => {
       "club": "club the player is associated with on this card e.g. Arsenal, Real Madrid, Barcelona — empty string if unknown or national team card",
       "skinTone": "light, medium, tan, or dark",
       "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
-      "hairStyle": "short, long, bald, or curly"
+      "hairStyle": "short, long, bald, or curly",
+      "cardValue": number (estimated USD resale value of this specific card),
+      "rarity": "common" | "rare" | "legendary"
     }
 
     For the rating field:
@@ -29,6 +31,16 @@ export const analyzePlayerCard = async (imageBase64: string) => {
     For nationality: use your knowledge of the player to determine their nationality. Return it as an adjective (e.g. "English" not "England", "French" not "France").
     For club: read the badge/crest on the card if visible. If it's a national team card or club is unclear, return "".
 
+    For cardValue and rarity:
+    - Examine the physical card for signs of rarity: holographic/foil finish, special borders, gold or rainbow shimmer, serial numbers (e.g. "/25", "/10"), special edition markings, autographs, refractor patterns, patch cards, graded slabs
+    - Estimate the realistic resale value of this specific card in USD based on the player's popularity, card condition, and rarity indicators
+    - Common examples: Standard base cards = $0.25-$2. Refractors/prizms = $3-15. Short prints/parallels = $5-50. Numbered parallels = $10-100+. Autographs = $20-500+. 1/1 superfractors = $500+
+    - Set rarity based on estimated value:
+      * "common" — worth less than $5 (standard base card, no special finish)
+      * "rare" — worth $5-$19.99 (refractor, parallel, prizm, or notable star player base card)
+      * "legendary" — worth $20+ (numbered card, autograph, patch, superfractor, or major star graded PSA 10)
+    - If the card appears to be a standard common card with no special features, set cardValue to a realistic low estimate (e.g. 0.5-2) and rarity to "common"
+
     For appearance fields (skinTone, hairColor, hairStyle):
     - Describe what you see in the photo on the card
     - Use simple categories that work for pixel art representation
@@ -39,7 +51,7 @@ export const analyzePlayerCard = async (imageBase64: string) => {
       "error": "description of the issue"
     }
 
-    IMPORTANT: Always provide a numeric rating and appearance data, never null or undefined. Only return valid JSON, no additional text.`;
+    IMPORTANT: Always provide a numeric rating, cardValue, rarity, and appearance data, never null or undefined. Only return valid JSON, no additional text.`;
 
     const result = await model.generateContent([
       prompt,
@@ -256,7 +268,9 @@ export const analyzeBasketballCard = async (imageBase64: string) => {
   "nbaTeam": "NBA team the player is associated with on this card e.g. Chicago Bulls, Los Angeles Lakers — empty string if unknown",
   "skinTone": "light, medium, tan, dark, brown, or ebony",
   "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
-  "hairStyle": "short, long, bald, or curly"
+  "hairStyle": "short, long, bald, or curly",
+  "cardValue": number (estimated USD resale value of this specific card),
+  "rarity": "common" | "rare" | "legendary"
 }
 
 Position guide:
@@ -274,10 +288,20 @@ For the rating field:
 For nationality: use your knowledge of the player. Return as adjective (e.g. "American" not "United States").
 For nbaTeam: read the team name/logo on the card if visible. Return the full franchise name (e.g. "Chicago Bulls"). Empty string if unclear.
 
+For cardValue and rarity:
+- Examine the physical card for signs of rarity: holographic/foil finish, special borders, gold or rainbow shimmer, serial numbers (e.g. "/25", "/10"), special edition markings, autographs, refractor/prizm patterns, patch windows, graded slabs (PSA, BGS)
+- Estimate the realistic resale value of this specific card in USD based on the player's popularity, card condition, and rarity indicators
+- Common examples: Standard base cards = $0.25-$2. Prizms/refractors = $3-15. Numbered parallels = $10-100+. Rookie cards of stars = $5-50+. Autographs = $20-500+. 1/1 cards = $500+
+- Set rarity based on estimated value:
+  * "common" — worth less than $5 (standard base card, no special finish)
+  * "rare" — worth $5-$19.99 (prizm, parallel, refractor, or star player rookie)
+  * "legendary" — worth $20+ (numbered card, autograph, patch, superfractor, PSA graded high)
+- If the card appears to be a standard common with no special features, set cardValue to a realistic low estimate (0.5-2) and rarity to "common"
+
 If you cannot read the card clearly, or it is not a basketball card, return:
 { "error": "description of the issue" }
 
-IMPORTANT: Always provide a numeric rating. Only return valid JSON, no extra text.`;
+IMPORTANT: Always provide a numeric rating, cardValue, and rarity. Only return valid JSON, no extra text.`;
 
     const result = await model.generateContent([
       prompt,

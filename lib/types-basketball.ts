@@ -11,6 +11,8 @@ export interface BasketballPlayer {
   era?: string;
   nationality?: string; // e.g. "American", "Serbian", "Greek"
   nbaTeam?: string;     // e.g. "Chicago Bulls", "Golden State Warriors"
+  rarity?: 'common' | 'rare' | 'legendary'; // card rarity tier
+  cardValue?: number;   // estimated market value in USD
   skinTone?: 'light' | 'medium' | 'tan' | 'dark' | 'brown' | 'ebony' | 'pale' | 'olive';
   hairColor?: 'blonde' | 'lightbrown' | 'brown' | 'darkbrown' | 'black' | 'red' | 'auburn' | 'gray' | 'platinum' | 'none';
   hairStyle?: 'short' | 'long' | 'bald' | 'curly';

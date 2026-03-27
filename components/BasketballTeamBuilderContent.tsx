@@ -426,6 +426,18 @@ export default function BasketballTeamBuilderContent({ onSaved }: Props) {
                     />
                     <span className="font-retro text-[7px] w-6 flex-shrink-0" style={{ color: POS_COLORS[p.position] }}>{p.position}</span>
                     <span className="font-headline text-[11px] text-white flex-1 truncate">{p.name}</span>
+                    {p.rarity === 'legendary' && (
+                      <span className="font-retro text-[6px] px-1 py-0.5 rounded border flex-shrink-0"
+                        style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.4)' }}>
+                        ✦
+                      </span>
+                    )}
+                    {p.rarity === 'rare' && (
+                      <span className="font-retro text-[6px] px-1 py-0.5 rounded border flex-shrink-0"
+                        style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.4)' }}>
+                        ◆
+                      </span>
+                    )}
                     <span className="font-headline text-[10px] font-bold"
                       style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
                       {p.rating}
@@ -544,9 +556,23 @@ export default function BasketballTeamBuilderContent({ onSaved }: Props) {
                             )}
                           </div>
                           <div className="font-headline text-[12px] text-white truncate">{player.name}</div>
-                          <div className="font-headline text-[10px] font-bold"
-                            style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
-                            {player.rating}
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="font-headline text-[10px] font-bold"
+                              style={{ color: player.rating >= 90 ? '#fbbf24' : player.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.5)' }}>
+                              {player.rating}
+                            </span>
+                            {player.rarity === 'legendary' && (
+                              <span className="font-retro text-[6px] px-1 py-0.5 rounded border"
+                                style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.4)' }}>
+                                ✦ LGND
+                              </span>
+                            )}
+                            {player.rarity === 'rare' && (
+                              <span className="font-retro text-[6px] px-1 py-0.5 rounded border"
+                                style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.4)' }}>
+                                ◆ RARE
+                              </span>
+                            )}
                           </div>
                         </div>
                         <button
