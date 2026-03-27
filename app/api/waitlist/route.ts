@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const SENDGRID_CONFIGURED = process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL;
 if (SENDGRID_CONFIGURED) sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+function getAdminDb() {
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+  return getFirestore();
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +29,19 @@ export async function POST(req: NextRequest) {
     const sportLabel = sport === 'basketball' ? 'Basketball 🏀' : 'Soccer ⚽';
     const notifyEmail = 'info@playmatch.games';
     const signupTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' EST';
+
+    // Store in Firestore regardless of SendGrid config
+    try {
+      const db = getAdminDb();
+      await db.collection('waitlist').add({
+        email,
+        sport: sport || 'soccer',
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (dbErr) {
+      console.error('Waitlist Firestore write error:', dbErr);
+      // Don't block the response if DB write fails
+    }
 
     if (SENDGRID_CONFIGURED) {
       await sgMail.send({

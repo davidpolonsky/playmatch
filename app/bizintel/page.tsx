@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+
+interface WaitlistEntry {
+  email: string;
+  sport: string;
+  createdAt: string;
+}
 
 interface BizStats {
   users: number;
+  authUsers: number;
   soccerCards: number;
   basketballCards: number;
   soccerTeams: number;
@@ -11,6 +18,7 @@ interface BizStats {
   soccerSims: number;
   basketballSims: number;
   perUser: {
+    uid: string;
     email: string;
     soccerTeams: number;
     basketballTeams: number;
@@ -19,6 +27,7 @@ interface BizStats {
     soccerCards: number;
   }[];
   waitlist: number;
+  waitlistEntries: WaitlistEntry[];
 }
 
 export default function BizIntel() {
@@ -80,6 +89,16 @@ export default function BizIntel() {
   const totalSims = stats.soccerSims + stats.basketballSims;
   const totalCards = stats.soccerCards + stats.basketballCards;
 
+  // Only show users that have some activity or a real email
+  const activeUsers = stats.perUser.filter(u =>
+    u.email ||
+    u.soccerTeams > 0 ||
+    u.basketballTeams > 0 ||
+    u.soccerSims > 0 ||
+    u.basketballSims > 0 ||
+    u.soccerCards > 0
+  );
+
   const Stat = ({ label, value, sub }: { label: string; value: number | string; sub?: string }) => (
     <div className="rounded-xl border border-white/10 p-5 bg-white/5">
       <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase mb-1">{label}</p>
@@ -102,14 +121,14 @@ export default function BizIntel() {
 
         {/* Top-line stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Stat label="Users" value={stats.users} sub={`+${stats.waitlist} waitlist`} />
+          <Stat label="Users" value={stats.authUsers} sub={`+${stats.waitlist} waitlist`} />
           <Stat label="Cards Uploaded" value={totalCards} sub={`${stats.soccerCards} soccer · ${stats.basketballCards} bball`} />
           <Stat label="Teams Created" value={totalTeams} sub={`${stats.soccerTeams} soccer · ${stats.basketballTeams} bball`} />
           <Stat label="Simulations" value={totalSims} sub={`${stats.soccerSims} soccer · ${stats.basketballSims} bball`} />
         </div>
 
         {/* Per-user table */}
-        <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="rounded-xl border border-white/10 overflow-hidden mb-6">
           <div className="px-5 py-3 border-b border-white/10 bg-white/5">
             <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase">Per-User Breakdown</p>
           </div>
@@ -122,19 +141,50 @@ export default function BizIntel() {
               </tr>
             </thead>
             <tbody>
-              {stats.perUser.sort((a, b) => (b.soccerTeams + b.basketballTeams) - (a.soccerTeams + a.basketballTeams)).map((u, i) => (
-                <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{u.email || '(unknown)'}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerTeams}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballTeams}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
-                </tr>
-              ))}
+              {activeUsers
+                .sort((a, b) => (b.soccerTeams + b.basketballTeams + b.soccerSims + b.basketballSims) - (a.soccerTeams + a.basketballTeams + a.soccerSims + a.basketballSims))
+                .map((u, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{u.email || '(unknown)'}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerTeams}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballTeams}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
+
+        {/* Waitlist table */}
+        {stats.waitlistEntries.length > 0 && (
+          <div className="rounded-xl border border-white/10 overflow-hidden mb-6">
+            <div className="px-5 py-3 border-b border-white/10 bg-white/5">
+              <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
+                Waitlist — {stats.waitlist} {stats.waitlist === 1 ? 'signup' : 'signups'}
+              </p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Email', 'Sport', 'Signed Up'].map(h => (
+                    <th key={h} className="px-4 py-2 text-left font-mono text-[9px] text-white/30 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {stats.waitlistEntries.map((w, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{w.email}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50 capitalize">{w.sport}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/40">{w.createdAt || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <p className="text-center font-mono text-[10px] text-white/20 mt-6">
           Last updated: {new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST

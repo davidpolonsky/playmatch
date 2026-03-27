@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
-function getAdminDb() {
+function getAdminApp() {
   if (!getApps().length) {
     initializeApp({
       credential: cert({
@@ -12,12 +13,36 @@ function getAdminDb() {
       }),
     });
   }
+}
+
+function getAdminDb() {
+  getAdminApp();
   return getFirestore();
+}
+
+function getAdminAuth() {
+  getAdminApp();
+  return getAuth();
 }
 
 function isAuthorized(req: NextRequest) {
   const secret = process.env.ADMIN_SECRET;
   return secret && req.headers.get('x-admin-secret') === secret;
+}
+
+// Fetch all Firebase Auth users and return a uid→email map
+async function getAllAuthEmails(): Promise<Record<string, string>> {
+  const auth = getAdminAuth();
+  const emailMap: Record<string, string> = {};
+  let pageToken: string | undefined;
+  do {
+    const result = await auth.listUsers(1000, pageToken);
+    result.users.forEach(u => {
+      if (u.email) emailMap[u.uid] = u.email;
+    });
+    pageToken = result.pageToken;
+  } while (pageToken);
+  return emailMap;
 }
 
 export async function GET(req: NextRequest) {
@@ -43,13 +68,18 @@ export async function GET(req: NextRequest) {
       db.collection('basketballTeams').get(),
       db.collection('matchHistory').get(),
       db.collection('basketballHistory').get(),
-      db.collection('rateLimits').get(),            // soccer card uploads
-      db.collection('inviteCodes').where('used', '==', false).get(), // unused codes ≈ waitlist proxy
+      db.collection('rateLimits').get(),
+      db.collection('waitlist').orderBy('createdAt', 'desc').get(),
     ]);
 
-    // Build per-user maps
-    const userEmails: Record<string, string> = {};
-    usersSnap.docs.forEach(d => { userEmails[d.id] = d.data().email || ''; });
+    // Get all Auth user emails (covers users who existed before createUserDoc was added)
+    const authEmails = await getAllAuthEmails();
+
+    // Build email map: Firestore users collection first, then fill gaps from Auth
+    const userEmails: Record<string, string> = { ...authEmails };
+    usersSnap.docs.forEach(d => {
+      if (d.data().email) userEmails[d.id] = d.data().email;
+    });
 
     // Soccer teams per user
     const soccerTeamsByUser: Record<string, number> = {};
@@ -81,10 +111,14 @@ export async function GET(req: NextRequest) {
       if (uid) bballSimsByUser[uid] = (bballSimsByUser[uid] || 0) + 1;
     });
 
-    // Soccer cards uploaded per user (rateLimits collection)
+    // Soccer cards uploaded per user
+    // rateLimits doc IDs are: `${userId}_${YYYY-MM-DD}` — extract uid by splitting on first `_`
     const soccerCardsByUser: Record<string, number> = {};
     rateLimitsSnap.docs.forEach(d => {
-      soccerCardsByUser[d.id] = d.data().cardUploads || 0;
+      const underscoreIdx = d.id.indexOf('_');
+      if (underscoreIdx === -1) return;
+      const uid = d.id.substring(0, underscoreIdx);
+      soccerCardsByUser[uid] = (soccerCardsByUser[uid] || 0) + (d.data().cardUploads || 0);
     });
 
     // Build per-user breakdown (union of all known UIDs)
@@ -93,10 +127,13 @@ export async function GET(req: NextRequest) {
       ...Object.keys(bballTeamsByUser),
       ...Object.keys(soccerSimsByUser),
       ...Object.keys(bballSimsByUser),
+      ...Object.keys(soccerCardsByUser),
+      ...Object.keys(authEmails),
       ...usersSnap.docs.map(d => d.id),
     ]);
 
     const perUser = Array.from(allUids).map(uid => ({
+      uid,
       email: userEmails[uid] || '',
       soccerTeams: soccerTeamsByUser[uid] || 0,
       basketballTeams: bballTeamsByUser[uid] || 0,
@@ -105,15 +142,24 @@ export async function GET(req: NextRequest) {
       soccerCards: soccerCardsByUser[uid] || 0,
     }));
 
+    // Waitlist entries with emails
+    const waitlistEntries = waitlistSnap.docs.map(d => ({
+      email: d.data().email || '',
+      sport: d.data().sport || 'soccer',
+      createdAt: d.data().createdAt?.toDate?.()?.toLocaleString('en-US', { timeZone: 'America/New_York' }) || '',
+    }));
+
     return NextResponse.json({
-      users: usersSnap.size,
+      users: allUids.size,
+      authUsers: Object.keys(authEmails).length,
       soccerCards: Object.values(soccerCardsByUser).reduce((a, b) => a + b, 0),
       basketballCards: 0, // basketball card uploads not tracked via rateLimits yet
       soccerTeams: soccerTeamsSnap.size,
       basketballTeams: basketballTeamsSnap.size,
       soccerSims: soccerSimsSnap.size,
       basketballSims: basketballSimsSnap.size,
-      waitlist: waitlistSnap.size, // unused invite codes as a proxy
+      waitlist: waitlistSnap.size,
+      waitlistEntries,
       perUser,
     });
   } catch (err: any) {
