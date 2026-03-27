@@ -2,9 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read/write their own roster and team data
+    // Users can read/write their own user doc and any subcollections
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Invite codes — any signed-in user can read to validate; update to consume
+    match /inviteCodes/{codeId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;
     }
 
     // User preferences (Table / Standings saved selections)
