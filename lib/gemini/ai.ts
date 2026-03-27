@@ -13,6 +13,8 @@ export const analyzePlayerCard = async (imageBase64: string) => {
       "rating": number between 1-99,
       "isHistorical": boolean (true if retired/historical player),
       "year": "year or era if historical",
+      "nationality": "player's nationality as an adjective e.g. English, Spanish, Brazilian, French, Argentine",
+      "club": "club the player is associated with on this card e.g. Arsenal, Real Madrid, Barcelona — empty string if unknown or national team card",
       "skinTone": "light, medium, tan, or dark",
       "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
       "hairStyle": "short, long, bald, or curly"
@@ -23,6 +25,9 @@ export const analyzePlayerCard = async (imageBase64: string) => {
     - Consider the player's peak performance, achievements, and abilities during that time period
     - Use knowledge of actual FIFA ratings if available, or estimate based on the player's real-world performance
     - Examples: Prime Messi (2010-2015) = 94-96, Prime Ronaldo = 94-96, World-class players = 85-93, Good players = 75-84, Average = 65-74
+
+    For nationality: use your knowledge of the player to determine their nationality. Return it as an adjective (e.g. "English" not "England", "French" not "France").
+    For club: read the badge/crest on the card if visible. If it's a national team card or club is unclear, return "".
 
     For appearance fields (skinTone, hairColor, hairStyle):
     - Describe what you see in the photo on the card
@@ -71,7 +76,9 @@ export const simulateMatch = async (
   team2Name: string,
   team2Players: any[],
   team1Formation: string = '4-3-3',
-  team2Formation: string = '4-3-3'
+  team2Formation: string = '4-3-3',
+  team1ChemistryText: string = '',
+  team2ChemistryText: string = ''
 ) => {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -145,9 +152,11 @@ export const simulateMatch = async (
 
 TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating}, Formation: ${team1Formation})
 ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
+${team1ChemistryText ? `\n${team1ChemistryText}` : ''}
 
 TEAM 2: ${team2Name} (Average Rating: ${team2AvgRating}, Formation: ${team2Formation})
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Historical legend' : ''}`).join('\n')}
+${team2ChemistryText ? `\n${team2ChemistryText}` : ''}
 
 TACTICAL ANALYSIS:
 - ${team1Name} (${team1Formation}): ${team1Analysis.summary}
@@ -243,6 +252,8 @@ export const analyzeBasketballCard = async (imageBase64: string) => {
   "rating": number between 1-99,
   "isHistorical": boolean (true if retired/historical player),
   "year": "year or era if historical",
+  "nationality": "player's nationality as an adjective e.g. American, Serbian, Greek, Australian, French",
+  "nbaTeam": "NBA team the player is associated with on this card e.g. Chicago Bulls, Los Angeles Lakers — empty string if unknown",
   "skinTone": "light, medium, tan, dark, brown, or ebony",
   "hairColor": "blonde, brown, black, red, gray, or none (if bald)",
   "hairStyle": "short, long, bald, or curly"
@@ -259,6 +270,9 @@ For the rating field:
 - Use NBA 2K-style overall rating (1-99) based on the player's skill during that specific year
 - Consider peak performance, achievements, and real-world impact
 - Examples: Prime MJ (1996) = 99, Prime LeBron (2013) = 98, Prime Curry (2016) = 97, All-Star = 88-94, Good starter = 78-87, Role player = 65-77
+
+For nationality: use your knowledge of the player. Return as adjective (e.g. "American" not "United States").
+For nbaTeam: read the team name/logo on the card if visible. Return the full franchise name (e.g. "Chicago Bulls"). Empty string if unclear.
 
 If you cannot read the card clearly, or it is not a basketball card, return:
 { "error": "description of the issue" }
@@ -470,7 +484,9 @@ export const simulateBasketballGame = async (
   team2Name: string,
   team2Players: any[],
   team1Lineup: string = 'Standard',
-  team2Lineup: string = 'Standard'
+  team2Lineup: string = 'Standard',
+  team1ChemistryText: string = '',
+  team2ChemistryText: string = ''
 ) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -488,9 +504,11 @@ export const simulateBasketballGame = async (
 
 TEAM 1: ${team1Name} (Avg Rating: ${team1Avg}, Strategy: ${team1Lineup})
 ${team1Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
+${team1ChemistryText ? `\n${team1ChemistryText}` : ''}
 
 TEAM 2: ${team2Name} (Avg Rating: ${team2Avg}, Strategy: ${team2Lineup})
 ${team2Players.map((p: any) => `  - ${p.name} | ${p.position} | Rating: ${p.rating}${p.isHistorical ? ' | Legend' : ''}`).join('\n')}
+${team2ChemistryText ? `\n${team2ChemistryText}` : ''}
 
 STRATEGY ANALYSIS:
 - ${team1Name} (${team1Lineup}): ${team1Analysis.summary}

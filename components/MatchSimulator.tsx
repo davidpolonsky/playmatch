@@ -16,6 +16,7 @@ import {
   getSavedTeamIds,
 } from '@/lib/firebase/firestore';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
+import { calculateSoccerChemistry, ChemistryResult } from '@/lib/chemistry';
 
 type AnyTeam = Team | LegendaryTeam;
 
@@ -78,6 +79,40 @@ function RosterPreview({ team, record }: { team: AnyTeam; record?: TeamRecord })
   );
 }
 
+// ── Chemistry Panel ────────────────────────────────────────────
+const CHEMISTRY_COLORS: Record<string, string> = {
+  club:     'bg-blue-500/20 border-blue-500/40 text-blue-300',
+  national: 'bg-green-500/20 border-green-500/40 text-green-300',
+  era:      'bg-purple-500/20 border-purple-500/40 text-purple-300',
+  team:     'bg-orange-500/20 border-orange-500/40 text-orange-300',
+};
+
+function ChemistryPanel({ chemistry }: { chemistry: ChemistryResult | null }) {
+  if (!chemistry || chemistry.activeBonuses.length === 0) return null;
+  const score = chemistry.chemistryScore;
+  const barColor = score >= 70 ? 'bg-green-400' : score >= 40 ? 'bg-fifa-amber' : 'bg-red-400';
+  return (
+    <div className="mt-2 rounded-lg border border-fifa-border bg-fifa-dark/80 p-3 space-y-2">
+      {/* Score bar */}
+      <div className="flex items-center gap-2">
+        <span className="font-retro text-[8px] text-white/40 uppercase tracking-widest whitespace-nowrap">Chemistry</span>
+        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${score}%` }} />
+        </div>
+        <span className={`font-retro text-[9px] font-bold ${score >= 70 ? 'text-green-400' : score >= 40 ? 'text-fifa-amber' : 'text-red-400'}`}>{score}</span>
+      </div>
+      {/* Active bonus badges */}
+      <div className="flex flex-wrap gap-1.5">
+        {chemistry.activeBonuses.map((bonus, i) => (
+          <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-headline ${CHEMISTRY_COLORS[bonus.type] || CHEMISTRY_COLORS.club}`}>
+            {bonus.emoji} {bonus.label} <span className="font-bold">+{bonus.bonusPerPlayer}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const EVENT_ICONS: Record<string, string> = {
   kickoff: '🏁', action: '⚽', shot: '🎯', goal: '🚨',
   save: '🧤', foul: '🚩', card: '🟡', corner: '🔄',
@@ -113,6 +148,8 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   const [addTeamLoading, setAddTeamLoading] = useState(false);
   const [addTeamError, setAddTeamError] = useState('');
   const [savedTeamIds, setSavedTeamIds] = useState<string[]>([]);
+  const [team1Chemistry, setTeam1Chemistry] = useState<ChemistryResult | null>(null);
+  const [team2Chemistry, setTeam2Chemistry] = useState<ChemistryResult | null>(null);
 
   // Get legendary teams (excluding premium)
   const legendaryTeams = getLegendaryTeams();
@@ -258,6 +295,8 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
           team2Name: team2.name, team2Players: team2.players, team2Formation: (team2 as any).formation || '4-3-3',
           userId: userId,
           userEmail: userEmail,
+          team1ChemistryText: team1Chemistry?.promptText || '',
+          team2ChemistryText: team2Chemistry?.promptText || '',
         }),
       });
 
@@ -321,6 +360,14 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   const team2 = getTeamById(team2Id);
   const isHomeOwnTeam = team1 && !('isLegendary' in team1 && team1.isLegendary) && teams.some(t => t.id === team1.id);
 
+  // Recompute chemistry when selected teams change
+  useEffect(() => {
+    setTeam1Chemistry(team1 ? calculateSoccerChemistry(team1.players as any[]) : null);
+  }, [team1Id]);
+  useEffect(() => {
+    setTeam2Chemistry(team2 ? calculateSoccerChemistry(team2.players as any[]) : null);
+  }, [team2Id]);
+
   return (
     <div className="bg-fifa-mid rounded-xl border border-fifa-border shadow-retro p-6 max-w-4xl mx-auto">
       <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">⚽ MATCH SIMULATOR</h2>
@@ -340,6 +387,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
             </optgroup>
           </select>
           {team1 && <RosterPreview team={team1} record={getRecord(team1)} />}
+          {team1 && <ChemistryPanel chemistry={team1Chemistry} />}
         </div>
 
         <div className="flex flex-col items-center justify-start pt-6">
@@ -378,6 +426,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
             )}
           </select>
           {team2 && <RosterPreview team={team2} record={getRecord(team2)} />}
+          {team2 && <ChemistryPanel chemistry={team2Chemistry} />}
         </div>
       </div>
 

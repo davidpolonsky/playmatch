@@ -9,6 +9,8 @@ export interface BasketballPlayer {
   isHistorical?: boolean;
   year?: string;
   era?: string;
+  nationality?: string; // e.g. "American", "Serbian", "Greek"
+  nbaTeam?: string;     // e.g. "Chicago Bulls", "Golden State Warriors"
   skinTone?: 'light' | 'medium' | 'tan' | 'dark' | 'brown' | 'ebony' | 'pale' | 'olive';
   hairColor?: 'blonde' | 'lightbrown' | 'brown' | 'darkbrown' | 'black' | 'red' | 'auburn' | 'gray' | 'platinum' | 'none';
   hairStyle?: 'short' | 'long' | 'bald' | 'curly';

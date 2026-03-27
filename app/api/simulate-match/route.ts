@@ -4,7 +4,7 @@ import { checkSimulationLimit, incrementSimulationCount, trackSimulation } from 
 
 export async function POST(request: NextRequest) {
   try {
-    const { team1Name, team1Players, team1Formation, team2Name, team2Players, team2Formation, userId, userEmail } = await request.json();
+    const { team1Name, team1Players, team1Formation, team2Name, team2Players, team2Formation, userId, userEmail, team1ChemistryText, team2ChemistryText } = await request.json();
 
     if (!team1Name || !team1Players || !team2Name || !team2Players) {
       return NextResponse.json({ error: 'Missing team data' }, { status: 400 });
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await simulateMatch(team1Name, team1Players, team2Name, team2Players, team1Formation, team2Formation);
+    const result = await simulateMatch(team1Name, team1Players, team2Name, team2Players, team1Formation, team2Formation, team1ChemistryText || '', team2ChemistryText || '');
 
     // Increment simulation count if userId provided
     if (userId) {

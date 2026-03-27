@@ -21,11 +21,11 @@ const dreamTeam1992: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '1992',
   players: [
-    { id: 'dt-1', name: 'Magic Johnson',    position: 'PG', rating: 97, imageUrl: '', isHistorical: true, year: '1992' },
-    { id: 'dt-2', name: 'Michael Jordan',   position: 'SG', rating: 99, imageUrl: '', isHistorical: true, year: '1992' },
-    { id: 'dt-3', name: 'Scottie Pippen',   position: 'SF', rating: 93, imageUrl: '', isHistorical: true, year: '1992' },
-    { id: 'dt-4', name: 'Charles Barkley',  position: 'PF', rating: 95, imageUrl: '', isHistorical: true, year: '1992' },
-    { id: 'dt-5', name: 'Patrick Ewing',    position: 'C',  rating: 91, imageUrl: '', isHistorical: true, year: '1992' },
+    { id: 'dt-1', name: 'Magic Johnson',    position: 'PG', rating: 97, imageUrl: '', isHistorical: true, year: '1992', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
+    { id: 'dt-2', name: 'Michael Jordan',   position: 'SG', rating: 99, imageUrl: '', isHistorical: true, year: '1992', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'dt-3', name: 'Scottie Pippen',   position: 'SF', rating: 93, imageUrl: '', isHistorical: true, year: '1992', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'dt-4', name: 'Charles Barkley',  position: 'PF', rating: 95, imageUrl: '', isHistorical: true, year: '1992', nationality: 'American', nbaTeam: 'Philadelphia 76ers' },
+    { id: 'dt-5', name: 'Patrick Ewing',    position: 'C',  rating: 91, imageUrl: '', isHistorical: true, year: '1992', nationality: 'American', nbaTeam: 'New York Knicks' },
   ],
 };
 
@@ -39,11 +39,11 @@ const bulls9596: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '1996',
   players: [
-    { id: 'bulls-1', name: 'Ron Harper',       position: 'PG', rating: 82, imageUrl: '', isHistorical: true, year: '1996' },
-    { id: 'bulls-2', name: 'Michael Jordan',   position: 'SG', rating: 99, imageUrl: '', isHistorical: true, year: '1996' },
-    { id: 'bulls-3', name: 'Scottie Pippen',   position: 'SF', rating: 94, imageUrl: '', isHistorical: true, year: '1996' },
-    { id: 'bulls-4', name: 'Dennis Rodman',    position: 'PF', rating: 89, imageUrl: '', isHistorical: true, year: '1996' },
-    { id: 'bulls-5', name: 'Luc Longley',      position: 'C',  rating: 78, imageUrl: '', isHistorical: true, year: '1996' },
+    { id: 'bulls-1', name: 'Ron Harper',       position: 'PG', rating: 82, imageUrl: '', isHistorical: true, year: '1996', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'bulls-2', name: 'Michael Jordan',   position: 'SG', rating: 99, imageUrl: '', isHistorical: true, year: '1996', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'bulls-3', name: 'Scottie Pippen',   position: 'SF', rating: 94, imageUrl: '', isHistorical: true, year: '1996', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'bulls-4', name: 'Dennis Rodman',    position: 'PF', rating: 89, imageUrl: '', isHistorical: true, year: '1996', nationality: 'American', nbaTeam: 'Chicago Bulls' },
+    { id: 'bulls-5', name: 'Luc Longley',      position: 'C',  rating: 78, imageUrl: '', isHistorical: true, year: '1996', nationality: 'Australian', nbaTeam: 'Chicago Bulls' },
   ],
 };
 
@@ -57,11 +57,11 @@ const warriors1516: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '2016',
   players: [
-    { id: 'gsw-1', name: 'Stephen Curry',   position: 'PG', rating: 98, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'gsw-2', name: 'Klay Thompson',   position: 'SG', rating: 92, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'gsw-3', name: 'Harrison Barnes', position: 'SF', rating: 81, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'gsw-4', name: 'Draymond Green',  position: 'PF', rating: 90, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'gsw-5', name: 'Andrew Bogut',    position: 'C',  rating: 82, imageUrl: '', isHistorical: true, year: '2016' },
+    { id: 'gsw-1', name: 'Stephen Curry',   position: 'PG', rating: 98, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Golden State Warriors' },
+    { id: 'gsw-2', name: 'Klay Thompson',   position: 'SG', rating: 92, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Golden State Warriors' },
+    { id: 'gsw-3', name: 'Harrison Barnes', position: 'SF', rating: 81, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Golden State Warriors' },
+    { id: 'gsw-4', name: 'Draymond Green',  position: 'PF', rating: 90, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Golden State Warriors' },
+    { id: 'gsw-5', name: 'Andrew Bogut',    position: 'C',  rating: 82, imageUrl: '', isHistorical: true, year: '2016', nationality: 'Australian', nbaTeam: 'Golden State Warriors' },
   ],
 };
 
@@ -75,11 +75,11 @@ const cavs2016: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '2016',
   players: [
-    { id: 'cavs-1', name: 'Kyrie Irving',    position: 'PG', rating: 94, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'cavs-2', name: 'Iman Shumpert',   position: 'SG', rating: 77, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'cavs-3', name: 'LeBron James',    position: 'SF', rating: 98, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'cavs-4', name: 'Kevin Love',      position: 'PF', rating: 88, imageUrl: '', isHistorical: true, year: '2016' },
-    { id: 'cavs-5', name: 'Tristan Thompson', position: 'C', rating: 79, imageUrl: '', isHistorical: true, year: '2016' },
+    { id: 'cavs-1', name: 'Kyrie Irving',    position: 'PG', rating: 94, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Cleveland Cavaliers' },
+    { id: 'cavs-2', name: 'Iman Shumpert',   position: 'SG', rating: 77, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Cleveland Cavaliers' },
+    { id: 'cavs-3', name: 'LeBron James',    position: 'SF', rating: 98, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Cleveland Cavaliers' },
+    { id: 'cavs-4', name: 'Kevin Love',      position: 'PF', rating: 88, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Cleveland Cavaliers' },
+    { id: 'cavs-5', name: 'Tristan Thompson', position: 'C', rating: 79, imageUrl: '', isHistorical: true, year: '2016', nationality: 'American', nbaTeam: 'Cleveland Cavaliers' },
   ],
 };
 
@@ -93,11 +93,11 @@ const lakers8687: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '1987',
   players: [
-    { id: 'lal-1', name: 'Magic Johnson',    position: 'PG', rating: 98, imageUrl: '', isHistorical: true, year: '1987' },
-    { id: 'lal-2', name: 'Byron Scott',      position: 'SG', rating: 84, imageUrl: '', isHistorical: true, year: '1987' },
-    { id: 'lal-3', name: 'James Worthy',     position: 'SF', rating: 91, imageUrl: '', isHistorical: true, year: '1987' },
-    { id: 'lal-4', name: 'Kurt Rambis',      position: 'PF', rating: 78, imageUrl: '', isHistorical: true, year: '1987' },
-    { id: 'lal-5', name: 'Kareem Abdul-Jabbar', position: 'C', rating: 96, imageUrl: '', isHistorical: true, year: '1987' },
+    { id: 'lal-1', name: 'Magic Johnson',    position: 'PG', rating: 98, imageUrl: '', isHistorical: true, year: '1987', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
+    { id: 'lal-2', name: 'Byron Scott',      position: 'SG', rating: 84, imageUrl: '', isHistorical: true, year: '1987', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
+    { id: 'lal-3', name: 'James Worthy',     position: 'SF', rating: 91, imageUrl: '', isHistorical: true, year: '1987', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
+    { id: 'lal-4', name: 'Kurt Rambis',      position: 'PF', rating: 78, imageUrl: '', isHistorical: true, year: '1987', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
+    { id: 'lal-5', name: 'Kareem Abdul-Jabbar', position: 'C', rating: 96, imageUrl: '', isHistorical: true, year: '1987', nationality: 'American', nbaTeam: 'Los Angeles Lakers' },
   ],
 };
 
@@ -111,11 +111,11 @@ const pistons2004: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '2004',
   players: [
-    { id: 'det-1', name: 'Chauncey Billups', position: 'PG', rating: 90, imageUrl: '', isHistorical: true, year: '2004' },
-    { id: 'det-2', name: 'Richard Hamilton',  position: 'SG', rating: 87, imageUrl: '', isHistorical: true, year: '2004' },
-    { id: 'det-3', name: 'Tayshaun Prince',   position: 'SF', rating: 84, imageUrl: '', isHistorical: true, year: '2004' },
-    { id: 'det-4', name: 'Rasheed Wallace',   position: 'PF', rating: 88, imageUrl: '', isHistorical: true, year: '2004' },
-    { id: 'det-5', name: 'Ben Wallace',       position: 'C',  rating: 89, imageUrl: '', isHistorical: true, year: '2004' },
+    { id: 'det-1', name: 'Chauncey Billups', position: 'PG', rating: 90, imageUrl: '', isHistorical: true, year: '2004', nationality: 'American', nbaTeam: 'Detroit Pistons' },
+    { id: 'det-2', name: 'Richard Hamilton',  position: 'SG', rating: 87, imageUrl: '', isHistorical: true, year: '2004', nationality: 'American', nbaTeam: 'Detroit Pistons' },
+    { id: 'det-3', name: 'Tayshaun Prince',   position: 'SF', rating: 84, imageUrl: '', isHistorical: true, year: '2004', nationality: 'American', nbaTeam: 'Detroit Pistons' },
+    { id: 'det-4', name: 'Rasheed Wallace',   position: 'PF', rating: 88, imageUrl: '', isHistorical: true, year: '2004', nationality: 'American', nbaTeam: 'Detroit Pistons' },
+    { id: 'det-5', name: 'Ben Wallace',       position: 'C',  rating: 89, imageUrl: '', isHistorical: true, year: '2004', nationality: 'American', nbaTeam: 'Detroit Pistons' },
   ],
 };
 
@@ -129,11 +129,11 @@ const spurs2003: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '2003',
   players: [
-    { id: 'sas-1', name: 'Tony Parker',      position: 'PG', rating: 87, imageUrl: '', isHistorical: true, year: '2003' },
-    { id: 'sas-2', name: 'Manu Ginobili',    position: 'SG', rating: 88, imageUrl: '', isHistorical: true, year: '2003' },
-    { id: 'sas-3', name: 'Bruce Bowen',      position: 'SF', rating: 79, imageUrl: '', isHistorical: true, year: '2003' },
-    { id: 'sas-4', name: 'Tim Duncan',       position: 'PF', rating: 97, imageUrl: '', isHistorical: true, year: '2003' },
-    { id: 'sas-5', name: 'David Robinson',   position: 'C',  rating: 93, imageUrl: '', isHistorical: true, year: '2003' },
+    { id: 'sas-1', name: 'Tony Parker',      position: 'PG', rating: 87, imageUrl: '', isHistorical: true, year: '2003', nationality: 'American', nbaTeam: 'San Antonio Spurs' },
+    { id: 'sas-2', name: 'Manu Ginobili',    position: 'SG', rating: 88, imageUrl: '', isHistorical: true, year: '2003', nationality: 'American', nbaTeam: 'San Antonio Spurs' },
+    { id: 'sas-3', name: 'Bruce Bowen',      position: 'SF', rating: 79, imageUrl: '', isHistorical: true, year: '2003', nationality: 'American', nbaTeam: 'San Antonio Spurs' },
+    { id: 'sas-4', name: 'Tim Duncan',       position: 'PF', rating: 97, imageUrl: '', isHistorical: true, year: '2003', nationality: 'American', nbaTeam: 'San Antonio Spurs' },
+    { id: 'sas-5', name: 'David Robinson',   position: 'C',  rating: 93, imageUrl: '', isHistorical: true, year: '2003', nationality: 'American', nbaTeam: 'San Antonio Spurs' },
   ],
 };
 
@@ -147,11 +147,11 @@ const celtics2024: LegendaryBasketballTeam = {
   isLegendary: true,
   era: '2024',
   players: [
-    { id: 'bos-1', name: 'Jrue Holiday',     position: 'PG', rating: 88, imageUrl: '', isHistorical: false, year: '2024' },
-    { id: 'bos-2', name: 'Jaylen Brown',     position: 'SG', rating: 93, imageUrl: '', isHistorical: false, year: '2024' },
-    { id: 'bos-3', name: 'Jayson Tatum',     position: 'SF', rating: 95, imageUrl: '', isHistorical: false, year: '2024' },
-    { id: 'bos-4', name: 'Al Horford',       position: 'PF', rating: 84, imageUrl: '', isHistorical: false, year: '2024' },
-    { id: 'bos-5', name: 'Kristaps Porzingis', position: 'C', rating: 87, imageUrl: '', isHistorical: false, year: '2024' },
+    { id: 'bos-1', name: 'Jrue Holiday',     position: 'PG', rating: 88, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-2', name: 'Jaylen Brown',     position: 'SG', rating: 93, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-3', name: 'Jayson Tatum',     position: 'SF', rating: 95, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-4', name: 'Al Horford',       position: 'PF', rating: 84, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-5', name: 'Kristaps Porzingis', position: 'C', rating: 87, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
   ],
 };
 

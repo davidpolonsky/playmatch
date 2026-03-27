@@ -7,6 +7,8 @@ export interface Player {
   isHistorical?: boolean;
   year?: string;
   era?: string;
+  nationality?: string; // e.g. "English", "Spanish", "Brazilian"
+  club?: string;        // e.g. "Arsenal", "Real Madrid", "Barcelona"
   // Pixel avatar appearance
   skinTone?: 'light' | 'medium' | 'tan' | 'dark' | 'brown' | 'ebony' | 'pale' | 'olive';
   hairColor?: 'blonde' | 'lightbrown' | 'brown' | 'darkbrown' | 'black' | 'red' | 'auburn' | 'gray' | 'platinum' | 'none';

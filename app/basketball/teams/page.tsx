@@ -15,6 +15,7 @@ import { saveTablePreferences, getTablePreferences } from '@/lib/firebase/firest
 import { LEGENDARY_BASKETBALL_TEAMS, LegendaryBasketballTeam } from '@/lib/legendary-basketball-teams';
 import { BASKETBALL_POSITION_ORDER, BasketballPosition } from '@/lib/types-basketball';
 import BasketballTeamBuilderContent from '@/components/BasketballTeamBuilderContent';
+import { calculateBasketballChemistry, ChemistryResult, ChemistryBonus } from '@/lib/chemistry';
 
 type AnyBballTeam = BballTeamDoc | LegendaryBasketballTeam;
 
@@ -123,6 +124,37 @@ const getTeamColor = (name: string): string => {
   return hashTeamColor(name);
 };
 
+const CHEM_COLORS: Record<string, string> = {
+  club:     'bg-blue-500/20 border-blue-500/40 text-blue-300',
+  national: 'bg-green-500/20 border-green-500/40 text-green-300',
+  era:      'bg-purple-500/20 border-purple-500/40 text-purple-300',
+  team:     'bg-orange-500/20 border-orange-500/40 text-orange-300',
+};
+
+function BballChemistryPanel({ chemistry }: { chemistry: ChemistryResult | null }) {
+  if (!chemistry || chemistry.activeBonuses.length === 0) return null;
+  const score = chemistry.chemistryScore;
+  const barColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f97316' : '#ef4444';
+  return (
+    <div className="mt-2 rounded-lg border p-3 space-y-2" style={{ background: '#0f0a00', borderColor: '#3d2c00' }}>
+      <div className="flex items-center gap-2">
+        <span className="font-retro text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>Chemistry</span>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${score}%`, background: barColor }} />
+        </div>
+        <span className="font-retro text-[9px] font-bold" style={{ color: barColor }}>{score}</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {chemistry.activeBonuses.map((bonus: ChemistryBonus, i: number) => (
+          <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-headline ${CHEM_COLORS[bonus.type] || CHEM_COLORS.team}`}>
+            {bonus.emoji} {bonus.label} <span className="font-bold">+{bonus.bonusPerPlayer}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RecordBadge({ record }: { record: BballRecord }) {
   return (
     <span className="inline-flex gap-2 font-headline text-[11px] font-bold">
@@ -166,6 +198,9 @@ export default function BasketballTeamsPage() {
   const [liveScore, setLiveScore] = useState({ home: 0, away: 0 });
   const [loadingPhrase, setLoadingPhrase] = useState('');
   const [currentQuarter, setCurrentQuarter] = useState(0);
+
+  const [homeChemistry, setHomeChemistry] = useState<ChemistryResult | null>(null);
+  const [awayChemistry, setAwayChemistry] = useState<ChemistryResult | null>(null);
 
   // Add rival
   const [addTeamIdInput, setAddTeamIdInput] = useState('');
@@ -374,6 +409,14 @@ export default function BasketballTeamsPage() {
     } catch (e) { console.error('Failed to update record', e); }
   };
 
+  // Recompute basketball chemistry when teams change
+  useEffect(() => {
+    setHomeChemistry(selectedHome ? calculateBasketballChemistry(selectedHome.players as any[]) : null);
+  }, [selectedHome]);
+  useEffect(() => {
+    setAwayChemistry(selectedAway ? calculateBasketballChemistry(selectedAway.players as any[]) : null);
+  }, [selectedAway]);
+
   const handleSimulate = async () => {
     if (!selectedHome || !selectedAway) { alert('Select both teams'); return; }
     if (selectedHome.id === selectedAway.id) { alert("A team can't play itself!"); return; }
@@ -385,6 +428,8 @@ export default function BasketballTeamsPage() {
         body: JSON.stringify({
           team1Name: selectedHome.name, team1Players: selectedHome.players, team1Lineup: selectedHome.lineup || 'Standard',
           team2Name: selectedAway.name, team2Players: selectedAway.players, team2Lineup: selectedAway.lineup || 'Standard',
+          team1ChemistryText: homeChemistry?.promptText || '',
+          team2ChemistryText: awayChemistry?.promptText || '',
         }),
       });
       const data = await res.json();
@@ -614,20 +659,23 @@ export default function BasketballTeamsPage() {
                   {selectedHome.players.map((p, idx) => {
                     const slotPos = BASKETBALL_POSITION_ORDER[idx];
                     const isOop = slotPos && p.position !== slotPos;
+                    const bonus = homeChemistry?.playerBonuses[(p as any).id] || 0;
                     return (
                       <div key={idx} className="flex items-center gap-1 text-xs">
                         <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[slotPos || p.position as BasketballPosition] }}>{slotPos || p.position}</span>
                         <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
                         {isOop && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>oop</span>}
+                        {bonus > 0 && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>+{bonus}</span>}
                         <span className="ml-auto font-headline text-[10px] font-bold"
                           style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
-                          {p.rating}
+                          {bonus > 0 ? `${p.rating + bonus}` : p.rating}
                         </span>
                       </div>
                     );
                   })}
                 </div>
               )}
+              <BballChemistryPanel chemistry={homeChemistry} />
             </div>
 
             {/* Tip Off button */}
@@ -686,20 +734,23 @@ export default function BasketballTeamsPage() {
                   {selectedAway.players.map((p, idx) => {
                     const slotPos = BASKETBALL_POSITION_ORDER[idx];
                     const isOop = slotPos && p.position !== slotPos;
+                    const bonus = awayChemistry?.playerBonuses[(p as any).id] || 0;
                     return (
                       <div key={idx} className="flex items-center gap-1 text-xs">
                         <span className="font-retro text-[7px] w-5" style={{ color: POS_COLORS[slotPos || p.position as BasketballPosition] }}>{slotPos || p.position}</span>
                         <span style={{ color: 'rgba(241,239,227,0.7)' }}>{p.name}</span>
                         {isOop && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>oop</span>}
+                        {bonus > 0 && <span className="font-retro text-[6px] px-0.5 rounded" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>+{bonus}</span>}
                         <span className="ml-auto font-headline text-[10px] font-bold"
                           style={{ color: p.rating >= 90 ? '#fbbf24' : p.rating >= 80 ? '#f97316' : 'rgba(255,255,255,0.4)' }}>
-                          {p.rating}
+                          {bonus > 0 ? `${p.rating + bonus}` : p.rating}
                         </span>
                       </div>
                     );
                   })}
                 </div>
               )}
+              <BballChemistryPanel chemistry={awayChemistry} />
             </div>
           </div>
 
