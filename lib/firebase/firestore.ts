@@ -547,7 +547,6 @@ export const getTablePreferences = async (userId: string): Promise<{ tableTeamId
 
 // ── Invite Codes ────────────────────────────────────────────────
 const INVITE_CODES_COLLECTION = 'inviteCodes';
-const USERS_COLLECTION = 'users';
 
 export interface InviteCode {
   code: string;
