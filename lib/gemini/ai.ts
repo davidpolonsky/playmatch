@@ -82,6 +82,83 @@ export const analyzePlayerCard = async (imageBase64: string) => {
   }
 };
 
+// ── Score generators (real randomness — never let the LLM pick its own score) ─
+
+function weighted(options: [number, number][], r: number): number {
+  const total = options.reduce((s, [, w]) => s + w, 0);
+  let cum = 0;
+  for (const [val, w] of options) {
+    cum += w / total;
+    if (r <= cum) return val;
+  }
+  return options[options.length - 1][0];
+}
+
+function pickSoccerScoreline(t1Avg: number, t2Avg: number): { s1: number; s2: number } {
+  const gap = Math.abs(t1Avg - t2Avg);
+  const favorsT1 = t1Avg >= t2Avg;
+
+  // Draw / fav-win / upset probabilities by gap
+  const [drawProb, favWinProb] =
+    gap <= 3  ? [0.25, 0.40] :
+    gap <= 8  ? [0.12, 0.63] :
+                [0.07, 0.76];
+
+  const r0 = Math.random();
+  const isDraw    = r0 < drawProb;
+  const favWins   = !isDraw && r0 < drawProb + favWinProb;
+  const upsetWins = !isDraw && !favWins;
+
+  if (isDraw) {
+    const draws: [number, number][] = [[0,9],[1,24],[2,24],[3,18],[4,12],[5,8],[6,5]];
+    const g = weighted(draws, Math.random());
+    return { s1: g, s2: g };
+  }
+
+  // winner goals: heavily weighted to 2-5 range, tails on 0-1 and 6-8
+  const winnerGoals = weighted([
+    [1,6],[2,16],[3,22],[4,20],[5,16],[6,11],[7,6],[8,3]
+  ], Math.random());
+
+  // loser goals: 0 most common, tapering up to winner-1 (max 5)
+  const maxLoser = Math.min(winnerGoals - 1, 5);
+  const loserOptions: [number, number][] = Array.from({ length: maxLoser + 1 }, (_, i) => [i, maxLoser - i + 2] as [number, number]);
+  const loserGoals = weighted(loserOptions, Math.random());
+
+  const teamThatWins = (favWins ? favorsT1 : !favorsT1) ? 'team1' : 'team2';
+  return teamThatWins === 'team1'
+    ? { s1: winnerGoals, s2: loserGoals }
+    : { s1: loserGoals, s2: winnerGoals };
+}
+
+function pickBasketballScoreline(t1Avg: number, t2Avg: number): { s1: number; s2: number } {
+  const gap = Math.abs(t1Avg - t2Avg);
+  const favorsT1 = t1Avg >= t2Avg;
+
+  const favWinProb =
+    gap <= 3  ? 0.50 :
+    gap <= 8  ? 0.65 :
+                0.78;
+
+  const favWins = Math.random() < favWinProb;
+  const teamThatWins = (favWins ? favorsT1 : !favorsT1) ? 'team1' : 'team2';
+
+  // Winner score: 84–123 (realistic NBA range)
+  const winnerScore = 84 + Math.floor(Math.random() * 40);
+
+  // Margin: wide variety from nail-biter OT (2) to blowout (35)
+  const margin = weighted([
+    [2,4],[3,6],[4,8],[5,9],[6,9],[7,8],[8,7],[9,6],
+    [10,6],[12,5],[15,5],[18,4],[20,4],[25,3],[30,2],[35,1]
+  ], Math.random());
+
+  const loserScore = Math.max(72, winnerScore - margin);
+
+  return teamThatWins === 'team1'
+    ? { s1: winnerScore, s2: loserScore }
+    : { s1: loserScore, s2: winnerScore };
+}
+
 export const simulateMatch = async (
   team1Name: string,
   team1Players: any[],
@@ -160,6 +237,15 @@ export const simulateMatch = async (
     const team2Analysis = analyzeSoccerLineup(team2Players, team2Formation, team2Name);
     const hasOopRules = team1Analysis.mandatoryRules || team2Analysis.mandatoryRules;
 
+    // Pre-generate the final score with real JS randomness so the LLM can't default to 4-3 every time
+    const { s1: lockedS1, s2: lockedS2 } = pickSoccerScoreline(team1AvgRating, team2AvgRating);
+    const isDraw = lockedS1 === lockedS2;
+    const narrativeHint = isDraw
+      ? `This ends in a ${lockedS1}-${lockedS2} draw — write it as a hard-fought, entertaining contest.`
+      : lockedS1 > lockedS2
+        ? `${team1Name} win ${lockedS1}-${lockedS2}. Make the winning margin feel earned through the run of play.`
+        : `${team2Name} win ${lockedS2}-${lockedS1}. Make the winning margin feel earned through the run of play.`;
+
     const prompt = `You are an elite soccer match commentator. Simulate a FULL match with live play-by-play commentary between these two teams.
 
 TEAM 1: ${team1Name} (Average Rating: ${team1AvgRating}, Formation: ${team1Formation})
@@ -183,48 +269,39 @@ ${team1Analysis.mandatoryRules}
 ${team2Analysis.mandatoryRules}
 ` : ''}
 
+╔══════════════════════════════════════════════════════════╗
+║   LOCKED FINAL SCORE — NON-NEGOTIABLE                   ║
+║   ${team1Name}: ${lockedS1}   |   ${team2Name}: ${lockedS2}
+║   You MUST return exactly: team1Score=${lockedS1}, team2Score=${lockedS2}   ║
+║   ${narrativeHint}
+╚══════════════════════════════════════════════════════════╝
+
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
-- Rating gap 0-3: Toss-up — either team equally likely to win, draw is common
-- Rating gap 4-8: Favorite wins ~65% of the time, underdog wins ~20%, draw ~15%
-- Rating gap 9+: Favorite wins ~75% of the time, underdog wins ~10%, draw ~15%
-- DO NOT always let the higher-rated team win. Upsets happen. Make the outcome feel earned.
 - Use ACTUAL player names from the rosters above — never invent players.
-- High-rated players should make more impactful plays but can still make mistakes.
+- High-rated players make more impactful plays but can still make mistakes.
+- Build a compelling narrative that makes the locked score feel natural and earned.
 
-SCORELINE VARIETY — Pick a random number 1-10 and use the matching style. Target ~6 total goals per game — this is an action-packed card game, not a 0-0 snooze-fest.
-  1   → Dominant victory: 4-0, 5-0, 4-1 (one team simply outclasses the other)
-  2   → Comfortable win: 3-0, 3-1, 4-1
-  3   → Exciting win: 4-2, 5-2, 3-1 with late drama
-  4   → Classic thriller: 3-2, 4-3 — lead changes hands, decided late
-  5   → Back-and-forth draw: 2-2, 3-3, 4-4 — goals traded throughout
-  6   → Comeback: trailing 0-2 or 1-3 at half, rally to 3-3 or win 4-3
-  7   → Late drama: 2-2 at 80', then 2 goals in the last 10 mins — 4-2 or 3-4
-  8   → Red card chaos: 10-man team concedes 3+ in second half, final 4-1 or 5-2
-  9   → Extra time: 3-3 at 90', goal in 94-97' seals it 4-3
-  10  → Goal-fest: 5-3, 6-2, 5-4 (both teams high rated ≥ 83, all-out attack)
-RULES: Default to 5-8 total goals across the match. A 2-1 scoreline is BORING — avoid it unless it's a genuine last-minute winner flipping a 2-0. Always vary who leads when. The higher-rated team wins more often but underdogs can sneak it. Never produce the same scoreline twice in a row.
-
-SPECIAL EVENTS (use occasionally, not every game):
-- Red cards: type "redcard", mention the player sent off and minute. A 10-man team concedes more goals.
-- Extra time: if the 90-minute score is level, add 2-5 events in minutes 91-97, then a winner or penalties note.
-- Penalties: if still level after extra time, add a type "penalties" event with a result.
-- Big upsets and late drama make the best stories.
+SPECIAL EVENTS (use occasionally to add drama):
+- Red cards: type "redcard". Mention the player sent off and minute.
+- If the locked score is a draw after 90 min, you may add 2-4 events in mins 91-97 for extra time drama (but the score stays as locked — no penalties unless you want to note it as flavor).
+- Comebacks, late equalisers, and early goals are all fair game — make the play-by-play justify the final score.
 
 PLAY-BY-PLAY RULES:
 - Generate exactly 45-55 events covering the full match
 - Minutes should be roughly chronological (small jumps, e.g. 1, 3, 6, 9, 12...)
 - Include a mix of: possession play, passes, dribbles, shots saved, shots missed, goals (with 2-3 events of buildup before each goal), fouls, corners, free kicks, yellow cards, halftime, and fulltime
 - Each goal MUST be preceded by at least 2 buildup events
-- Goals must include a running scoreline e.g. "[Team1] 1 - 0 [Team2]"
-- Halftime event at minute 45 must state the score
+- Goals must include a running scoreline e.g. "${team1Name} 1 - 0 ${team2Name}"
+- Halftime event at minute 45 must state the half-time score
 - Fulltime event at minute 90 (or last minute of extra time) must state the final score
 - Every goal event MUST include a "scoringTeam" field: "team1" if ${team1Name} scored, "team2" if ${team2Name} scored
+- The number of "goal" type events MUST equal exactly ${lockedS1 + lockedS2} (${lockedS1} for ${team1Name}, ${lockedS2} for ${team2Name})
 
 Return ONLY this JSON (no markdown, no extra text):
 {
-  "team1Score": <number>,
-  "team2Score": <number>,
+  "team1Score": ${lockedS1},
+  "team2Score": ${lockedS2},
   "summary": "<2-3 exciting sentences summarizing the match>",
   "manOfTheMatch": "<Player name> — <one sentence reason>",
   "playByPlay": [
@@ -233,7 +310,7 @@ Return ONLY this JSON (no markdown, no extra text):
     { "minute": 12, "type": "shot", "text": "<event description>" },
     { "minute": 18, "type": "goal", "scoringTeam": "team1", "text": "GOAL! <description> | ${team1Name} X - Y ${team2Name}" },
     { "minute": 45, "type": "halftime", "text": "HALF TIME — <score summary>" },
-    { "minute": 90, "type": "fulltime", "text": "FULL TIME! ${team1Name} X - Y ${team2Name}" }
+    { "minute": 90, "type": "fulltime", "text": "FULL TIME! ${team1Name} ${lockedS1} - ${lockedS2} ${team2Name}" }
   ]
 }
 
@@ -524,6 +601,16 @@ export const simulateBasketballGame = async (
     const team2Analysis = analyzeBasketballLineup(team2Players, team2Lineup, team2Name);
     const hasLineupRules = team1Analysis.mandatoryRules || team2Analysis.mandatoryRules;
 
+    // Pre-generate the final score with real JS randomness
+    const { s1: lockedS1, s2: lockedS2 } = pickBasketballScoreline(team1Avg, team2Avg);
+    const bballWinner = lockedS1 > lockedS2 ? team1Name : team2Name;
+    const bballMargin = Math.abs(lockedS1 - lockedS2);
+    const bballNarrative =
+      bballMargin <= 4  ? `This is an absolute nail-biter — ${bballWinner} scrape it ${lockedS1}-${lockedS2}.` :
+      bballMargin <= 10 ? `${bballWinner} edge it ${lockedS1}-${lockedS2} in a competitive game.` :
+      bballMargin <= 20 ? `${bballWinner} pull away for a ${lockedS1}-${lockedS2} win.` :
+                          `${bballWinner} dominate with a ${lockedS1}-${lockedS2} blowout.`;
+
     const prompt = `You are an elite NBA commentator. Simulate a FULL 4-quarter basketball game with live play-by-play between these two teams.
 
 TEAM 1: ${team1Name} (Avg Rating: ${team1Avg}, Strategy: ${team1Lineup})
@@ -546,16 +633,20 @@ ${hasLineupRules ? `
 ${team1Analysis.mandatoryRules}
 ${team2Analysis.mandatoryRules}
 ` : ''}
+
+╔══════════════════════════════════════════════════════════════╗
+║   LOCKED FINAL SCORE — NON-NEGOTIABLE                       ║
+║   ${team1Name}: ${lockedS1}   |   ${team2Name}: ${lockedS2}
+║   You MUST return exactly: team1Score=${lockedS1}, team2Score=${lockedS2}  ║
+║   ${bballNarrative}
+╚══════════════════════════════════════════════════════════════╝
+
 SIMULATION RULES:
 - Rating gap is ${ratingGap} points. ${favorite} is the statistical favorite.
-- Rating gap 0-3: Toss-up — either team equally likely to win, overtime is possible
-- Rating gap 4-8: Favorite wins ~65% of the time, upset ~20%, close game ~15%
-- Rating gap 9+: Favorite wins ~75% of the time, upset ~10%
-- Final scores should be realistic NBA totals: each team scores 85-120 points
-- NO ties — if scores are equal at end, one team wins by 2-3 in overtime
 - Use ACTUAL player names from the rosters above — never invent players
 - High-rated players make more impact but can still miss big shots
-- Any mandatory point penalties above ARE INCLUDED in the final score — do not add extra goals on top
+- Any mandatory point penalties above ARE INCLUDED in the locked score — do not add extra points on top
+- Build play-by-play so that the running totals naturally arrive at ${lockedS1}-${lockedS2} by the final event
 
 PLAY-BY-PLAY RULES:
 - Generate exactly 48-56 events covering all 4 quarters
@@ -563,21 +654,21 @@ PLAY-BY-PLAY RULES:
 - Every shot_made, three_made, dunk, layup, free_throw, buzzer_beater MUST include "scoringTeam": "team1" or "team2" AND "points": 2 or 3 or 1
 - EVERY event "text" field MUST end with the current running score in brackets: [team1Score-team2Score] e.g. "[28-24]" — update this after every scoring play so it is always current
 - end_quarter events format: "END Q1 — ${team1Name} 28 - ${team2Name} 24 [28-24]"
-- final event format: "FINAL — ${team1Name} X - ${team2Name} Y [X-Y]"
+- final event format: "FINAL — ${team1Name} ${lockedS1} - ${team2Name} ${lockedS2} [${lockedS1}-${lockedS2}]"
 - quarter field must be 1, 2, 3, or 4 (use 4 for overtime too)
 - time field format: "10:34" (minutes:seconds remaining in quarter)
 
 Return ONLY this JSON (no markdown, no extra text):
 {
-  "team1Score": <number>,
-  "team2Score": <number>,
+  "team1Score": ${lockedS1},
+  "team2Score": ${lockedS2},
   "summary": "<2-3 exciting sentences summarizing the game>",
   "playerOfGame": "<Player name> — <one sentence reason>",
   "playByPlay": [
     { "quarter": 1, "time": "12:00", "type": "tip_off", "text": "Jump ball — game underway! [0-0]" },
     { "quarter": 1, "time": "11:22", "type": "shot_made", "scoringTeam": "team1", "points": 2, "text": "Player drains a mid-range jumper. [2-0]" },
     { "quarter": 1, "time": "0:00", "type": "end_quarter", "text": "END Q1 — ${team1Name} 28 - ${team2Name} 24 [28-24]" },
-    { "quarter": 4, "time": "0:00", "type": "final", "text": "FINAL — ${team1Name} X - ${team2Name} Y [X-Y]" }
+    { "quarter": 4, "time": "0:00", "type": "final", "text": "FINAL — ${team1Name} ${lockedS1} - ${team2Name} ${lockedS2} [${lockedS1}-${lockedS2}]" }
   ]
 }
 

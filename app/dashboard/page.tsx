@@ -10,6 +10,7 @@ import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadL
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
+import { calculateSoccerChemistry } from '@/lib/chemistry';
 import CardUploader from '@/components/CardUploader';
 import InteractiveTeamDisplay from '@/components/InteractiveTeamDisplay';
 import InteractivePlayerList from '@/components/InteractivePlayerList';
@@ -613,6 +614,18 @@ export default function Dashboard() {
             team.players.forEach(p => { if (grouped[p.position]) grouped[p.position].push(p); });
             const isShowingHistory = !isLegendary && team.id && historyTeamId === team.id;
 
+            // Compute team stats
+            const avgRating = team.players.length > 0
+              ? Math.round(team.players.reduce((s, p) => s + (p.rating || 70), 0) / team.players.length)
+              : 0;
+            const chemistry = !isLegendary && team.players.length > 0
+              ? calculateSoccerChemistry(team.players as Player[])
+              : null;
+            const rarePlayers = team.players.filter((p: any) => p.rarity === 'rare').length;
+            const legendaryPlayers = team.players.filter((p: any) => p.rarity === 'legendary').length;
+            const chemScore = chemistry?.chemistryScore ?? 0;
+            const chemColor = chemScore >= 70 ? '#4ade80' : chemScore >= 40 ? '#fbbf24' : chemScore > 0 ? '#f87171' : 'rgba(255,255,255,0.2)';
+
             return (
               <div key={team.id} className="bg-fifa-dark rounded-xl border border-fifa-border overflow-hidden">
                 <button
@@ -635,6 +648,33 @@ export default function Dashboard() {
                         <p className="font-body text-[10px] text-fifa-amber/70 mb-1">{(team as any).description}</p>
                       )}
                       <p className="font-headline text-[11px] text-fifa-mint/60">{team.formation}</p>
+                      {/* Avg rating + chemistry + rarity inline */}
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {avgRating > 0 && (
+                          <span className="font-retro text-[8px] px-1.5 py-0.5 rounded border"
+                            style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.15)', color: avgRating >= 85 ? '#fbbf24' : avgRating >= 78 ? '#4ade80' : 'rgba(255,255,255,0.5)' }}>
+                            AVG {avgRating}
+                          </span>
+                        )}
+                        {chemistry !== null && (
+                          <span className="font-retro text-[8px] px-1.5 py-0.5 rounded border"
+                            style={{ background: 'rgba(255,255,255,0.05)', borderColor: chemColor + '60', color: chemColor }}>
+                            ⚗ {chemScore > 0 ? chemScore : '—'}
+                          </span>
+                        )}
+                        {legendaryPlayers > 0 && (
+                          <span className="font-retro text-[7px] px-1.5 py-0.5 rounded border"
+                            style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.35)' }}>
+                            ✦ {legendaryPlayers} LGND
+                          </span>
+                        )}
+                        {rarePlayers > 0 && (
+                          <span className="font-retro text-[7px] px-1.5 py-0.5 rounded border"
+                            style={{ background: 'rgba(139,92,246,0.1)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.35)' }}>
+                            ◆ {rarePlayers} RARE
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {isSaved && (
@@ -680,18 +720,54 @@ export default function Dashboard() {
                 {/* Expanded roster */}
                 {isExpanded && (
                   <div className="border-t border-fifa-border px-4 pb-4 pt-3">
+                    {/* Chemistry bonuses */}
+                    {chemistry && chemistry.activeBonuses.length > 0 && (
+                      <div className="mb-3 p-2 rounded-lg border" style={{ background: 'rgba(74,222,128,0.05)', borderColor: 'rgba(74,222,128,0.2)' }}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="font-retro text-[8px] text-fifa-mint/80">⚗ CHEMISTRY {chemScore}</span>
+                          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${chemScore}%`, background: chemColor }} />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {chemistry.activeBonuses.map((b, i) => (
+                            <span key={i} className="font-retro text-[7px] px-1.5 py-0.5 rounded border"
+                              style={{ background: 'rgba(74,222,128,0.08)', borderColor: 'rgba(74,222,128,0.25)', color: 'rgba(74,222,128,0.8)' }}>
+                              {b.emoji} {b.label} +{b.bonusPerPlayer}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {POSITION_ORDER.map(pos => grouped[pos].length > 0 && (
                       <div key={pos} className="mb-2">
                         <span className="font-retro text-[8px] text-fifa-mint/60 uppercase block mb-1">{pos}</span>
                         <div className="space-y-1">
-                          {grouped[pos].map((p, i) => (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span className="text-fifa-cream/80">{p.name}</span>
-                              <span className={`font-headline text-[11px] font-bold ${
-                                p.rating >= 90 ? 'text-fifa-amber' : p.rating >= 80 ? 'text-fifa-mint' : 'text-white/40'
-                              }`}>{p.rating}</span>
-                            </div>
-                          ))}
+                          {grouped[pos].map((p, i) => {
+                            const pAny = p as any;
+                            const chemBonus = chemistry?.playerBonuses[p.id] ?? 0;
+                            return (
+                              <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                                <span className="text-fifa-cream/80 flex-1 truncate">{p.name}</span>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  {pAny.rarity === 'legendary' && (
+                                    <span className="font-retro text-[6px] px-1 py-0.5 rounded border"
+                                      style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.35)' }}>✦</span>
+                                  )}
+                                  {pAny.rarity === 'rare' && (
+                                    <span className="font-retro text-[6px] px-1 py-0.5 rounded border"
+                                      style={{ background: 'rgba(139,92,246,0.12)', color: '#a78bfa', borderColor: 'rgba(139,92,246,0.35)' }}>◆</span>
+                                  )}
+                                  {chemBonus > 0 && (
+                                    <span className="font-retro text-[7px]" style={{ color: '#4ade80' }}>+{chemBonus}</span>
+                                  )}
+                                  <span className={`font-headline text-[11px] font-bold ${
+                                    p.rating >= 90 ? 'text-fifa-amber' : p.rating >= 80 ? 'text-fifa-mint' : 'text-white/40'
+                                  }`}>{p.rating}{chemBonus > 0 ? <span className="font-retro text-[8px]" style={{ color: '#4ade80' }}> →{p.rating + chemBonus}</span> : null}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
