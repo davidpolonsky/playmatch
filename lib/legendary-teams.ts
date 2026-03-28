@@ -255,6 +255,33 @@ const interMiami2025: LegendaryTeam = {
   ],
 };
 
+// Chelsea All-Time XI
+const chelseaAllTime: LegendaryTeam = {
+  id: 'legendary-chelsea-all-time',
+  name: 'Chelsea All-Time XI',
+  formation: '4-3-3',
+  userId: 'legendary',
+  description: 'Cech. Terry. Lampard. Drogba. Hazard. The greatest players ever to wear the blue of Chelsea.',
+  isLegendary: true,
+  players: [
+    // GK
+    { id: 'che-1', name: 'Petr Cech', position: 'GK', rating: 91, imageUrl: '', isHistorical: true, year: '2005', nationality: 'Czech', club: 'Chelsea' },
+    // DEF
+    { id: 'che-2', name: 'Cesar Azpilicueta', position: 'DEF', rating: 85, imageUrl: '', isHistorical: false, year: '2017', nationality: 'Spanish', club: 'Chelsea' },
+    { id: 'che-3', name: 'John Terry', position: 'DEF', rating: 91, imageUrl: '', isHistorical: true, year: '2005', nationality: 'English', club: 'Chelsea' },
+    { id: 'che-4', name: 'Marcel Desailly', position: 'DEF', rating: 88, imageUrl: '', isHistorical: true, year: '2000', nationality: 'French', club: 'Chelsea' },
+    { id: 'che-5', name: 'Ashley Cole', position: 'DEF', rating: 89, imageUrl: '', isHistorical: true, year: '2009', nationality: 'English', club: 'Chelsea' },
+    // MID
+    { id: 'che-6', name: 'Claude Makelele', position: 'MID', rating: 89, imageUrl: '', isHistorical: true, year: '2005', nationality: 'French', club: 'Chelsea' },
+    { id: 'che-7', name: 'Frank Lampard', position: 'MID', rating: 92, imageUrl: '', isHistorical: true, year: '2005', nationality: 'English', club: 'Chelsea' },
+    { id: 'che-8', name: 'Michael Essien', position: 'MID', rating: 88, imageUrl: '', isHistorical: true, year: '2007', nationality: 'Ghanaian', club: 'Chelsea' },
+    // FWD
+    { id: 'che-9', name: 'Arjen Robben', position: 'FWD', rating: 87, imageUrl: '', isHistorical: true, year: '2005', nationality: 'Dutch', club: 'Chelsea' },
+    { id: 'che-10', name: 'Didier Drogba', position: 'FWD', rating: 92, imageUrl: '', isHistorical: true, year: '2012', nationality: 'Ivorian', club: 'Chelsea' },
+    { id: 'che-11', name: 'Eden Hazard', position: 'FWD', rating: 91, imageUrl: '', isHistorical: true, year: '2015', nationality: 'Belgian', club: 'Chelsea' },
+  ],
+};
+
 export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   barcelonaDreamTeam,
   tottenhamLegends,
@@ -263,6 +290,7 @@ export const LEGENDARY_TEAMS: LegendaryTeam[] = [
   brazil1970,
   realMadridGalacticos,
   manchesterUnited1999,
+  chelseaAllTime,
   wrexhamCurrent,
   interMiami2025,
 ];
