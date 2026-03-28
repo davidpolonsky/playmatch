@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
     await sgMail.send({
       to: email,
       from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'PlayMatch' },
+      bcc: 'davidpolonsky@gmail.com',
       subject: "You're off the waitlist — PlayMatch is ready for you 🎮",
       text: `Great news — you're off the waitlist! Start playing at ${appUrl}.\n\nLegendary teams to challenge:\n${legends.map(l => `• ${l.name} — ${l.description}`).join('\n')}\n\nReal teams to challenge:\n${realTeams.map(t => `• ${t.name} (ID: ${formatShareId(t.shareId)})`).join('\n') || '• More coming soon!'}\n\nIn the Teams tab, use "Add a Friend's Team by ID" to challenge any real team above.`,
       html,
