@@ -6,6 +6,7 @@ interface WaitlistEntry {
   email: string;
   sport: string;
   createdAt: string;
+  invitedAt: string | null;
 }
 
 interface BizStats {
@@ -37,6 +38,25 @@ export default function BizIntel() {
   const [stats, setStats] = useState<BizStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Per-email invite state: 'idle' | 'sending' | 'sent' | 'error'
+  const [inviteState, setInviteState] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
+
+  const sendInvite = async (email: string, sport: string) => {
+    setInviteState(s => ({ ...s, [email]: 'sending' }));
+    try {
+      const res = await fetch('/api/bizintel/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
+        body: JSON.stringify({ email, sport }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setInviteState(s => ({ ...s, [email]: 'sent' }));
+      // Refresh stats so invitedAt shows up
+      fetchStats(secret);
+    } catch {
+      setInviteState(s => ({ ...s, [email]: 'error' }));
+    }
+  };
 
   const fetchStats = async (s: string) => {
     setLoading(true);
@@ -77,7 +97,7 @@ export default function BizIntel() {
           {error && <p className="text-red-400 text-xs text-center">{error}</p>}
           <button type="submit" disabled={loading || !secret}
             className="py-2 rounded-lg font-mono text-xs bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-40">
-            {loading ? 'Loading…' : 'Enter'}
+            {loading ? 'Loading\u2026' : 'Enter'}
           </button>
         </form>
       </div>
@@ -164,25 +184,44 @@ export default function BizIntel() {
           <div className="rounded-xl border border-white/10 overflow-hidden mb-6">
             <div className="px-5 py-3 border-b border-white/10 bg-white/5">
               <p className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
-                Waitlist — {stats.waitlist} {stats.waitlist === 1 ? 'signup' : 'signups'}
+                Waitlist &mdash; {stats.waitlist} {stats.waitlist === 1 ? 'signup' : 'signups'}
               </p>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  {['Email', 'Sport', 'Signed Up'].map(h => (
+                  {['Email', 'Sport', 'Signed Up', 'Invite'].map(h => (
                     <th key={h} className="px-4 py-2 text-left font-mono text-[9px] text-white/30 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {stats.waitlistEntries.map((w, i) => (
-                  <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{w.email}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50 capitalize">{w.sport}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/40">{w.createdAt || '—'}</td>
-                  </tr>
-                ))}
+                {stats.waitlistEntries.map((w, i) => {
+                  const state = inviteState[w.email] || 'idle';
+                  const alreadyInvited = !!w.invitedAt;
+                  return (
+                    <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{w.email}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50 capitalize">{w.sport}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/40">{w.createdAt || '\u2014'}</td>
+                      <td className="px-4 py-2.5">
+                        {alreadyInvited && state !== 'sent' ? (
+                          <span className="font-mono text-[10px] text-green-400/60">&#10003; invited {w.invitedAt}</span>
+                        ) : state === 'sent' ? (
+                          <span className="font-mono text-[10px] text-green-400">&#10003; Sent!</span>
+                        ) : (
+                          <button
+                            onClick={() => sendInvite(w.email, w.sport)}
+                            disabled={state === 'sending'}
+                            className="font-mono text-[10px] px-3 py-1 rounded border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
+                          >
+                            {state === 'sending' ? 'Sending\u2026' : state === 'error' ? 'Retry' : 'Send Invite'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

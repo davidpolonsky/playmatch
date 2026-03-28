@@ -154,11 +154,12 @@ export async function GET(req: NextRequest) {
       basketballCards: bballCardsByUser[uid] || 0,
     }));
 
-    // Waitlist entries with emails
+    // Waitlist entries with emails + invited status
     const waitlistEntries = waitlistSnap.docs.map(d => ({
       email: d.data().email || '',
       sport: d.data().sport || 'soccer',
       createdAt: d.data().createdAt?.toDate?.()?.toLocaleString('en-US', { timeZone: 'America/New_York' }) || '',
+      invitedAt: d.data().invitedAt?.toDate?.()?.toLocaleString('en-US', { timeZone: 'America/New_York' }) || null,
     }));
 
     return NextResponse.json({
