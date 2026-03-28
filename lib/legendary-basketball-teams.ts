@@ -137,21 +137,57 @@ const spurs2003: LegendaryBasketballTeam = {
   ],
 };
 
-// ── 2023-24 Boston Celtics ─────────────────────────────────────
-const celtics2024: LegendaryBasketballTeam = {
-  id: 'legendary-bball-celtics-2024',
-  name: '2023-24 Boston Celtics',
+// ── 1985-86 Boston Celtics (Larry Bird era) ────────────────────
+const celtics8586: LegendaryBasketballTeam = {
+  id: 'legendary-bball-celtics-8586',
+  name: '1985-86 Boston Celtics',
+  lineup: 'Twin Towers',
+  userId: 'legendary',
+  description: "Larry Bird's masterpiece. 67 wins, McHale & Parish dominating the paint — the greatest Celtics team ever.",
+  isLegendary: true,
+  era: '1986',
+  players: [
+    { id: 'bos-1', name: 'Dennis Johnson', position: 'PG', rating: 88, imageUrl: '', isHistorical: true, year: '1986', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-2', name: 'Danny Ainge',    position: 'SG', rating: 83, imageUrl: '', isHistorical: true, year: '1986', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-3', name: 'Larry Bird',     position: 'SF', rating: 98, imageUrl: '', isHistorical: true, year: '1986', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-4', name: 'Kevin McHale',   position: 'PF', rating: 95, imageUrl: '', isHistorical: true, year: '1986', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'bos-5', name: 'Robert Parish',  position: 'C',  rating: 91, imageUrl: '', isHistorical: true, year: '1986', nationality: 'American', nbaTeam: 'Boston Celtics' },
+  ],
+};
+
+// ── Eurozone 2010s — Best European NBA Players of the 2010s ────
+const eurozone2010s: LegendaryBasketballTeam = {
+  id: 'legendary-bball-eurozone-2010s',
+  name: 'Eurozone 2010s',
   lineup: 'Stretch-4',
   userId: 'legendary',
-  description: 'Banner 18. The most dominant team of the modern era.',
+  description: "Dirk. Parker. Giannis emerging. The European invasion at its peak — five countries, one devastating lineup.",
   isLegendary: true,
-  era: '2024',
+  era: '2015',
   players: [
-    { id: 'bos-1', name: 'Jrue Holiday',     position: 'PG', rating: 88, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
-    { id: 'bos-2', name: 'Jaylen Brown',     position: 'SG', rating: 93, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
-    { id: 'bos-3', name: 'Jayson Tatum',     position: 'SF', rating: 95, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
-    { id: 'bos-4', name: 'Al Horford',       position: 'PF', rating: 84, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
-    { id: 'bos-5', name: 'Kristaps Porzingis', position: 'C', rating: 87, imageUrl: '', isHistorical: false, year: '2024', nationality: 'American', nbaTeam: 'Boston Celtics' },
+    { id: 'ez10b-1', name: 'Tony Parker',          position: 'PG', rating: 91, imageUrl: '', isHistorical: true, year: '2013', nationality: 'French',   nbaTeam: 'San Antonio Spurs' },
+    { id: 'ez10b-2', name: 'Nicolas Batum',         position: 'SG', rating: 83, imageUrl: '', isHistorical: true, year: '2015', nationality: 'French',   nbaTeam: 'Portland Trail Blazers' },
+    { id: 'ez10b-3', name: 'Giannis Antetokounmpo', position: 'SF', rating: 94, imageUrl: '', isHistorical: true, year: '2019', nationality: 'Greek',    nbaTeam: 'Milwaukee Bucks' },
+    { id: 'ez10b-4', name: 'Dirk Nowitzki',         position: 'PF', rating: 95, imageUrl: '', isHistorical: true, year: '2011', nationality: 'German',   nbaTeam: 'Dallas Mavericks' },
+    { id: 'ez10b-5', name: 'Marc Gasol',            position: 'C',  rating: 89, imageUrl: '', isHistorical: true, year: '2013', nationality: 'Spanish',  nbaTeam: 'Memphis Grizzlies' },
+  ],
+};
+
+// ── Eurozone 2020s — Best European NBA Players of the 2020s ────
+const eurozone2020s: LegendaryBasketballTeam = {
+  id: 'legendary-bball-eurozone-2020s',
+  name: 'Eurozone 2020s',
+  lineup: 'Standard',
+  userId: 'legendary',
+  description: "Jokic. Luka. Giannis. The most dominant collection of European talent in NBA history — three MVPs in one lineup.",
+  isLegendary: true,
+  era: '2023',
+  players: [
+    { id: 'ez20b-1', name: 'Luka Doncic',           position: 'PG', rating: 98, imageUrl: '', isHistorical: false, year: '2023', nationality: 'Slovenian', nbaTeam: 'Dallas Mavericks' },
+    { id: 'ez20b-2', name: 'Franz Wagner',           position: 'SG', rating: 86, imageUrl: '', isHistorical: false, year: '2024', nationality: 'German',    nbaTeam: 'Orlando Magic' },
+    { id: 'ez20b-3', name: 'Giannis Antetokounmpo', position: 'SF', rating: 98, imageUrl: '', isHistorical: false, year: '2021', nationality: 'Greek',      nbaTeam: 'Milwaukee Bucks' },
+    { id: 'ez20b-4', name: 'Domantas Sabonis',       position: 'PF', rating: 88, imageUrl: '', isHistorical: false, year: '2023', nationality: 'Lithuanian', nbaTeam: 'Sacramento Kings' },
+    { id: 'ez20b-5', name: 'Nikola Jokic',           position: 'C',  rating: 99, imageUrl: '', isHistorical: false, year: '2023', nationality: 'Serbian',    nbaTeam: 'Denver Nuggets' },
   ],
 };
 
@@ -163,7 +199,9 @@ export const LEGENDARY_BASKETBALL_TEAMS: LegendaryBasketballTeam[] = [
   lakers8687,
   pistons2004,
   spurs2003,
-  celtics2024,
+  celtics8586,
+  eurozone2010s,
+  eurozone2020s,
 ];
 
 export const getLegendaryBasketballTeamById = (id: string) =>
