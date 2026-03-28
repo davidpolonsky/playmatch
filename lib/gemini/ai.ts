@@ -94,41 +94,64 @@ function weighted(options: [number, number][], r: number): number {
   return options[options.length - 1][0];
 }
 
-function pickSoccerScoreline(t1Avg: number, t2Avg: number): { s1: number; s2: number } {
+// minT2Goals / minT1Goals = OOP floors: team2 must score at least N, team1 must score at least N
+function pickSoccerScoreline(
+  t1Avg: number, t2Avg: number,
+  minT2Goals: number = 0, minT1Goals: number = 0
+): { s1: number; s2: number } {
   const gap = Math.abs(t1Avg - t2Avg);
   const favorsT1 = t1Avg >= t2Avg;
 
-  // Draw / fav-win / upset probabilities by gap
+  // Draw / fav-win probabilities — steepen sharply at large gaps
   const [drawProb, favWinProb] =
-    gap <= 3  ? [0.25, 0.40] :
-    gap <= 8  ? [0.12, 0.63] :
-                [0.07, 0.76];
+    gap <= 3  ? [0.25, 0.40] :  // coin-flip range
+    gap <= 8  ? [0.12, 0.63] :  // clear favourite
+    gap <= 14 ? [0.05, 0.82] :  // big gap — rare upsets
+                [0.02, 0.94];   // legends vs lackluster — almost always wins
 
   const r0 = Math.random();
-  const isDraw    = r0 < drawProb;
-  const favWins   = !isDraw && r0 < drawProb + favWinProb;
-  const upsetWins = !isDraw && !favWins;
+  const isDraw  = r0 < drawProb;
+  const favWins = !isDraw && r0 < drawProb + favWinProb;
+
+  // Winning margin grows with gap — large gaps produce bigger wins
+  const winnerGoalsTable: [number, number][] =
+    gap >= 15 ? [[2,5],[3,15],[4,22],[5,22],[6,18],[7,12],[8,6]  ] :  // dominant
+    gap >= 9  ? [[1,4],[2,14],[3,22],[4,22],[5,18],[6,12],[7,6],[8,2]] :  // strong fav
+                [[1,6],[2,16],[3,22],[4,20],[5,16],[6,11],[7,6],[8,3]];   // normal
+
+  // Loser goals: when gap is large, loser rarely scores
+  const loserBias = gap >= 15 ? 4 : gap >= 9 ? 3 : 2;  // higher = more 0s for loser
 
   if (isDraw) {
     const draws: [number, number][] = [[0,9],[1,24],[2,24],[3,18],[4,12],[5,8],[6,5]];
     const g = weighted(draws, Math.random());
-    return { s1: g, s2: g };
+    let s1 = g, s2 = g;
+    s2 = Math.max(s2, minT2Goals);
+    s1 = Math.max(s1, minT1Goals);
+    // If floors broke the draw symmetry, make it a close win instead
+    if (s1 !== s2) return { s1: Math.max(s1, s2 + 1), s2 };
+    return { s1, s2 };
   }
 
-  // winner goals: heavily weighted to 2-5 range, tails on 0-1 and 6-8
-  const winnerGoals = weighted([
-    [1,6],[2,16],[3,22],[4,20],[5,16],[6,11],[7,6],[8,3]
-  ], Math.random());
-
-  // loser goals: 0 most common, tapering up to winner-1 (max 5)
-  const maxLoser = Math.min(winnerGoals - 1, 5);
-  const loserOptions: [number, number][] = Array.from({ length: maxLoser + 1 }, (_, i) => [i, maxLoser - i + 2] as [number, number]);
+  const winnerGoals = weighted(winnerGoalsTable, Math.random());
+  const maxLoser = Math.min(winnerGoals - 1, gap >= 12 ? 2 : 5);
+  const loserOptions: [number, number][] = Array.from(
+    { length: maxLoser + 1 }, (_, i) => [i, Math.max(1, maxLoser - i + loserBias)] as [number, number]
+  );
   const loserGoals = weighted(loserOptions, Math.random());
 
   const teamThatWins = (favWins ? favorsT1 : !favorsT1) ? 'team1' : 'team2';
-  return teamThatWins === 'team1'
-    ? { s1: winnerGoals, s2: loserGoals }
-    : { s1: loserGoals, s2: winnerGoals };
+  let s1 = teamThatWins === 'team1' ? winnerGoals : loserGoals;
+  let s2 = teamThatWins === 'team1' ? loserGoals : winnerGoals;
+
+  // Apply OOP floors (opponent must score at least this many)
+  s2 = Math.max(s2, minT2Goals);
+  s1 = Math.max(s1, minT1Goals);
+  // If floor pushed loser above winner, bump the winner
+  if (s1 <= s2 && teamThatWins === 'team1') s1 = s2 + 1;
+  if (s2 <= s1 && teamThatWins === 'team2') s2 = s1 + 1;
+
+  return { s1, s2 };
 }
 
 function pickBasketballScoreline(t1Avg: number, t2Avg: number): { s1: number; s2: number } {
@@ -187,7 +210,7 @@ export const simulateMatch = async (
 
     const analyzeSoccerLineup = (players: any[], formation: string, teamName: string) => {
       const parts = formation.split('-').map(Number);
-      if (parts.length < 3) return { summary: 'Well-fitted', mandatoryRules: '' };
+      if (parts.length < 3) return { summary: 'Well-fitted', mandatoryRules: '', minOpponentGoals: 0 };
 
       const needed: Record<string, number> = { GK: 1, DEF: parts[0], MID: parts[1], FWD: parts[2] };
 
@@ -203,12 +226,14 @@ export const simulateMatch = async (
         if (have < need) for (let i = 0; i < need - have; i++) deficitSlots.push(pos);
       }
 
-      if (oopPlayers.length === 0) return { summary: `Well-fitted for ${formation}`, mandatoryRules: '' };
+      if (oopPlayers.length === 0) return { summary: `Well-fitted for ${formation}`, mandatoryRules: '', minOpponentGoals: 0 };
 
       const rules: string[] = [];
+      let minOpponentGoals = 0;
       oopPlayers.forEach(({ player, naturalPos }, i) => {
         const playingAs = deficitSlots[i] || 'outfield';
         const way = isWayOOP(naturalPos, playingAs);
+        minOpponentGoals += way ? 2 : 1;
 
         if (way) {
           rules.push(
@@ -230,15 +255,21 @@ export const simulateMatch = async (
         `${player.name} (${naturalPos}→${deficitSlots[i] || 'out'}, ${isWayOOP(naturalPos, deficitSlots[i] || 'outfield') ? '2-goal penalty' : '1-goal penalty'})`
       ).join(', ');
 
-      return { summary, mandatoryRules: rules.join('\n') };
+      return { summary, mandatoryRules: rules.join('\n'), minOpponentGoals };
     };
 
     const team1Analysis = analyzeSoccerLineup(team1Players, team1Formation, team1Name);
     const team2Analysis = analyzeSoccerLineup(team2Players, team2Formation, team2Name);
     const hasOopRules = team1Analysis.mandatoryRules || team2Analysis.mandatoryRules;
 
-    // Pre-generate the final score with real JS randomness so the LLM can't default to 4-3 every time
-    const { s1: lockedS1, s2: lockedS2 } = pickSoccerScoreline(team1AvgRating, team2AvgRating);
+    // Pre-generate the final score with real JS randomness so the LLM can't default to 4-3 every time.
+    // OOP floors ensure the locked score has enough goals to satisfy OOP penalty requirements.
+    // team1 OOP → team2 (opponent) must score at least N goals, and vice versa.
+    const { s1: lockedS1, s2: lockedS2 } = pickSoccerScoreline(
+      team1AvgRating, team2AvgRating,
+      team1Analysis.minOpponentGoals ?? 0,   // floor for team2 goals (team1 has OOP)
+      team2Analysis.minOpponentGoals ?? 0    // floor for team1 goals (team2 has OOP)
+    );
     const isDraw = lockedS1 === lockedS2;
     const narrativeHint = isDraw
       ? `This ends in a ${lockedS1}-${lockedS2} draw — write it as a hard-fought, entertaining contest.`
