@@ -245,10 +245,10 @@ function HomeContent() {
                   )}
                 </form>
               )}
-              {/* Always-visible invite link */}
+              {/* Always-visible invite button */}
               <button
                 onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
-                className="mt-5 font-headline text-[10px] text-white/35 hover:text-fifa-mint/70 transition-colors underline underline-offset-2"
+                className="w-full mt-3 py-3 font-headline text-[11px] bg-bball-orange hover:bg-bball-orange/85 text-black transition-colors rounded-lg"
               >
                 Have an invite? Sign in here →
               </button>
