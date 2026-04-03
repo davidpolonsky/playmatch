@@ -4,7 +4,7 @@ import { BasketballPlayer } from './types-basketball';
 // ── Shared types ────────────────────────────────────────────────────────────
 
 export interface ChemistryBonus {
-  type: 'club' | 'national' | 'era' | 'team';
+  type: 'club' | 'national' | 'era' | 'team' | 'youth';
   label: string;           // e.g. "Arsenal Club Bond"
   emoji: string;           // e.g. "🔴"
   players: string[];       // player names involved
@@ -120,6 +120,22 @@ export function calculateSoccerChemistry(players: Player[]): ChemistryResult {
     });
   });
 
+  // Youth Energy (rookies and players under 21)
+  const youngPlayers = players.filter(p => p.age && p.age <= 21);
+  if (youngPlayers.length >= 2) {
+    const n = youngPlayers.length;
+    const bonus = n >= 4 ? 4 : 3;
+    const tier = n >= 4 ? 'Explosive' : 'Active';
+    bonuses.push({
+      type: 'youth',
+      label: 'Youth Energy ⚡',
+      emoji: '⚡',
+      players: youngPlayers.map(p => p.name),
+      bonusPerPlayer: bonus,
+      flavor: `${tier} youth energy — ${n} players age 21 or under bring fearless speed, relentless pressing, and electric pace. BUT they also bring inexperience: expect more turnovers, rushed decisions, occasional defensive lapses, and positional mistakes. The energy is real but volatile — high risk, high reward.`,
+    });
+  }
+
   const playerBonuses = applyBonuses(players, bonuses);
   const chemistryScore = chemScore(bonuses, players.length);
   const promptText = buildSoccerPromptText(players, bonuses, playerBonuses);
@@ -216,6 +232,22 @@ export function calculateBasketballChemistry(players: BasketballPlayer[]): Chemi
       flavor: `Era cohesion — ${n} players from the ${era} era share the same pace of play, defensive principles, and basketball IQ.`,
     });
   });
+
+  // Youth Energy (rookies and players under 21)
+  const youngPlayers = players.filter(p => p.age && p.age <= 21);
+  if (youngPlayers.length >= 2) {
+    const n = youngPlayers.length;
+    const bonus = n >= 4 ? 4 : 3;
+    const tier = n >= 4 ? 'Explosive' : 'Active';
+    bonuses.push({
+      type: 'youth',
+      label: 'Youth Energy ⚡',
+      emoji: '⚡',
+      players: youngPlayers.map(p => p.name),
+      bonusPerPlayer: bonus,
+      flavor: `${tier} youth energy — ${n} players age 21 or under bring explosive athleticism, fearless attacks on the rim, relentless transition speed, and electric fast breaks. BUT they also bring rookie mistakes: expect more turnovers, bad shots, blown defensive assignments, and overcommitting on blocks. The energy is real but chaotic — high octane, high risk.`,
+    });
+  }
 
   const playerBonuses = applyBonuses(players, bonuses);
   const chemistryScore = chemScore(bonuses, players.length);

@@ -11,6 +11,7 @@ export interface Player {
   club?: string;        // e.g. "Arsenal", "Real Madrid", "Barcelona"
   rarity?: 'common' | 'rare' | 'legendary'; // card rarity tier
   cardValue?: number;   // estimated market value in USD
+  age?: number;         // player age (for youth energy bonus)
   // Pixel avatar appearance
   skinTone?: 'light' | 'medium' | 'tan' | 'dark' | 'brown' | 'ebony' | 'pale' | 'olive';
   hairColor?: 'blonde' | 'lightbrown' | 'brown' | 'darkbrown' | 'black' | 'red' | 'auburn' | 'gray' | 'platinum' | 'none';
