@@ -248,7 +248,7 @@ function HomeContent() {
               {/* Always-visible invite button */}
               <button
                 onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
-                className="w-full mt-3 py-3 font-headline text-[11px] bg-bball-orange hover:bg-bball-orange/85 text-black transition-colors rounded-lg"
+                className="w-full mt-3 py-3 font-headline text-[11px] bg-[#f97316] hover:bg-[#ea580c] text-white transition-colors rounded-lg font-semibold"
               >
                 Have an invite? Sign in here →
               </button>
