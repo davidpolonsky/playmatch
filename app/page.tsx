@@ -19,6 +19,7 @@ const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
 
 function HomeContent() {
   const [loading, setLoading] = useState(true);
+  const [soccerLabel, setSoccerLabel] = useState('Football');
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   // Invite-code sign-in panel
@@ -46,6 +47,12 @@ function HomeContent() {
       }
     }
   }, [inviteParam, isInvited]);
+
+  useEffect(() => {
+    fetch('/api/geo').then(res => res.json()).then(data => {
+      if (data.country_code === 'US') setSoccerLabel('Soccer');
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -149,7 +156,7 @@ function HomeContent() {
           {/* Sport switcher */}
           <div className="flex justify-center gap-2 mb-8">
             <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-fifa-mint bg-fifa-mint/10 text-fifa-mint font-retro text-[8px]">
-              ⚽ Football
+              ⚽ {soccerLabel}
             </button>
             <button onClick={() => router.push('/basketball')}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white/50 font-retro text-[8px] hover:text-white/70 transition-colors">
