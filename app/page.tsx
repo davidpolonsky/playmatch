@@ -14,6 +14,9 @@ import {
 } from '@/lib/firebase/firestore';
 import Footer from '@/components/Footer';
 
+// Set NEXT_PUBLIC_WAITLIST_ENABLED=true in .env.local to re-enable invite-only access
+const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
+
 function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [waitlistEmail, setWaitlistEmail] = useState('');
@@ -34,11 +37,13 @@ function HomeContent() {
   const isInvited = inviteParam !== '' || searchParams.get('invited') === 'true';
 
   useEffect(() => {
-    if (inviteParam) {
-      setInviteCode(inviteParam.toUpperCase());
-      setShowInvitePanel(true);
-    } else if (isInvited) {
-      setShowInvitePanel(true);
+    if (WAITLIST_ENABLED) {
+      if (inviteParam) {
+        setInviteCode(inviteParam.toUpperCase());
+        setShowInvitePanel(true);
+      } else if (isInvited) {
+        setShowInvitePanel(true);
+      }
     }
   }, [inviteParam, isInvited]);
 
@@ -85,31 +90,33 @@ function HomeContent() {
       const newUser = await isNewUser(user.uid);
 
       if (newUser) {
-        // New user must have a valid invite code
-        if (!codeToValidate) {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('Please enter your invite code to create an account.');
-          setInviteLoading(false);
-          return;
-        }
+        if (WAITLIST_ENABLED) {
+          // New user must have a valid invite code
+          if (!codeToValidate) {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('Please enter your invite code to create an account.');
+            setInviteLoading(false);
+            return;
+          }
 
-        const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
-        if (result === 'invalid') {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('That invite code is not valid. Double-check and try again.');
-          setInviteLoading(false);
-          return;
+          const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
+          if (result === 'invalid') {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('That invite code is not valid. Double-check and try again.');
+            setInviteLoading(false);
+            return;
+          }
+          if (result === 'already_used') {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('That invite code has already been used.');
+            setInviteLoading(false);
+            return;
+          }
         }
-        if (result === 'already_used') {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('That invite code has already been used.');
-          setInviteLoading(false);
-          return;
-        }
-        // Code is valid — create their user doc and let them through
+        // Code valid (or waitlist disabled) — create their user doc and let them through
         await createUserDoc(user.uid, user.email);
       }
 
@@ -181,78 +188,94 @@ function HomeContent() {
             </ol>
           </div>
 
-          {/* ── Invite sign-in panel OR waitlist ── */}
-          {showInvitePanel ? (
-            <div className="max-w-sm mx-auto">
-              <p className="font-retro text-[10px] text-fifa-mint mb-2 tracking-widest uppercase">Sign In With Your Invite</p>
-              <p className="font-headline text-[11px] text-white/40 mb-5">
-                Enter your invite code, then sign in with Google to get started.
-              </p>
-              <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="PLAY-XXXXXX"
-                  value={inviteCode}
-                  onChange={e => { setInviteCode(e.target.value.toUpperCase()); setInviteError(''); }}
-                  className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
-                  style={{ background: '#14532d', border: '1px solid #1e5c33', color: '#f1efe3', outlineColor: '#4ade80' }}
-                />
-                <button
-                  onClick={handleInviteSignIn}
-                  disabled={inviteLoading}
-                  className="btn-primary w-full px-8 py-4 text-[12px] shadow-retro disabled:opacity-50"
-                >
-                  {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
-                </button>
-                {inviteError && (
-                  <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
-                )}
-              </div>
-              <button
-                onClick={() => { setShowInvitePanel(false); setInviteError(''); }}
-                className="mt-4 font-headline text-[10px] text-white/30 hover:text-white/50 transition-colors"
-              >
-                ← Back to waitlist
-              </button>
-            </div>
-          ) : (
-            <div className="max-w-sm mx-auto">
-              <p className="font-retro text-[10px] text-fifa-mint mb-2 tracking-wider uppercase">Join the Waitlist</p>
-              <p className="font-headline text-[11px] text-white/40 mb-5">
-                PlayMatch is in private beta. Drop your email and we'll let you know when a spot opens up.
-              </p>
-              {waitlistState === 'sent' ? (
-                <div className="bg-fifa-mid border border-fifa-mint/30 rounded-xl p-6 text-center">
-                  <p className="font-retro text-[11px] text-fifa-mint tracking-wider mb-1">You're on the list! ✓</p>
-                  <p className="font-headline text-[10px] text-white/40">We'll reach out when your spot is ready.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleWaitlist} className="flex flex-col gap-3">
+          {/* ── Sign-in section ── */}
+          {WAITLIST_ENABLED ? (
+            // ── Waitlist mode: invite code required ──
+            showInvitePanel ? (
+              <div className="max-w-sm mx-auto">
+                <p className="font-retro text-[10px] text-fifa-mint mb-2 tracking-widest uppercase">Sign In With Your Invite</p>
+                <p className="font-headline text-[11px] text-white/40 mb-5">
+                  Enter your invite code, then sign in with Google to get started.
+                </p>
+                <div className="flex flex-col gap-3">
                   <input
-                    type="email"
-                    required
-                    placeholder="your@email.com"
-                    value={waitlistEmail}
-                    onChange={e => setWaitlistEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg font-headline text-sm bg-fifa-mid border border-fifa-border text-fifa-cream placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
+                    type="text"
+                    placeholder="PLAY-XXXXXX"
+                    value={inviteCode}
+                    onChange={e => { setInviteCode(e.target.value.toUpperCase()); setInviteError(''); }}
+                    className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
+                    style={{ background: '#14532d', border: '1px solid #1e5c33', color: '#f1efe3', outlineColor: '#4ade80' }}
                   />
-                  <button type="submit" disabled={waitlistState === 'sending' || !waitlistEmail.trim()}
-                    className="btn-primary py-3 text-[11px] disabled:opacity-40">
-                    {waitlistState === 'sending' ? 'Joining…' : 'Join Waitlist ⚽'}
+                  <button
+                    onClick={handleInviteSignIn}
+                    disabled={inviteLoading}
+                    className="btn-primary w-full px-8 py-4 text-[12px] shadow-retro disabled:opacity-50"
+                  >
+                    {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
                   </button>
-                  {waitlistState === 'error' && (
-                    <p className="font-headline text-[10px] text-red-400 text-center">Something went wrong — try again.</p>
+                  {inviteError && (
+                    <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
                   )}
-                </form>
-              )}
-              {/* Always-visible invite button */}
+                </div>
+                <button
+                  onClick={() => { setShowInvitePanel(false); setInviteError(''); }}
+                  className="mt-4 font-headline text-[10px] text-white/30 hover:text-white/50 transition-colors"
+                >
+                  ← Back to waitlist
+                </button>
+              </div>
+            ) : (
+              <div className="max-w-sm mx-auto">
+                <p className="font-retro text-[10px] text-fifa-mint mb-2 tracking-wider uppercase">Join the Waitlist</p>
+                <p className="font-headline text-[11px] text-white/40 mb-5">
+                  PlayMatch is in private beta. Drop your email and we'll let you know when a spot opens up.
+                </p>
+                {waitlistState === 'sent' ? (
+                  <div className="bg-fifa-mid border border-fifa-mint/30 rounded-xl p-6 text-center">
+                    <p className="font-retro text-[11px] text-fifa-mint tracking-wider mb-1">You're on the list! ✓</p>
+                    <p className="font-headline text-[10px] text-white/40">We'll reach out when your spot is ready.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleWaitlist} className="flex flex-col gap-3">
+                    <input
+                      type="email"
+                      required
+                      placeholder="your@email.com"
+                      value={waitlistEmail}
+                      onChange={e => setWaitlistEmail(e.target.value)}
+                      className="w-full px-4 py-3 rounded-lg font-headline text-sm bg-fifa-mid border border-fifa-border text-fifa-cream placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-fifa-mint"
+                    />
+                    <button type="submit" disabled={waitlistState === 'sending' || !waitlistEmail.trim()}
+                      className="btn-primary py-3 text-[11px] disabled:opacity-40">
+                      {waitlistState === 'sending' ? 'Joining…' : 'Join Waitlist ⚽'}
+                    </button>
+                    {waitlistState === 'error' && (
+                      <p className="font-headline text-[10px] text-red-400 text-center">Something went wrong — try again.</p>
+                    )}
+                  </form>
+                )}
+                <button
+                  onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
+                  className="w-full mt-3 py-3 font-headline text-[11px] text-white transition-all rounded-lg font-semibold hover:opacity-90"
+                  style={{ backgroundColor: '#f97316' }}
+                >
+                  Have an invite? Sign in here →
+                </button>
+              </div>
+            )
+          ) : (
+            // ── Open access: sign in directly ──
+            <div className="max-w-sm mx-auto">
               <button
-                onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
-                className="w-full mt-3 py-3 font-headline text-[11px] text-white transition-all rounded-lg font-semibold hover:opacity-90"
-                style={{ backgroundColor: '#f97316' }}
+                onClick={handleInviteSignIn}
+                disabled={inviteLoading}
+                className="btn-primary w-full px-8 py-4 text-[12px] shadow-retro disabled:opacity-50"
               >
-                Have an invite? Sign in here →
+                {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play ⚽'}
               </button>
+              {inviteError && (
+                <p className="font-headline text-[10px] text-red-400 text-center mt-3">{inviteError}</p>
+              )}
             </div>
           )}
 

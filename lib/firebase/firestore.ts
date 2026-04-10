@@ -584,8 +584,9 @@ export const validateAndConsumeInviteCode = async (
   code: string,
   userId: string
 ): Promise<'ok' | 'invalid' | 'already_used'> => {
-  // Master code — always valid, never consumed from Firestore
-  if (code.trim().toUpperCase() === 'PLAY-000000') return 'ok';
+  // Permanent codes — always valid, never consumed from Firestore
+  const PERMANENT_CODES = ['PLAY-000000', 'PLAY-REDDIT'];
+  if (PERMANENT_CODES.includes(code.trim().toUpperCase())) return 'ok';
 
   const ref = doc(db, INVITE_CODES_COLLECTION, code.trim().toUpperCase());
   const snap = await getDoc(ref);

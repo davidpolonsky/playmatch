@@ -14,6 +14,9 @@ import {
 } from '@/lib/firebase/firestore';
 import Footer from '@/components/Footer';
 
+// Set NEXT_PUBLIC_WAITLIST_ENABLED=true in .env.local to re-enable invite-only access
+const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
+
 function BasketballHomeContent() {
   const [loading, setLoading] = useState(true);
   const [soccerLabel, setSoccerLabel] = useState('Football');
@@ -32,11 +35,13 @@ function BasketballHomeContent() {
   const isInvited = inviteParam !== '' || searchParams.get('invited') === 'true';
 
   useEffect(() => {
-    if (inviteParam) {
-      setInviteCode(inviteParam.toUpperCase());
-      setShowInvitePanel(true);
-    } else if (isInvited) {
-      setShowInvitePanel(true);
+    if (WAITLIST_ENABLED) {
+      if (inviteParam) {
+        setInviteCode(inviteParam.toUpperCase());
+        setShowInvitePanel(true);
+      } else if (isInvited) {
+        setShowInvitePanel(true);
+      }
     }
   }, [inviteParam, isInvited]);
 
@@ -86,29 +91,32 @@ function BasketballHomeContent() {
       const newUser = await isNewUser(user.uid);
 
       if (newUser) {
-        if (!codeToValidate) {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('Please enter your invite code to create an account.');
-          setInviteLoading(false);
-          return;
-        }
+        if (WAITLIST_ENABLED) {
+          if (!codeToValidate) {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('Please enter your invite code to create an account.');
+            setInviteLoading(false);
+            return;
+          }
 
-        const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
-        if (result === 'invalid') {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('That invite code is not valid. Double-check and try again.');
-          setInviteLoading(false);
-          return;
+          const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
+          if (result === 'invalid') {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('That invite code is not valid. Double-check and try again.');
+            setInviteLoading(false);
+            return;
+          }
+          if (result === 'already_used') {
+            await signOut(auth);
+            handlingInvite.current = false;
+            setInviteError('That invite code has already been used.');
+            setInviteLoading(false);
+            return;
+          }
         }
-        if (result === 'already_used') {
-          await signOut(auth);
-          handlingInvite.current = false;
-          setInviteError('That invite code has already been used.');
-          setInviteLoading(false);
-          return;
-        }
+        // Code valid (or waitlist disabled) — create their user doc and let them through
         await createUserDoc(user.uid, user.email);
       }
 
@@ -182,84 +190,101 @@ function BasketballHomeContent() {
             </ol>
           </div>
 
-          {/* ── Invite sign-in panel OR waitlist ── */}
-          {showInvitePanel ? (
-            <div className="max-w-sm mx-auto">
-              <p className="font-retro text-[10px] mb-2 tracking-widest uppercase" style={{ color: '#f97316' }}>Sign In With Your Invite</p>
-              <p className="font-headline text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Enter your invite code, then sign in with Google to get started.
-              </p>
-              <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="PLAY-XXXXXX"
-                  value={inviteCode}
-                  onChange={e => { setInviteCode(e.target.value.toUpperCase()); setInviteError(''); }}
-                  className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
-                  style={{ background: '#1c1200', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
-                />
-                <button
-                  onClick={handleInviteSignIn}
-                  disabled={inviteLoading}
-                  className="w-full font-retro text-[12px] px-8 py-4 rounded-lg transition-all disabled:opacity-50"
-                  style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.5)' }}
-                >
-                  {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
-                </button>
-                {inviteError && (
-                  <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
-                )}
-              </div>
-              <button
-                onClick={() => { setShowInvitePanel(false); setInviteError(''); }}
-                className="mt-4 font-headline text-[10px] transition-colors"
-                style={{ color: 'rgba(255,255,255,0.3)' }}
-              >
-                ← Back to waitlist
-              </button>
-            </div>
-          ) : (
-            <div className="max-w-sm mx-auto">
-              <p className="font-retro text-[10px] mb-2 tracking-widest uppercase" style={{ color: '#f97316' }}>Join the Waitlist</p>
-              <p className="font-headline text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                PlayMatch is in private beta. Drop your email and we'll let you know when a spot opens up.
-              </p>
-              {waitlistState === 'sent' ? (
-                <div className="rounded-xl p-6 text-center" style={{ background: '#1c1200', border: '1px solid rgba(249,115,22,0.3)' }}>
-                  <p className="font-retro text-[11px] tracking-wider mb-1" style={{ color: '#f97316' }}>You're on the list! ✓</p>
-                  <p className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>We'll reach out when your spot is ready.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleWaitlist} className="flex flex-col gap-3">
+          {/* ── Sign-in section ── */}
+          {WAITLIST_ENABLED ? (
+            // ── Waitlist mode: invite code required ──
+            showInvitePanel ? (
+              <div className="max-w-sm mx-auto">
+                <p className="font-retro text-[10px] mb-2 tracking-widest uppercase" style={{ color: '#f97316' }}>Sign In With Your Invite</p>
+                <p className="font-headline text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Enter your invite code, then sign in with Google to get started.
+                </p>
+                <div className="flex flex-col gap-3">
                   <input
-                    type="email"
-                    required
-                    placeholder="your@email.com"
-                    value={waitlistEmail}
-                    onChange={e => setWaitlistEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg font-headline text-sm focus:outline-none focus:ring-1"
+                    type="text"
+                    placeholder="PLAY-XXXXXX"
+                    value={inviteCode}
+                    onChange={e => { setInviteCode(e.target.value.toUpperCase()); setInviteError(''); }}
+                    className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
                     style={{ background: '#1c1200', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
                   />
-                  <button type="submit" disabled={waitlistState === 'sending' || !waitlistEmail.trim()}
-                    className="w-full font-retro text-[11px] py-3 rounded-lg transition-all disabled:opacity-40"
-                    style={{ background: '#f97316', color: '#0f0a00' }}>
-                    {waitlistState === 'sending' ? 'Joining…' : 'Join Waitlist 🏀'}
+                  <button
+                    onClick={handleInviteSignIn}
+                    disabled={inviteLoading}
+                    className="w-full font-retro text-[12px] px-8 py-4 rounded-lg transition-all disabled:opacity-50"
+                    style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.5)' }}
+                  >
+                    {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
                   </button>
-                  {waitlistState === 'error' && (
-                    <p className="font-headline text-[10px] text-red-400 text-center">Something went wrong — try again.</p>
+                  {inviteError && (
+                    <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
                   )}
-                </form>
-              )}
-              {/* Always-visible invite link */}
+                </div>
+                <button
+                  onClick={() => { setShowInvitePanel(false); setInviteError(''); }}
+                  className="mt-4 font-headline text-[10px] transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.3)' }}
+                >
+                  ← Back to waitlist
+                </button>
+              </div>
+            ) : (
+              <div className="max-w-sm mx-auto">
+                <p className="font-retro text-[10px] mb-2 tracking-widest uppercase" style={{ color: '#f97316' }}>Join the Waitlist</p>
+                <p className="font-headline text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  PlayMatch is in private beta. Drop your email and we'll let you know when a spot opens up.
+                </p>
+                {waitlistState === 'sent' ? (
+                  <div className="rounded-xl p-6 text-center" style={{ background: '#1c1200', border: '1px solid rgba(249,115,22,0.3)' }}>
+                    <p className="font-retro text-[11px] tracking-wider mb-1" style={{ color: '#f97316' }}>You're on the list! ✓</p>
+                    <p className="font-headline text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>We'll reach out when your spot is ready.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleWaitlist} className="flex flex-col gap-3">
+                    <input
+                      type="email"
+                      required
+                      placeholder="your@email.com"
+                      value={waitlistEmail}
+                      onChange={e => setWaitlistEmail(e.target.value)}
+                      className="w-full px-4 py-3 rounded-lg font-headline text-sm focus:outline-none focus:ring-1"
+                      style={{ background: '#1c1200', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
+                    />
+                    <button type="submit" disabled={waitlistState === 'sending' || !waitlistEmail.trim()}
+                      className="w-full font-retro text-[11px] py-3 rounded-lg transition-all disabled:opacity-40"
+                      style={{ background: '#f97316', color: '#0f0a00' }}>
+                      {waitlistState === 'sending' ? 'Joining…' : 'Join Waitlist 🏀'}
+                    </button>
+                    {waitlistState === 'error' && (
+                      <p className="font-headline text-[10px] text-red-400 text-center">Something went wrong — try again.</p>
+                    )}
+                  </form>
+                )}
+                <button
+                  onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
+                  className="mt-5 font-headline text-[10px] transition-colors underline underline-offset-2"
+                  style={{ color: 'rgba(255,255,255,0.35)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(249,115,22,0.7)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+                >
+                  Have an invite? Sign in here →
+                </button>
+              </div>
+            )
+          ) : (
+            // ── Open access: sign in directly ──
+            <div className="max-w-sm mx-auto">
               <button
-                onClick={() => { setShowInvitePanel(true); setInviteError(''); }}
-                className="mt-5 font-headline text-[10px] transition-colors underline underline-offset-2"
-                style={{ color: 'rgba(255,255,255,0.35)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(249,115,22,0.7)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+                onClick={handleInviteSignIn}
+                disabled={inviteLoading}
+                className="w-full font-retro text-[12px] px-8 py-4 rounded-lg transition-all disabled:opacity-50"
+                style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.5)' }}
               >
-                Have an invite? Sign in here →
+                {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play 🏀'}
               </button>
+              {inviteError && (
+                <p className="font-headline text-[10px] text-red-400 text-center mt-3">{inviteError}</p>
+              )}
             </div>
           )}
 
