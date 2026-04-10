@@ -125,6 +125,10 @@ function HomeContent() {
         }
         // Code valid (or waitlist disabled) — create their user doc and let them through
         await createUserDoc(user.uid, user.email);
+        // Fire Reddit SignUp conversion for new users
+        if (typeof window !== 'undefined' && (window as any).rdt) {
+          (window as any).rdt('track', 'SignUp');
+        }
       }
 
       // Existing user OR newly admitted — redirect to dashboard
