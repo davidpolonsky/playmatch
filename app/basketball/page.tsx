@@ -88,11 +88,6 @@ function BasketballHomeContent() {
       const user = await signInWithGoogle();
       if (!user) throw new Error('Sign in failed');
 
-      // Pass email to Reddit Pixel for improved conversion matching
-      if (typeof window !== 'undefined' && (window as any).rdt && user.email) {
-        (window as any).rdt('init', 'a2_is50o2qv81sj', { email: user.email });
-      }
-
       const newUser = await isNewUser(user.uid);
 
       if (newUser) {
@@ -123,9 +118,14 @@ function BasketballHomeContent() {
         }
         // Code valid (or waitlist disabled) — create their user doc and let them through
         await createUserDoc(user.uid, user.email);
-        // Fire Reddit SignUp conversion for new users
-        if (typeof window !== 'undefined' && (window as any).rdt) {
-          (window as any).rdt('track', 'SignUp');
+        // Fire SignUp conversion via GTM dataLayer
+        if (typeof window !== 'undefined') {
+          (window as any).dataLayer = (window as any).dataLayer || [];
+          (window as any).dataLayer.push({
+            event: 'signup',
+            user_email: user.email,
+            sport: 'basketball'
+          });
         }
       }
 
