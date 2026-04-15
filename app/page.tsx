@@ -96,7 +96,7 @@ function HomeContent() {
 
       // Pass email to Reddit Pixel for improved conversion matching
       if (typeof window !== 'undefined' && (window as any).rdt && user.email) {
-        (window as any).rdt('init', 'a2_is5oo2qv81sj', { email: user.email });
+        (window as any).rdt('init', 'a2_is50o2qv81sj', { email: user.email });
       }
 
       const newUser = await isNewUser(user.uid);
