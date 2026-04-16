@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
-import { signInWithGoogle } from '@/lib/firebase/auth';
 import { signOut } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -13,6 +12,7 @@ import {
   createUserDoc,
 } from '@/lib/firebase/firestore';
 import Footer from '@/components/Footer';
+import AuthModal from '@/components/AuthModal';
 
 // Set NEXT_PUBLIC_WAITLIST_ENABLED=true in .env.local to re-enable invite-only access
 const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
@@ -80,68 +80,67 @@ function HomeContent() {
     }
   };
 
-  const handleInviteSignIn = async () => {
-    if (inviteLoading) return;
-    setInviteError('');
+  const handleSignIn = async (user: any) => {
+    if (!user) throw new Error('Sign in failed');
 
     const codeToValidate = inviteCode.trim().toUpperCase();
+    const newUser = await isNewUser(user.uid);
 
-    // Block the onAuthStateChanged listener from auto-redirecting
-    // so we can validate the code and sign out if needed
+    if (newUser) {
+      if (WAITLIST_ENABLED) {
+        // New user must have a valid invite code
+        if (!codeToValidate) {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('Please enter your invite code to create an account.');
+          setInviteLoading(false);
+          return;
+        }
+
+        const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
+        if (result === 'invalid') {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('That invite code is not valid. Double-check and try again.');
+          setInviteLoading(false);
+          return;
+        }
+        if (result === 'already_used') {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('That invite code has already been used.');
+          setInviteLoading(false);
+          return;
+        }
+      }
+      // Code valid (or waitlist disabled) — create their user doc and let them through
+      await createUserDoc(user.uid, user.email);
+      // Fire SignUp conversion via GTM dataLayer
+      if (typeof window !== 'undefined') {
+        (window as any).dataLayer = (window as any).dataLayer || [];
+        (window as any).dataLayer.push({
+          event: 'signup',
+          user_email: user.email,
+          sport: 'soccer'
+        });
+      }
+    }
+
+    // Existing user OR newly admitted — redirect to dashboard
+    handlingInvite.current = false;
+    router.push('/dashboard');
+  };
+
+  const handleAuthSubmit = async (user: any) => {
+    if (inviteLoading) return;
+    setInviteError('');
     handlingInvite.current = true;
     setInviteLoading(true);
     try {
-      const user = await signInWithGoogle();
-      if (!user) throw new Error('Sign in failed');
-
-      const newUser = await isNewUser(user.uid);
-
-      if (newUser) {
-        if (WAITLIST_ENABLED) {
-          // New user must have a valid invite code
-          if (!codeToValidate) {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('Please enter your invite code to create an account.');
-            setInviteLoading(false);
-            return;
-          }
-
-          const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
-          if (result === 'invalid') {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('That invite code is not valid. Double-check and try again.');
-            setInviteLoading(false);
-            return;
-          }
-          if (result === 'already_used') {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('That invite code has already been used.');
-            setInviteLoading(false);
-            return;
-          }
-        }
-        // Code valid (or waitlist disabled) — create their user doc and let them through
-        await createUserDoc(user.uid, user.email);
-        // Fire SignUp conversion via GTM dataLayer
-        if (typeof window !== 'undefined') {
-          (window as any).dataLayer = (window as any).dataLayer || [];
-          (window as any).dataLayer.push({
-            event: 'signup',
-            user_email: user.email,
-            sport: 'soccer'
-          });
-        }
-      }
-
-      // Existing user OR newly admitted — redirect to dashboard
-      handlingInvite.current = false;
-      router.push('/dashboard');
+      await handleSignIn(user);
     } catch (e: any) {
       handlingInvite.current = false;
-      setInviteError('Sign in failed: ' + (e.message || 'unknown error'));
+      setInviteError(e.message || 'Sign in failed');
       setInviteLoading(false);
     }
   };
@@ -211,9 +210,9 @@ function HomeContent() {
               <div className="max-w-sm mx-auto">
                 <p className="font-retro text-[10px] text-fifa-mint mb-2 tracking-widest uppercase">Sign In With Your Invite</p>
                 <p className="font-headline text-[11px] text-white/40 mb-5">
-                  Enter your invite code, then sign in with Google to get started.
+                  Enter your invite code, then sign in to get started.
                 </p>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   <input
                     type="text"
                     placeholder="PLAY-XXXXXX"
@@ -222,13 +221,15 @@ function HomeContent() {
                     className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
                     style={{ background: '#14532d', border: '1px solid #1e5c33', color: '#f1efe3', outlineColor: '#4ade80' }}
                   />
-                  <button
-                    onClick={handleInviteSignIn}
-                    disabled={inviteLoading}
-                    className="btn-primary w-full px-8 py-4 text-[12px] shadow-retro disabled:opacity-50"
-                  >
-                    {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
-                  </button>
+
+                  <AuthModal
+                    sport="soccer"
+                    inviteCode={inviteCode}
+                    onSignIn={handleAuthSubmit}
+                    onError={setInviteError}
+                    loading={inviteLoading}
+                  />
+
                   {inviteError && (
                     <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
                   )}
@@ -281,18 +282,17 @@ function HomeContent() {
             )
           ) : (
             // ── Open access: sign in directly ──
-            <div className="max-w-sm mx-auto">
-              <button
-                onClick={handleInviteSignIn}
-                disabled={inviteLoading}
-                className="btn-primary w-full px-8 py-4 text-[12px] shadow-retro disabled:opacity-50"
-              >
-                {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play ⚽'}
-              </button>
+            <>
+              <AuthModal
+                sport="soccer"
+                onSignIn={handleAuthSubmit}
+                onError={setInviteError}
+                loading={inviteLoading}
+              />
               {inviteError && (
                 <p className="font-headline text-[10px] text-red-400 text-center mt-3">{inviteError}</p>
               )}
-            </div>
+            </>
           )}
 
           <p className="font-headline text-[10px] sm:text-[11px] text-white/40 mt-6 px-4">

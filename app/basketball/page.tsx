@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
-import { signInWithGoogle } from '@/lib/firebase/auth';
 import { signOut } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -13,6 +12,7 @@ import {
   createUserDoc,
 } from '@/lib/firebase/firestore';
 import Footer from '@/components/Footer';
+import AuthModal from '@/components/AuthModal';
 
 // Set NEXT_PUBLIC_WAITLIST_ENABLED=true in .env.local to re-enable invite-only access
 const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
@@ -76,64 +76,67 @@ function BasketballHomeContent() {
     }
   };
 
-  const handleInviteSignIn = async () => {
-    if (inviteLoading) return;
-    setInviteError('');
+  const handleSignIn = async (user: any) => {
+    if (!user) throw new Error('Sign in failed');
 
     const codeToValidate = inviteCode.trim().toUpperCase();
+    const newUser = await isNewUser(user.uid);
 
+    if (newUser) {
+      if (WAITLIST_ENABLED) {
+        // New user must have a valid invite code
+        if (!codeToValidate) {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('Please enter your invite code to create an account.');
+          setInviteLoading(false);
+          return;
+        }
+
+        const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
+        if (result === 'invalid') {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('That invite code is not valid. Double-check and try again.');
+          setInviteLoading(false);
+          return;
+        }
+        if (result === 'already_used') {
+          await signOut(auth);
+          handlingInvite.current = false;
+          setInviteError('That invite code has already been used.');
+          setInviteLoading(false);
+          return;
+        }
+      }
+      // Code valid (or waitlist disabled) — create their user doc and let them through
+      await createUserDoc(user.uid, user.email);
+      // Fire SignUp conversion via GTM dataLayer
+      if (typeof window !== 'undefined') {
+        (window as any).dataLayer = (window as any).dataLayer || [];
+        (window as any).dataLayer.push({
+          event: 'signup',
+          user_email: user.email,
+          sport: 'basketball'
+        });
+      }
+    }
+
+    // Existing user OR newly admitted — redirect to basketball teams
+    handlingInvite.current = false;
+    router.push('/basketball/teams');
+  };
+
+  const handleAuthSubmit = async (user: any) => {
+    if (inviteLoading) return;
+    setInviteError('');
     handlingInvite.current = true;
     setInviteLoading(true);
     try {
-      const user = await signInWithGoogle();
-      if (!user) throw new Error('Sign in failed');
-
-      const newUser = await isNewUser(user.uid);
-
-      if (newUser) {
-        if (WAITLIST_ENABLED) {
-          if (!codeToValidate) {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('Please enter your invite code to create an account.');
-            setInviteLoading(false);
-            return;
-          }
-
-          const result = await validateAndConsumeInviteCode(codeToValidate, user.uid);
-          if (result === 'invalid') {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('That invite code is not valid. Double-check and try again.');
-            setInviteLoading(false);
-            return;
-          }
-          if (result === 'already_used') {
-            await signOut(auth);
-            handlingInvite.current = false;
-            setInviteError('That invite code has already been used.');
-            setInviteLoading(false);
-            return;
-          }
-        }
-        // Code valid (or waitlist disabled) — create their user doc and let them through
-        await createUserDoc(user.uid, user.email);
-        // Fire SignUp conversion via GTM dataLayer
-        if (typeof window !== 'undefined') {
-          (window as any).dataLayer = (window as any).dataLayer || [];
-          (window as any).dataLayer.push({
-            event: 'signup',
-            user_email: user.email,
-            sport: 'basketball'
-          });
-        }
-      }
-
-      handlingInvite.current = false;
-      router.push('/basketball/teams');
+      await handleSignIn(user);
     } catch (e: any) {
       handlingInvite.current = false;
-      setInviteError('Sign in failed: ' + (e.message || 'unknown error'));
+      setInviteError(e.message || 'Sign in failed');
       setInviteLoading(false);
     }
   };
@@ -206,9 +209,9 @@ function BasketballHomeContent() {
               <div className="max-w-sm mx-auto">
                 <p className="font-retro text-[10px] mb-2 tracking-widest uppercase" style={{ color: '#f97316' }}>Sign In With Your Invite</p>
                 <p className="font-headline text-[11px] mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  Enter your invite code, then sign in with Google to get started.
+                  Enter your invite code, then sign in to get started.
                 </p>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   <input
                     type="text"
                     placeholder="PLAY-XXXXXX"
@@ -217,14 +220,15 @@ function BasketballHomeContent() {
                     className="w-full px-4 py-3 rounded-lg font-retro text-[11px] tracking-widest text-center focus:outline-none focus:ring-1 uppercase"
                     style={{ background: '#1c1200', border: '1px solid #3d2c00', color: '#f1efe3', outlineColor: '#f97316' }}
                   />
-                  <button
-                    onClick={handleInviteSignIn}
-                    disabled={inviteLoading}
-                    className="w-full font-retro text-[12px] px-8 py-4 rounded-lg transition-all disabled:opacity-50"
-                    style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.5)' }}
-                  >
-                    {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play'}
-                  </button>
+
+                  <AuthModal
+                    sport="basketball"
+                    inviteCode={inviteCode}
+                    onSignIn={handleAuthSubmit}
+                    onError={setInviteError}
+                    loading={inviteLoading}
+                  />
+
                   {inviteError && (
                     <p className="font-headline text-[10px] text-red-400 text-center">{inviteError}</p>
                   )}
@@ -282,19 +286,17 @@ function BasketballHomeContent() {
             )
           ) : (
             // ── Open access: sign in directly ──
-            <div className="max-w-sm mx-auto">
-              <button
-                onClick={handleInviteSignIn}
-                disabled={inviteLoading}
-                className="w-full font-retro text-[12px] px-8 py-4 rounded-lg transition-all disabled:opacity-50"
-                style={{ background: '#f97316', color: '#0f0a00', boxShadow: '0 0 12px rgba(249,115,22,0.5)' }}
-              >
-                {inviteLoading ? 'Signing in…' : 'Sign in with Google to Play 🏀'}
-              </button>
+            <>
+              <AuthModal
+                sport="basketball"
+                onSignIn={handleAuthSubmit}
+                onError={setInviteError}
+                loading={inviteLoading}
+              />
               {inviteError && (
                 <p className="font-headline text-[10px] text-red-400 text-center mt-3">{inviteError}</p>
               )}
-            </div>
+            </>
           )}
 
           <p className="font-headline text-[10px] mt-6 px-4" style={{ color: 'rgba(255,255,255,0.3)' }}>
