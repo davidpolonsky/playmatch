@@ -430,6 +430,8 @@ export default function BasketballTeamsPage() {
           team2Name: selectedAway.name, team2Players: selectedAway.players, team2Lineup: selectedAway.lineup || 'Standard',
           team1ChemistryText: homeChemistry?.promptText || '',
           team2ChemistryText: awayChemistry?.promptText || '',
+          userId: user?.uid,
+          userEmail: user?.email,
         }),
       });
       const data = await res.json();
