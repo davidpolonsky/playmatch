@@ -86,7 +86,7 @@ export default function CardUploader({ onPlayerAdded, onError, onSuccess, userId
       const response = await fetch('/api/analyze-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64 }),
+        body: JSON.stringify({ imageBase64: base64, userId }),
       });
       if (!response.ok) throw new Error('Failed to analyze card');
       const result = await response.json();

@@ -296,7 +296,7 @@ const ADMIN_STATS_COLLECTION = 'adminStats';
 // Rate limiting constants
 const MAX_CARDS_PER_DAY = 50;
 const MAX_TOTAL_CARDS = 75;
-const MAX_SIMULATIONS_PER_DAY = 12;
+const MAX_SIMULATIONS_PER_DAY = 10;
 
 const ADMIN_EMAIL = 'davidpolonsky@gmail.com';
 

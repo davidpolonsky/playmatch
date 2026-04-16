@@ -7,10 +7,11 @@ import { saveBasketballTeam, saveBasketballRoster, getBasketballRoster } from '@
 import PixelAvatar from '@/components/PixelAvatar';
 
 // Camera-based card uploader wired to basketball API
-function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
+function BasketballCardUploader({ onPlayerAdded, onError, onSuccess, userId }: {
   onPlayerAdded: (p: BasketballPlayer) => boolean | void;
   onError?: (msg: string) => void;
   onSuccess?: (msg: string) => void;
+  userId: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -71,7 +72,7 @@ function BasketballCardUploader({ onPlayerAdded, onError, onSuccess }: {
         const resp = await fetch('/api/analyze-basketball-card', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64 }),
+          body: JSON.stringify({ imageBase64: base64, userId }),
         });
         const result = await resp.json();
         if (result.error) { onError?.(result.error); return; }
@@ -376,6 +377,7 @@ export default function BasketballTeamBuilderContent({ onSaved }: Props) {
               onPlayerAdded={handlePlayerAdded}
               onError={msg => { setMessage(msg); setMessageType('error'); }}
               onSuccess={msg => { setMessage(msg); setMessageType('success'); }}
+              userId={user!.uid}
             />
             {message && (
               <p className={`mt-3 font-headline text-[10px] text-center ${messageType === 'success' ? 'text-bball-orange' : 'text-red-400'}`}>{message}</p>
