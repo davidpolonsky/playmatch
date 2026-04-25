@@ -10,7 +10,6 @@ interface OnboardingTourProps {
 
 export default function OnboardingTour({ userId, onComplete }: OnboardingTourProps) {
   const [run, setRun] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
 
   useEffect(() => {
     // Small delay to ensure DOM elements are ready
@@ -121,7 +120,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
   ];
 
   const handleJoyrideCallback = (data: EventData) => {
-    const { status, index, action } = data;
+    const { status } = data;
 
     const STATUS_FINISHED = 'finished';
     const STATUS_SKIPPED = 'skipped';
@@ -131,11 +130,6 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       setRun(false);
       onComplete();
     }
-
-    // Track step changes
-    if (action === 'next' || action === 'prev') {
-      setStepIndex(index + (action === 'next' ? 1 : -1));
-    }
   };
 
   return (
@@ -143,7 +137,6 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       steps={steps}
       run={run}
       continuous
-      stepIndex={stepIndex}
       onEvent={handleJoyrideCallback}
       options={{
         showProgress: true,
