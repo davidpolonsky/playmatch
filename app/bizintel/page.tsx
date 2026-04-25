@@ -40,6 +40,8 @@ export default function BizIntel() {
   const [error, setError] = useState('');
   // Per-email invite state: 'idle' | 'sending' | 'sent' | 'error'
   const [inviteState, setInviteState] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
+  // Tour reset state per uid
+  const [tourResetState, setTourResetState] = useState<Record<string, 'idle' | 'resetting' | 'reset' | 'error'>>({});
 
   const sendInvite = async (email: string, sport: string) => {
     setInviteState(s => ({ ...s, [email]: 'sending' }));
@@ -55,6 +57,24 @@ export default function BizIntel() {
       fetchStats(secret);
     } catch {
       setInviteState(s => ({ ...s, [email]: 'error' }));
+    }
+  };
+
+  const resetTour = async (uid: string) => {
+    setTourResetState(s => ({ ...s, [uid]: 'resetting' }));
+    try {
+      const res = await fetch('/api/bizintel/reset-tour', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
+        body: JSON.stringify({ uid }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setTourResetState(s => ({ ...s, [uid]: 'reset' }));
+      setTimeout(() => {
+        setTourResetState(s => ({ ...s, [uid]: 'idle' }));
+      }, 2000);
+    } catch {
+      setTourResetState(s => ({ ...s, [uid]: 'error' }));
     }
   };
 
@@ -156,7 +176,7 @@ export default function BizIntel() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10">
-                {['User', 'Soccer Teams', 'Bball Teams', 'Soccer Sims', 'Bball Sims', 'Soccer Cards', 'Bball Cards'].map(h => (
+                {['User', 'Soccer Teams', 'Bball Teams', 'Soccer Sims', 'Bball Sims', 'Soccer Cards', 'Bball Cards', 'Tour'].map(h => (
                   <th key={h} className="px-4 py-2 text-left font-mono text-[9px] text-white/30 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -164,17 +184,33 @@ export default function BizIntel() {
             <tbody>
               {activeUsers
                 .sort((a, b) => (b.soccerTeams + b.basketballTeams + b.soccerSims + b.basketballSims) - (a.soccerTeams + a.basketballTeams + a.soccerSims + a.basketballSims))
-                .map((u, i) => (
-                  <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{u.email || '(unknown)'}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerTeams}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballTeams}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballCards}</td>
-                  </tr>
-                ))}
+                .map((u, i) => {
+                  const tourState = tourResetState[u.uid] || 'idle';
+                  return (
+                    <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/70">{u.email || '(unknown)'}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerTeams}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballTeams}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerSims}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballSims}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.soccerCards}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{u.basketballCards}</td>
+                      <td className="px-4 py-2.5">
+                        {tourState === 'reset' ? (
+                          <span className="font-mono text-[10px] text-green-400">✓ Reset</span>
+                        ) : (
+                          <button
+                            onClick={() => resetTour(u.uid)}
+                            disabled={tourState === 'resetting'}
+                            className="font-mono text-[10px] px-2 py-1 rounded border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
+                          >
+                            {tourState === 'resetting' ? '...' : tourState === 'error' ? 'Retry' : 'Reset'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
