@@ -498,7 +498,7 @@ export default function Dashboard() {
           {/* Header */}
           <div className="mb-6">
             <h2 className="font-retro text-[11px] text-fifa-mint mb-2 tracking-wider">DASHBOARD</h2>
-            <p className="font-headline text-[10px] text-white/40">Welcome, {user.displayName}</p>
+            <p className="font-headline text-[10px] text-white/40">Welcome, {user?.displayName}</p>
           </div>
 
           {/* Tabs */}
@@ -534,7 +534,7 @@ export default function Dashboard() {
                 onPlayerAdded={handlePlayerAdded}
                 onError={(message) => showNotification(message, 'error')}
                 onSuccess={(message) => showNotification(message, 'success')}
-                userId={user.uid}
+                userId={user?.uid || ''}
               />
 
               <div className="mt-6">
@@ -926,7 +926,7 @@ export default function Dashboard() {
           );
         })()}
 
-        {activeTab === 'match' && (
+        {activeTab === 'match' && user && (
           <MatchSimulator teams={savedTeams} userId={user.uid} userEmail={user.email || undefined} />
         )}
 
