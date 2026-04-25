@@ -4,6 +4,12 @@ const nextConfig = {
     domains: ['firebasestorage.googleapis.com'],
   },
   serverExternalPackages: ['firebase-admin'],
+  async redirects() {
+    return [
+      // Friendlier URL alias — /soccer mirrors /basketball naming
+      { source: '/soccer', destination: '/teams', permanent: false },
+    ];
+  },
 };
 
 // Wrap with Sentry — only applies extra build steps (source map upload, etc.)
