@@ -3,8 +3,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Joyride from 'react-joyride';
-import type { CallBackProps, STATUS as JoyrideStatus, Step } from 'react-joyride';
+import { Joyride, type CallBackProps, type Step } from 'react-joyride';
 
 interface OnboardingTourProps {
   userId: string;
