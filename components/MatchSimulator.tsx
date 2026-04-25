@@ -142,6 +142,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   const [visibleEvents, setVisibleEvents] = useState<PlayByPlayEvent[]>([]);
   const [streamingDone, setStreamingDone] = useState(false);
   const [currentScore, setCurrentScore] = useState({ team1: 0, team2: 0 });
+  const [simError, setSimError] = useState<string | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const [addTeamIdInput, setAddTeamIdInput] = useState('');
@@ -285,6 +286,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
     setResult(null);
     setVisibleEvents([]);
     setCurrentScore({ team1: 0, team2: 0 });
+    setSimError(null);
 
     try {
       const response = await fetch('/api/simulate-match', {
@@ -350,7 +352,7 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
     } catch (e: any) {
       console.error('Error:', e);
       const msg = e?.message || 'Failed to simulate match. Please try again.';
-      alert(msg);
+      setSimError(msg);
     } finally {
       setSimulating(false);
     }
@@ -407,6 +409,21 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
               </span>
             ) : '⚽ Kick Off'}
           </button>
+          {simError && (
+            <div
+              role="alert"
+              className="mt-3 px-3 py-2 text-xs font-headline rounded-md border border-red-500/40 bg-red-500/10 text-red-300 flex items-start justify-between gap-2"
+            >
+              <span className="leading-relaxed">⚠️ {simError}</span>
+              <button
+                onClick={() => setSimError(null)}
+                className="text-red-300/60 hover:text-red-300 shrink-0"
+                aria-label="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         <div>

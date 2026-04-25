@@ -1,10 +1,99 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as Sentry from '@sentry/nextjs';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export const analyzePlayerCard = async (imageBase64: string) => {
+/**
+ * Robustly parse JSON from an LLM response.
+ * Handles stray markdown fences, prose prefixes/suffixes, and trailing garbage
+ * (e.g. a second JSON object concatenated after the first) by falling back to a
+ * balanced-brace extraction of the first JSON object or array.
+ *
+ * This is the defensive layer below Gemini's `responseMimeType: "application/json"`
+ * setting — the model should already produce clean JSON, but a parser that never
+ * dies on stray tokens is how we stop a single bad generation from 500-ing an API.
+ */
+function safeParseJson<T = any>(text: string): T {
+  const stripped = text.replace(/```json\s*|\s*```/g, '').trim();
+
+  // Fast path — already clean JSON
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    return JSON.parse(stripped) as T;
+  } catch {
+    // fall through to balanced extraction
+  }
+
+  // Find first '{' or '['
+  const startObj = stripped.indexOf('{');
+  const startArr = stripped.indexOf('[');
+  const start =
+    startObj === -1 ? startArr :
+    startArr === -1 ? startObj :
+    Math.min(startObj, startArr);
+  if (start === -1) throw new Error('No JSON object or array found in model output');
+
+  const open = stripped[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return JSON.parse(stripped.slice(start, i + 1)) as T;
+      }
+    }
+  }
+  throw new Error('Unterminated JSON in model output');
+}
+
+/**
+ * Report a Gemini JSON parse failure to Sentry with the raw response body
+ * so we can see what the model actually produced. The raw text is truncated
+ * to keep payloads sensible; we send a head and a tail since trailing garbage
+ * is the usual culprit.
+ */
+function reportJsonParseFailure(
+  err: unknown,
+  rawText: string,
+  context: { feature: string; sport?: string; [key: string]: any }
+) {
+  try {
+    Sentry.captureException(err, {
+      tags: {
+        feature: context.feature,
+        sport: context.sport || 'unknown',
+        source: 'gemini_json_parse',
+      },
+      extra: {
+        rawLength: rawText.length,
+        rawPreview: rawText.slice(0, 1000),
+        rawTail: rawText.length > 1000 ? rawText.slice(-500) : '',
+        context,
+      },
+    });
+  } catch {
+    // never let reporting break the request
+  }
+}
+
+export const analyzePlayerCard = async (imageBase64: string) => {
+  let rawText = '';
+  try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: 'application/json' },
+    });
 
     const prompt = `Analyze this soccer/football player card image and extract the following information in JSON format:
     {
@@ -64,20 +153,14 @@ export const analyzePlayerCard = async (imageBase64: string) => {
     ]);
 
     const response = await result.response;
-    const text = response.text();
+    rawText = response.text();
 
-    // Debug logging
-    console.log('Raw Gemini response:', text);
-
-    // Remove markdown code blocks if present
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-
-    // Debug logging
-    console.log('Cleaned text before parsing:', cleanText);
-
-    return JSON.parse(cleanText);
+    return safeParseJson(rawText);
   } catch (error) {
     console.error('Error analyzing card:', error);
+    if (error instanceof SyntaxError || /JSON/i.test((error as any)?.message || '')) {
+      reportJsonParseFailure(error, rawText, { feature: 'analyze_card', sport: 'soccer' });
+    }
     throw error;
   }
 };
@@ -192,8 +275,12 @@ export const simulateMatch = async (
   team1ChemistryText: string = '',
   team2ChemistryText: string = ''
 ) => {
+  let rawText = '';
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: 'application/json' },
+    });
 
     const team1AvgRating = Math.round(team1Players.reduce((sum: number, p: any) => sum + (p.rating || 75), 0) / team1Players.length);
     const team2AvgRating = Math.round(team2Players.reduce((sum: number, p: any) => sum + (p.rating || 75), 0) / team2Players.length);
@@ -349,12 +436,25 @@ Valid event types: kickoff, action, shot, goal, save, foul, card, redcard, corne
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    rawText = response.text();
 
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleanText);
+    return safeParseJson(rawText);
   } catch (error) {
     console.error('Error simulating match:', error);
+    if (error instanceof SyntaxError || /JSON/i.test((error as any)?.message || '')) {
+      reportJsonParseFailure(error, rawText, {
+        feature: 'simulate_match',
+        sport: 'soccer',
+        team1Name,
+        team2Name,
+      });
+    } else {
+      // Non-parse errors (API errors, quota, etc.) — report with lighter context
+      Sentry.captureException(error, {
+        tags: { feature: 'simulate_match', sport: 'soccer' },
+        extra: { team1Name, team2Name },
+      });
+    }
     throw error;
   }
 };
@@ -362,8 +462,12 @@ Valid event types: kickoff, action, shot, goal, save, foul, card, redcard, corne
 // ── Basketball Card Analysis ────────────────────────────────────────────────
 
 export const analyzeBasketballCard = async (imageBase64: string) => {
+  let rawText = '';
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
 
     const prompt = `Analyze this basketball player card image and extract information in JSON format:
 {
@@ -416,11 +520,13 @@ IMPORTANT: Always provide a numeric rating, cardValue, and rarity. Only return v
       { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
     ]);
 
-    const text = result.response.text();
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleanText);
+    rawText = result.response.text();
+    return safeParseJson(rawText);
   } catch (error) {
     console.error('Error analyzing basketball card:', error);
+    if (error instanceof SyntaxError || /JSON/i.test((error as any)?.message || '')) {
+      reportJsonParseFailure(error, rawText, { feature: 'analyze_card', sport: 'basketball' });
+    }
     throw error;
   }
 };
@@ -620,8 +726,12 @@ export const simulateBasketballGame = async (
   team1ChemistryText: string = '',
   team2ChemistryText: string = ''
 ) => {
+  let rawText = '';
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
 
     const team1Avg = Math.round(team1Players.reduce((s: number, p: any) => s + (p.rating || 75), 0) / team1Players.length);
     const team2Avg = Math.round(team2Players.reduce((s: number, p: any) => s + (p.rating || 75), 0) / team2Players.length);
@@ -706,11 +816,23 @@ Return ONLY this JSON (no markdown, no extra text):
 Valid event types: tip_off, shot_made, three_made, shot_missed, three_missed, dunk, layup, steal, block, turnover, foul, free_throw, timeout, end_quarter, buzzer_beater, final`;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleanText);
+    rawText = result.response.text();
+    return safeParseJson(rawText);
   } catch (error) {
     console.error('Error simulating basketball game:', error);
+    if (error instanceof SyntaxError || /JSON/i.test((error as any)?.message || '')) {
+      reportJsonParseFailure(error, rawText, {
+        feature: 'simulate_match',
+        sport: 'basketball',
+        team1Name,
+        team2Name,
+      });
+    } else {
+      Sentry.captureException(error, {
+        tags: { feature: 'simulate_match', sport: 'basketball' },
+        extra: { team1Name, team2Name },
+      });
+    }
     throw error;
   }
 };

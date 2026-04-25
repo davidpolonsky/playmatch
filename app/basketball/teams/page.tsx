@@ -193,6 +193,7 @@ export default function BasketballTeamsPage() {
   const [selectedAway, setSelectedAway] = useState<AnyBballTeam | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<BballSimResult | null>(null);
+  const [simError, setSimError] = useState<string | null>(null);
   const [visibleEvents, setVisibleEvents] = useState<BballPlayEvent[]>([]);
   const [streamingDone, setStreamingDone] = useState(false);
   const [liveScore, setLiveScore] = useState({ home: 0, away: 0 });
@@ -418,9 +419,9 @@ export default function BasketballTeamsPage() {
   }, [selectedAway]);
 
   const handleSimulate = async () => {
-    if (!selectedHome || !selectedAway) { alert('Select both teams'); return; }
-    if (selectedHome.id === selectedAway.id) { alert("A team can't play itself!"); return; }
-    setSimulating(true); setSimResult(null); setVisibleEvents([]); setLiveScore({ home: 0, away: 0 });
+    if (!selectedHome || !selectedAway) { setSimError('Select both teams'); return; }
+    if (selectedHome.id === selectedAway.id) { setSimError("A team can't play itself!"); return; }
+    setSimulating(true); setSimResult(null); setVisibleEvents([]); setLiveScore({ home: 0, away: 0 }); setSimError(null);
     try {
       const res = await fetch('/api/simulate-basketball-game', {
         method: 'POST',
@@ -458,8 +459,9 @@ export default function BasketballTeamsPage() {
           opponentScore: data.team1Score, date: null }).catch(() => {});
         setMatchHistories(prev => { const n = { ...prev }; delete n[selectedAway.id!]; return n; });
       }
-    } catch (e) {
-      console.error(e); alert('Failed to simulate game. Please try again.');
+    } catch (e: any) {
+      console.error(e);
+      setSimError(e?.message || 'Failed to simulate game. Please try again.');
     } finally { setSimulating(false); }
   };
 
@@ -697,6 +699,21 @@ export default function BasketballTeamsPage() {
                   </span>
                 ) : <span className="flex items-center justify-center gap-1.5"><img src="/basketball.png" className="w-4 h-4" alt="" /> Tip Off</span>}
               </button>
+              {simError && (
+                <div
+                  role="alert"
+                  className="mt-3 w-full px-3 py-2 text-xs rounded-md border border-red-500/40 bg-red-500/10 text-red-300 flex items-start justify-between gap-2"
+                >
+                  <span className="leading-relaxed">⚠️ {simError}</span>
+                  <button
+                    onClick={() => setSimError(null)}
+                    className="text-red-300/60 hover:text-red-300 shrink-0"
+                    aria-label="Dismiss error"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Away */}

@@ -10,6 +10,21 @@ if (SENDGRID_CONFIGURED) {
 
 const ADMIN_EMAIL = 'davidpolonsky@gmail.com';
 
+async function getGeoFromIp(ip: string): Promise<{ country: string; regionName: string; city: string } | null> {
+  try {
+    // Skip lookup for localhost/private IPs
+    if (!ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+      return null;
+    }
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=country,regionName,city,status`);
+    const geo = await res.json();
+    if (geo.status === 'success') {
+      return { country: geo.country, regionName: geo.regionName, city: geo.city };
+    }
+  } catch (_) {}
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!SENDGRID_CONFIGURED) {
@@ -25,8 +40,19 @@ export async function POST(req: NextRequest) {
 
     if (type === 'new_user') {
       const { email, displayName, timestamp } = data;
+
+      // Extract IP from request headers (works behind proxies like Vercel)
+      const forwarded = req.headers.get('x-forwarded-for');
+      const ip = (forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || 'Unknown');
+
+      // Geo lookup
+      const geo = await getGeoFromIp(ip);
+      const location = geo
+        ? `${geo.city ? geo.city + ', ' : ''}${geo.regionName ? geo.regionName + ', ' : ''}${geo.country}`
+        : 'Unknown';
+
       subject = `🎉 New PlayMatch User: ${displayName || email}`;
-      text = `New user signed up!\n\nEmail: ${email}\nName: ${displayName || 'N/A'}\nTime: ${new Date(timestamp).toLocaleString()}`;
+      text = `New user signed up!\n\nEmail: ${email}\nName: ${displayName || 'N/A'}\nTime: ${new Date(timestamp).toLocaleString()}\nIP: ${ip}\nLocation: ${location}`;
       html = `
 <!DOCTYPE html>
 <html>
@@ -52,7 +78,9 @@ export async function POST(req: NextRequest) {
                 <p style="margin:0 0 8px;color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">User Details</p>
                 <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;"><strong>Email:</strong> ${email}</p>
                 <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;"><strong>Name:</strong> ${displayName || 'Not provided'}</p>
-                <p style="margin:0;color:#e5e7eb;font-size:14px;"><strong>Time:</strong> ${new Date(timestamp).toLocaleString()}</p>
+                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;"><strong>Time:</strong> ${new Date(timestamp).toLocaleString()}</p>
+                <p style="margin:0 0 8px;color:#e5e7eb;font-size:14px;"><strong>IP:</strong> ${ip}</p>
+                <p style="margin:0;color:#e5e7eb;font-size:14px;"><strong>Location:</strong> ${location}</p>
               </div>
             </td>
           </tr>
