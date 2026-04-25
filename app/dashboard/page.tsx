@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { Player, FORMATIONS, selectBestStarting11 } from '@/lib/types';
 import { uploadCardImage } from '@/lib/firebase/storage';
-import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getAllTeams, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences, getSavedTeamIds, getTeam, addSavedTeam, removeSavedTeam, getTeamByShareId, parseShareId, formatShareId, getMatchHistory, MatchHistoryEntry } from '@/lib/firebase/firestore';
+import { saveTeam, getUserTeams, saveUserRoster, getUserRoster, checkCardUploadLimit, incrementCardUploadCount, getTeamRecords, getUserLegendaryRecords, TeamRecord, saveTablePreferences, getTablePreferences, getSavedTeamIds, getTeam, addSavedTeam, removeSavedTeam, getTeamByShareId, parseShareId, formatShareId, getMatchHistory, MatchHistoryEntry } from '@/lib/firebase/firestore';
 import { Team } from '@/lib/firebase/firestore';
 import { migrateRosterAppearance } from '@/lib/migrate-players';
 import { getLegendaryTeams, LegendaryTeam } from '@/lib/legendary-teams';
@@ -80,17 +80,18 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  // Load all teams + records when Teams tab is opened
+  // Load records when Teams tab is opened.
+  // Privacy: only legendary + your own + invited (savedFriends) teams are exposed —
+  // never the global library of every other user's custom teams.
   useEffect(() => {
     if (activeTab !== 'teams' || !user) return;
     (async () => {
       try {
-        const [all, savedIds, legRecs] = await Promise.all([
-          getAllTeams().catch(() => [] as Team[]),
+        const [savedIds, legRecs] = await Promise.all([
           getSavedTeamIds(user.uid).catch(() => [] as string[]),
           getUserLegendaryRecords(user.uid).catch(() => ({} as Record<string, TeamRecord>)),
         ]);
-        setAllUserTeams(all);
+        setAllUserTeams([]);
         setLegendaryRecords(legRecs);
 
         // Load saved friends teams
@@ -101,8 +102,8 @@ export default function Dashboard() {
         const savedFull = savedRaw.filter(t => t != null) as Team[];
         setSavedFriendsTeams(savedFull);
 
-        // Load records for all teams
-        const allTeamIds = [...savedTeams, ...savedFull, ...all].map(t => t.id!).filter(Boolean);
+        // Load records only for own + invited teams
+        const allTeamIds = [...savedTeams, ...savedFull].map(t => t.id!).filter(Boolean);
         const recs = await getTeamRecords(allTeamIds).catch(() => ({} as Record<string, TeamRecord>));
         setAllTeamRecords(recs);
       } catch (e) {
@@ -111,22 +112,29 @@ export default function Dashboard() {
     })();
   }, [activeTab, user, savedTeams]);
 
-  // Load all teams + records when Table tab is opened
+  // Load records when Table (standings) tab is opened.
+  // Privacy: standings only include legendary + your own + invited teams.
   useEffect(() => {
     if (activeTab !== 'table' || !user) return;
     (async () => {
       const legendaryTeams = getLegendaryTeams();
-      const [all, legRecs] = await Promise.all([
-        getAllTeams().catch(() => [] as Team[]),
+      const [savedIds, legRecs] = await Promise.all([
+        getSavedTeamIds(user.uid).catch(() => [] as string[]),
         getUserLegendaryRecords(user.uid).catch(() => ({} as Record<string, TeamRecord>)),
       ]);
-      const ids = all.filter(t => t.id).map(t => t.id!);
+      const myTeamIds = new Set(savedTeams.map(t => t.id));
+      const savedRaw = await Promise.all(
+        savedIds.filter(id => !myTeamIds.has(id)).map(id => getTeam(id).catch(() => null))
+      );
+      const savedFull = savedRaw.filter(t => t != null) as Team[];
+      const visibleTeams: (Team | LegendaryTeam)[] = [...savedTeams, ...savedFull, ...legendaryTeams];
+      const ids = visibleTeams.filter(t => t.id && !('isLegendary' in t && t.isLegendary)).map(t => t.id!);
       const recs = ids.length ? await getTeamRecords(ids).catch(() => ({} as Record<string, TeamRecord>)) : {};
-      setTableAllTeams([...all, ...legendaryTeams]);
+      setTableAllTeams(visibleTeams);
       setTableRecords(recs);
       setTableLegendaryRecords(legRecs);
     })();
-  }, [activeTab, user]);
+  }, [activeTab, user, savedTeams]);
 
   const loadUserTeams = async () => {
     if (!user) return;
@@ -604,7 +612,9 @@ export default function Dashboard() {
 
         {activeTab === 'teams' && (() => {
           const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
-          const friendsTeams = allUserTeams.filter(t => t.userId !== user?.uid && !savedFriendsTeams.some(s => s.id === t.id));
+          // Only legendary + your own + invited (savedFriends) teams are visible —
+          // never the global library of every other user's custom teams.
+          const friendsTeams: Team[] = [];
 
           const renderTeamCard = (team: Team | LegendaryTeam, isOwn = false, isSaved = false) => {
             const isLegendary = 'isLegendary' in team && team.isLegendary;
@@ -797,7 +807,8 @@ export default function Dashboard() {
                           const rl = entry.result === 'win' ? 'W' : entry.result === 'loss' ? 'L' : 'T';
                           const opponentExists = entry.opponentId === 'legendary' ||
                             getLegendaryTeams().some(t => t.id === entry.opponentId) ||
-                            allUserTeams.some(t => t.id === entry.opponentId);
+                            savedTeams.some(t => t.id === entry.opponentId) ||
+                            savedFriendsTeams.some(t => t.id === entry.opponentId);
                           const opponentDisplay = opponentExists
                             ? entry.opponentName
                             : `${entry.opponentName} - Retired`;

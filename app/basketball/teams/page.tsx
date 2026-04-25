@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import {
-  BballTeamDoc, BballRecord, getBballRecords, getUserBasketballTeams, getAllBasketballTeams,
+  BballTeamDoc, BballRecord, getBballRecords, getUserBasketballTeams,
   getBasketballTeam, deleteBasketballTeam, updateBballRecord, updateLegendaryBballRecord,
   getUserLegendaryBballRecords, addSavedBballTeam, getSavedBballTeamIds, removeSavedBballTeam,
   ensureBballShareId, getBasketballTeamByShareId, formatShareId, parseShareId,
@@ -169,7 +169,6 @@ export default function BasketballTeamsPage() {
   const router = useRouter();
 
   const [myTeams, setMyTeams] = useState<BballTeamDoc[]>([]);
-  const [allTeams, setAllTeams] = useState<BballTeamDoc[]>([]);
   const legendaryTeams = LEGENDARY_BASKETBALL_TEAMS;
   const [savedTeams, setSavedTeams] = useState<BballTeamDoc[]>([]);
   const [teamRecords, setTeamRecords] = useState<Record<string, BballRecord>>({});
@@ -323,9 +322,8 @@ export default function BasketballTeamsPage() {
 
   const loadTeams = async () => {
     try {
-      const [userTeams, allT, legRecs, savedIds] = await Promise.all([
+      const [userTeams, legRecs, savedIds] = await Promise.all([
         getUserBasketballTeams(user!.uid).catch(() => [] as BballTeamDoc[]),
-        getAllBasketballTeams().catch(() => [] as BballTeamDoc[]),
         getUserLegendaryBballRecords(user!.uid).catch(() => ({} as Record<string, BballRecord>)),
         getSavedBballTeamIds(user!.uid).catch(() => [] as string[]),
       ]);
@@ -336,18 +334,18 @@ export default function BasketballTeamsPage() {
         }));
       }
       setMyTeams(userTeams);
-      setAllTeams(allT);
       setLegendaryRecords(legRecs);
       const myIds = new Set(userTeams.map(t => t.id));
       const savedFull = (await Promise.all(
         savedIds.filter(id => !myIds.has(id)).map(id => getBasketballTeam(id).catch(() => null))
       )).filter(Boolean) as BballTeamDoc[];
       setSavedTeams(savedFull);
-      const ids = [...userTeams, ...allT, ...savedFull].map(t => t.id).filter((id): id is string => !!id);
+      // Load records only for own + invited teams
+      const ids = [...userTeams, ...savedFull].map(t => t.id).filter((id): id is string => !!id);
       const recs = await getBballRecords(ids).catch(() => ({} as Record<string, BballRecord>));
       setTeamRecords(recs);
     } catch {
-      setMyTeams([]); setAllTeams([]);
+      setMyTeams([]);
     } finally {
       setLoadingTeams(false);
     }
@@ -513,17 +511,19 @@ export default function BasketballTeamsPage() {
   const isHomeLegendary = selectedHome && 'isLegendary' in selectedHome && (selectedHome as any).isLegendary;
   const isHomeOwnTeam = selectedHome && !('isLegendary' in selectedHome && (selectedHome as any).isLegendary) && myTeams.some(t => t.id === selectedHome.id);
   const notHome = (t: AnyBballTeam) => t.id !== selectedHome?.id;
-  const friendsTeams = allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id));
+  // Privacy: only legendary + your own + invited (savedTeams) are exposed —
+  // never the global library of every other user's custom teams.
+  const friendsTeams: BballTeamDoc[] = [];
   const awayOptions = (isHomeLegendary
     ? legendaryTeams
     : isHomeOwnTeam
-      ? [...myTeams, ...legendaryTeams, ...savedTeams, ...friendsTeams]
+      ? [...myTeams, ...legendaryTeams, ...savedTeams]
       : [...myTeams, ...legendaryTeams]
   ).filter(notHome);
 
   const browseTeams: AnyBballTeam[] = [
     ...legendaryTeams,
-    ...allTeams.filter(t => t.userId !== user?.uid),
+    ...savedTeams,
   ];
 
   const SELECT_CLS = "w-full px-3 py-2 rounded-lg font-headline text-sm focus:outline-none focus:ring-1";
@@ -895,14 +895,45 @@ export default function BasketballTeamsPage() {
               {/* ── My Teams ── */}
               <h2 className="font-retro text-[9px] mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>🏠 MY TEAMS ({myTeams.length})</h2>
               {myTeams.length === 0 ? (
-                <div className="text-center py-8">
-                  <img src="/basketball.png" className="w-10 h-10 mx-auto mb-3" alt="Basketball" />
-                  <p className="font-retro text-[9px] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>No teams yet</p>
-                  <button onClick={() => setActiveTab('build-team')}
-                    className="font-retro text-[9px] py-2 px-6 rounded-lg transition-all"
-                    style={{ background: '#f97316', color: '#0f0a00' }}>
-                    Build Your First Team
-                  </button>
+                <div className="rounded-xl p-6 sm:p-8" style={{ background: '#0f0a00', border: '1px solid #3d2c00' }}>
+                  <div className="text-center mb-6">
+                    <img src="/basketball.png" className="w-10 h-10 mx-auto mb-3" alt="Basketball" />
+                    <p className="font-retro text-[9px] tracking-widest mb-2" style={{ color: '#f97316' }}>🏀 WELCOME TO PLAYMATCH</p>
+                    <p className="font-headline text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                      Snap real basketball cards, build your dream lineup, and run sims against the all-time greats.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {[
+                      { n: '1', t: 'SNAP A CARD', d: "Photograph any basketball card — Topps, Panini, Upper Deck — and we'll digitize the player." },
+                      { n: '2', t: 'BUILD A LINEUP', d: 'Drop your players into PG/SG/SF/PF/C and pick a team name.' },
+                      { n: '3', t: 'SIMULATE', d: 'Tip off against the Dream Team, the 95-96 Bulls, or the 73-9 Warriors — full play-by-play.' },
+                      { n: '4', t: 'INVITE A FRIEND', d: 'Share your 7-digit Team ID — paste theirs above to add them as a rival.' },
+                    ].map(s => (
+                      <div key={s.n} className="flex gap-3 p-3 rounded-lg" style={{ background: 'rgba(28,18,0,0.6)', border: '1px solid #3d2c00' }}>
+                        <span className="font-retro text-[18px] flex-shrink-0" style={{ color: '#f97316' }}>{s.n}</span>
+                        <div>
+                          <p className="font-retro text-[9px] mb-1 tracking-wider" style={{ color: '#f97316' }}>{s.t}</p>
+                          <p className="font-headline text-[10px] leading-snug" style={{ color: 'rgba(255,255,255,0.5)' }}>{s.d}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <button onClick={() => setActiveTab('build-team')}
+                      className="font-retro text-[9px] py-2.5 px-6 rounded-lg transition-all"
+                      style={{ background: '#f97316', color: '#0f0a00' }}>
+                      📸 SNAP & BUILD
+                    </button>
+                    <button onClick={() => setActiveTab('simulate')}
+                      className="font-retro text-[9px] py-2.5 px-6 rounded-lg border transition-colors"
+                      style={{ borderColor: '#3d2c00', color: 'rgba(255,255,255,0.7)' }}>
+                      ⭐ TRY A LEGENDARY SIM
+                    </button>
+                  </div>
+                  <p className="font-headline text-[10px] text-center mt-4" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    No cards on you? Pick a legendary squad and play right now ⭐
+                  </p>
                 </div>
               ) : myTeams.map(team => (
                 <TeamCard key={team.id} team={team} isOwn
@@ -945,21 +976,8 @@ export default function BasketballTeamsPage() {
                 </>
               )}
 
-              {/* ── Friends' Teams (other users) ── */}
-              {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).length > 0 && (
-                <>
-                  <h2 className="font-retro text-[9px] mt-8 mb-3 tracking-wider" style={{ color: 'rgba(249,115,22,0.8)' }}>🌍 FRIENDS' TEAMS</h2>
-                  {allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)).map(team => (
-                    <TeamCard key={team.id} team={team}
-                      expandedId={expandedId} setExpandedId={setExpandedId}
-                      record={teamRecords[team.id!] ?? { wins: 0, losses: 0 }}
-                      copiedId={copiedId} setCopiedId={setCopiedId}
-                      historyTeamId={historyTeamId} onViewHistory={handleViewHistory}
-                      matchHistories={matchHistories} loadingHistory={loadingHistory}
-                    />
-                  ))}
-                </>
-              )}
+              {/* Privacy: removed global "Friends' Teams" feed —
+                  only invited (savedTeams) appear above. */}
 
               {/* Delete confirmation dialog */}
               {teamToDelete && (
@@ -987,10 +1005,10 @@ export default function BasketballTeamsPage() {
 
         {/* ── Standings tab ── */}
         {!loadingTeams && activeTab === 'standings' && (() => {
+            // Privacy: standings only include legendary + your own + invited teams.
             const allAvail: AnyBballTeam[] = [
               ...myTeams,
               ...savedTeams,
-              ...allTeams.filter(t => t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)),
               ...legendaryTeams,
             ];
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Team,
   saveMatchHistory,
-  getAllTeams,
+  getTeam,
   updateTeamRecord,
   updateLegendaryRecord,
   getUserLegendaryRecords,
@@ -158,21 +158,27 @@ export default function MatchSimulator({ teams, userId, userEmail }: MatchSimula
   // All selectable teams
   const allTeams: AnyTeam[] = [...teams, ...legendaryTeams, ...otherTeams.filter(t => t.userId !== userId)];
 
-  // Load other users' teams + records on mount
+  // Load invited friends' teams + records on mount.
+  // Privacy: we only resolve teams the user has explicitly saved via shareId —
+  // we never fetch the global library of every other user's teams.
   useEffect(() => {
     const load = async () => {
       try {
-        const [all, legRecs, savedIds] = await Promise.all([
-          getAllTeams().catch(() => [] as Team[]),
+        const [legRecs, savedIds] = await Promise.all([
           getUserLegendaryRecords(userId).catch(() => ({} as Record<string, TeamRecord>)),
           getSavedTeamIds(userId).catch(() => [] as string[]),
         ]);
-        const other = all.filter(t => t.userId !== userId);
-        setOtherTeams(other);
         setLegendaryRecords(legRecs);
         setSavedTeamIds(savedIds);
 
-        const allIds = [...teams, ...other].map(t => t.id!).filter(Boolean);
+        const myTeamIds = new Set(teams.map(t => t.id));
+        const savedRaw = await Promise.all(
+          savedIds.filter(id => !myTeamIds.has(id)).map(id => getTeam(id).catch(() => null))
+        );
+        const invited = savedRaw.filter((t): t is Team => t != null && t.userId !== userId);
+        setOtherTeams(invited);
+
+        const allIds = [...teams, ...invited].map(t => t.id!).filter(Boolean);
         const recs = await getTeamRecords(allIds).catch(() => ({} as Record<string, TeamRecord>));
         setTeamRecords(recs);
       } catch (e) {

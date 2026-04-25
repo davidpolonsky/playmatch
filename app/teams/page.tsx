@@ -6,7 +6,7 @@ import { signOut } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Team } from '@/lib/types';
 import {
-  getUserTeams, getAllTeams, deleteTeam, getTeam,
+  getUserTeams, deleteTeam, getTeam,
   updateTeamRecord, updateLegendaryRecord,
   getTeamRecords, getUserLegendaryRecords,
   addSavedTeam, getSavedTeamIds, removeSavedTeam,
@@ -95,7 +95,6 @@ export default function TeamsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [myTeams, setMyTeams] = useState<Team[]>([]);
-  const [allTeams, setAllTeams] = useState<Team[]>([]);
   const legendaryTeams = getLegendaryTeams(); // Excludes premium teams
   const [selectedHome, setSelectedHome] = useState<AnyTeam | null>(null);
   const [selectedAway, setSelectedAway] = useState<AnyTeam | null>(null);
@@ -221,9 +220,8 @@ export default function TeamsPage() {
 
   const loadTeams = async () => {
     try {
-      const [userTeams, teams, legRecs, savedIds] = await Promise.all([
+      const [userTeams, legRecs, savedIds] = await Promise.all([
         getUserTeams(user!.uid).catch(() => [] as Team[]),
-        getAllTeams().catch(() => [] as Team[]),
         getUserLegendaryRecords(user!.uid).catch(() => ({} as Record<string, TeamRecord>)),
         getSavedTeamIds(user!.uid).catch(() => [] as string[]),
       ]);
@@ -235,7 +233,6 @@ export default function TeamsPage() {
         }));
       }
       setMyTeams(userTeams);
-      setAllTeams(teams);
       setLegendaryRecords(legRecs);
 
       // Resolve saved team IDs → full team objects (filter out own teams)
@@ -246,12 +243,12 @@ export default function TeamsPage() {
       const savedFull = savedRaw.filter(t => t != null) as Team[];
       setSavedTeams(savedFull);
 
-      // Load W/L/T records for all teams
-      const ids = [...userTeams, ...teams, ...savedFull].map(t => t.id).filter((id): id is string => !!id);
+      // Load W/L/T records for own + invited teams only
+      const ids = [...userTeams, ...savedFull].map(t => t.id).filter((id): id is string => !!id);
       const recs = await getTeamRecords(ids).catch(() => ({} as Record<string, TeamRecord>));
       setTeamRecords(recs);
     } catch {
-      setMyTeams([]); setAllTeams([]);
+      setMyTeams([]);
     } finally {
       setLoadingTeams(false);
     }
@@ -621,7 +618,8 @@ export default function TeamsPage() {
                   // Check if opponent team still exists (legendary teams always exist)
                   const opponentExists = entry.opponentId === 'legendary' ||
                     legendaryTeams.some(t => t.id === entry.opponentId) ||
-                    allTeams.some(t => t.id === entry.opponentId);
+                    myTeams.some(t => t.id === entry.opponentId) ||
+                    savedTeams.some(t => t.id === entry.opponentId);
                   const opponentDisplay = opponentExists
                     ? entry.opponentName
                     : `${entry.opponentName} - Retired`;
@@ -654,10 +652,10 @@ export default function TeamsPage() {
     );
   }
 
-  // Friends' teams = all other users' teams (excluding saved ones to avoid duplication)
-  const friendsTeams: Team[] = allTeams.filter(t =>
-    t.userId !== user?.uid && !savedTeams.some(s => s.id === t.id)
-  );
+  // Friends' teams = teams the user has explicitly invited via shareId.
+  // We no longer expose every other user's custom teams — only legendary
+  // and savedTeams (teams added by ID) appear in the simulator.
+  const friendsTeams: Team[] = [];
 
   return (
     <div className="min-h-screen">
@@ -874,12 +872,54 @@ export default function TeamsPage() {
               <div className="mb-8">
                 <h3 className="font-retro text-[9px] text-fifa-mint/70 mb-4 tracking-wider">🏠 MY TEAMS</h3>
                 {myTeams.length === 0 ? (
-                  <div className="text-center py-12 bg-fifa-dark border border-fifa-border rounded-xl">
-                    <p className="font-retro text-[9px] text-white/40 tracking-wider mb-1">NO TEAMS YET</p>
-                    <p className="font-headline text-[10px] text-white/25 mb-6">Build and save your first team</p>
-                    <button onClick={() => router.push('/team-builder')} className="btn-primary py-2.5 px-6">
-                      + Build Your Team
-                    </button>
+                  <div className="bg-fifa-dark border border-fifa-border rounded-xl p-6 sm:p-8">
+                    <div className="text-center mb-6">
+                      <p className="font-retro text-[9px] text-fifa-mint tracking-widest mb-2">⚽ WELCOME TO PLAYMATCH</p>
+                      <p className="font-headline text-[12px] text-fifa-cream/80 leading-relaxed">
+                        Snap real soccer cards, build your dream team, and simulate matches against the legends.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                      <div className="flex gap-3 p-3 bg-fifa-mid/50 border border-fifa-border rounded-lg">
+                        <span className="font-retro text-[18px] text-fifa-mint flex-shrink-0">1</span>
+                        <div>
+                          <p className="font-retro text-[9px] text-fifa-mint mb-1 tracking-wider">SNAP A CARD</p>
+                          <p className="font-headline text-[10px] text-white/50 leading-snug">Photograph any soccer card — Panini, Topps, or Match Attax — and we'll digitize the player.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 p-3 bg-fifa-mid/50 border border-fifa-border rounded-lg">
+                        <span className="font-retro text-[18px] text-fifa-mint flex-shrink-0">2</span>
+                        <div>
+                          <p className="font-retro text-[9px] text-fifa-mint mb-1 tracking-wider">BUILD A TEAM</p>
+                          <p className="font-headline text-[10px] text-white/50 leading-snug">Drop your players into a formation and pick a club name.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 p-3 bg-fifa-mid/50 border border-fifa-border rounded-lg">
+                        <span className="font-retro text-[18px] text-fifa-mint flex-shrink-0">3</span>
+                        <div>
+                          <p className="font-retro text-[9px] text-fifa-mint mb-1 tracking-wider">SIMULATE</p>
+                          <p className="font-headline text-[10px] text-white/50 leading-snug">Kick off against Barça, the Galácticos, or Brazil 1970 — full play-by-play.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 p-3 bg-fifa-mid/50 border border-fifa-border rounded-lg">
+                        <span className="font-retro text-[18px] text-fifa-mint flex-shrink-0">4</span>
+                        <div>
+                          <p className="font-retro text-[9px] text-fifa-mint mb-1 tracking-wider">INVITE A FRIEND</p>
+                          <p className="font-headline text-[10px] text-white/50 leading-snug">Share your 7-digit Team ID — paste theirs above to add them as a rival.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                      <button onClick={() => router.push('/dashboard')} className="btn-primary py-2.5 px-6">
+                        📸 Snap a Card
+                      </button>
+                      <button onClick={() => router.push('/team-builder')} className="py-2.5 px-6 rounded-lg font-retro text-[9px] tracking-widest border border-fifa-border bg-fifa-mid text-fifa-cream hover:bg-fifa-mid/70 transition">
+                        + BUILD A TEAM
+                      </button>
+                    </div>
+                    <p className="font-headline text-[10px] text-white/30 text-center mt-4">
+                      No cards on you? Scroll down and play as a legendary squad ⭐
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
