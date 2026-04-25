@@ -18,6 +18,8 @@ import TeamList from '@/components/TeamList';
 import MatchSimulator from '@/components/MatchSimulator';
 import Footer from '@/components/Footer';
 import Navigation from '@/components/Navigation';
+import OnboardingTour from '@/components/OnboardingTour';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -28,6 +30,7 @@ export default function Dashboard() {
   const [teamName, setTeamName] = useState('');
   const [savedTeams, setSavedTeams] = useState<Team[]>([]);
   const [activeTab, setActiveTab] = useState<'build' | 'teams' | 'match' | 'table'>('build');
+  const [showTour, setShowTour] = useState(false);
   // League Table state
   const [tableTeamIds, setTableTeamIds] = useState<Set<string>>(new Set());
   const [tableMetric, setTableMetric] = useState<'points' | 'winpct'>('points');
@@ -77,8 +80,42 @@ export default function Dashboard() {
       getTablePreferences(user.uid).then(prefs => {
         if (prefs.tableTeamIds.length > 0) setTableTeamIds(new Set(prefs.tableTeamIds));
       }).catch(() => {});
+
+      // Check if user has seen onboarding tour
+      checkOnboardingStatus();
     }
   }, [user]);
+
+  const checkOnboardingStatus = async () => {
+    if (!user) return;
+    try {
+      const db = getFirestore();
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const hasSeenTour = userDoc.data()?.hasSeenOnboardingTour;
+
+      // Show tour if user hasn't seen it (new users)
+      if (!hasSeenTour) {
+        setShowTour(true);
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+    }
+  };
+
+  const handleTourComplete = async () => {
+    setShowTour(false);
+
+    if (!user) return;
+    try {
+      const db = getFirestore();
+      await updateDoc(doc(db, 'users', user.uid), {
+        hasSeenOnboardingTour: true,
+        onboardingCompletedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('Error saving onboarding status:', error);
+    }
+  };
 
   // Load records when Teams tab is opened.
   // Privacy: only legendary + your own + invited (savedFriends) teams are exposed —
@@ -475,6 +512,7 @@ export default function Dashboard() {
               <button
                 key={key}
                 onClick={() => setActiveTab(key as typeof activeTab)}
+                data-tour={key === 'teams' ? 'my-teams' : key === 'match' ? 'simulate' : undefined}
                 className={`px-4 py-2.5 font-retro text-[9px] tracking-wider transition-all border-b-2 -mb-px ${
                   activeTab === key
                     ? 'text-fifa-mint border-fifa-mint'
@@ -490,7 +528,7 @@ export default function Dashboard() {
         {activeTab === 'build' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Card Upload Section */}
-            <div className="card">
+            <div className="card" data-tour="add-player">
               <h2 className="font-retro text-[10px] text-fifa-mint mb-4 tracking-wider">📷 Scan Player Cards</h2>
               <CardUploader
                 onPlayerAdded={handlePlayerAdded}
@@ -647,7 +685,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-headline text-[13px] text-fifa-cream">{team.name}</h3>
                         {isOwn && !isLegendary && (team as Team).shareId && (
-                          <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                          <span className="font-retro text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }} data-tour="share-team">
                             [{formatShareId((team as Team).shareId!)}]
                           </span>
                         )}
@@ -1052,6 +1090,11 @@ export default function Dashboard() {
       </main>
 
       <Footer />
+
+      {/* Onboarding Tour for New Users */}
+      {showTour && user && (
+        <OnboardingTour userId={user.uid} onComplete={handleTourComplete} />
+      )}
     </div>
   );
 }
