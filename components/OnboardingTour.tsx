@@ -1,9 +1,7 @@
 'use client';
 
-'use client';
-
 import React, { useEffect, useState } from 'react';
-import { Joyride, type CallBackProps, type Step } from 'react-joyride';
+import { Joyride, type Step, type EventData } from 'react-joyride';
 
 interface OnboardingTourProps {
   userId: string;
@@ -122,7 +120,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
     },
   ];
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
+  const handleJoyrideCallback = (data: EventData) => {
     const { status, index, action } = data;
 
     const STATUS_FINISHED = 'finished';
@@ -148,7 +146,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       showProgress
       showSkipButton
       stepIndex={stepIndex}
-      callback={handleJoyrideCallback}
+      onEvent={handleJoyrideCallback}
       styles={{
         options: {
           primaryColor: '#4ade80',
