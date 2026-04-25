@@ -143,10 +143,16 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       steps={steps}
       run={run}
       continuous
-      showProgress
-      showSkipButton
       stepIndex={stepIndex}
       onEvent={handleJoyrideCallback}
+      options={{
+        showProgress: true,
+        showSkipButton: true,
+        disableOverlayClose: true,
+        disableCloseOnEsc: true,
+        hideCloseButton: true,
+        spotlightPadding: 8,
+      }}
       styles={{
         beaconInner: {
           backgroundColor: '#4ade80',
@@ -195,10 +201,6 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         next: 'Next',
         skip: 'Skip tour',
       }}
-      disableOverlayClose
-      disableCloseOnEsc
-      hideCloseButton
-      spotlightPadding={8}
     />
   );
 }
