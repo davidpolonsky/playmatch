@@ -38,7 +38,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         </div>
       ),
       placement: 'center',
-      disableBeacon: true,
+      skipBeacon: true,
     },
     {
       target: '[data-tour="add-player"]',
@@ -55,7 +55,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         </div>
       ),
       placement: 'bottom',
-      spotlightClicks: false,
+      blockTargetInteraction: true,
     },
     {
       target: '[data-tour="my-teams"]',
@@ -72,7 +72,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         </div>
       ),
       placement: 'bottom',
-      spotlightClicks: false,
+      blockTargetInteraction: true,
     },
     {
       target: '[data-tour="simulate"]',
@@ -93,7 +93,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         </div>
       ),
       placement: 'bottom',
-      spotlightClicks: false,
+      blockTargetInteraction: true,
     },
     {
       target: '[data-tour="share-team"]',
@@ -116,7 +116,7 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
         </div>
       ),
       placement: 'left',
-      spotlightClicks: false,
+      blockTargetInteraction: true,
     },
   ];
 
