@@ -148,19 +148,33 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       stepIndex={stepIndex}
       onEvent={handleJoyrideCallback}
       styles={{
-        options: {
+        beacon: {
           primaryColor: '#4ade80',
-          zIndex: 10000,
-          arrowColor: '#1e293b',
-          backgroundColor: '#1e293b',
-          textColor: '#e2e8f0',
+        },
+        beaconInner: {
+          backgroundColor: '#4ade80',
+        },
+        beaconOuter: {
+          backgroundColor: 'rgba(74, 222, 128, 0.2)',
+          borderColor: '#4ade80',
+        },
+        overlay: {
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        },
+        spotlight: {
+          backgroundColor: 'transparent',
         },
         tooltip: {
           padding: 20,
           borderRadius: 12,
+          backgroundColor: '#1e293b',
+          color: '#e2e8f0',
         },
         tooltipContainer: {
           textAlign: 'left',
+        },
+        tooltipContent: {
+          padding: 0,
         },
         buttonNext: {
           backgroundColor: '#4ade80',
