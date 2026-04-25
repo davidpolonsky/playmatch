@@ -147,10 +147,9 @@ export default function OnboardingTour({ userId, onComplete }: OnboardingTourPro
       onEvent={handleJoyrideCallback}
       options={{
         showProgress: true,
-        showSkipButton: true,
-        disableOverlayClose: true,
-        disableCloseOnEsc: true,
-        hideCloseButton: true,
+        buttons: ['back', 'skip', 'primary'],
+        overlayClickAction: false,
+        dismissKeyAction: false,
         spotlightPadding: 8,
       }}
       styles={{
