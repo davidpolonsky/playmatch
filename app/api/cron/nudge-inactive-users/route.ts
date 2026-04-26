@@ -1,11 +1,18 @@
 /**
  * Cron: nudge-inactive-users
  *
- * Runs hourly. Finds users who signed up 3-4 hours ago, haven't uploaded any
- * cards or created any teams, and haven't been nudged yet. Sends them a friendly
- * onboarding email walking through the four-step flow (snap a card → build a
- * team → simulate → invite a friend) and marks them as nudged in Firestore so
- * they only get the email once.
+ * Runs daily (Vercel Hobby limit). Finds users who signed up at least 3 hours
+ * ago and at most 14 days ago, haven't uploaded any cards or created any teams,
+ * and haven't been nudged yet. Sends them a friendly onboarding email walking
+ * through the four-step flow (snap a card → build a team → simulate → invite
+ * a friend) and marks them as nudged in Firestore so they only get the email
+ * once.
+ *
+ * Why a wide window: the cron only fires once per day, so a tight 3-4 hour
+ * window would miss anyone who signed up at the wrong time of day. The
+ * `nudgedAt` guard makes it safe to widen the window — each user is still
+ * nudged at most once. The 14-day upper bound prevents emailing dormant
+ * accounts that pre-date this feature.
  *
  * Auth: Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` automatically
  * when the CRON_SECRET env var is set. We require it here so the endpoint
@@ -191,15 +198,17 @@ async function runNudge(): Promise<NudgeResult> {
   const db = getAdminDb();
 
   const now = Date.now();
-  const fourHoursAgo = Timestamp.fromMillis(now - 4 * 60 * 60 * 1000);
+  const fourteenDaysAgo = Timestamp.fromMillis(now - 14 * 24 * 60 * 60 * 1000);
   const threeHoursAgo = Timestamp.fromMillis(now - 3 * 60 * 60 * 1000);
 
-  // Users created between 4 and 3 hours ago. We use a single 1-hour window so an
-  // hourly cron sees each user exactly once. The nudgedAt guard makes it safe to
-  // run more often or to retry on failure.
+  // Users created between 14 days and 3 hours ago. The window has to be wide
+  // enough that a once-per-day cron run doesn't permanently miss users —
+  // anyone who signed up at the "wrong" hour would otherwise never be picked
+  // up. The `nudgedAt` guard below makes this safe: each user is nudged at
+  // most once, regardless of how many cron runs they fall inside.
   const usersSnap = await db
     .collection('users')
-    .where('createdAt', '>=', fourHoursAgo)
+    .where('createdAt', '>=', fourteenDaysAgo)
     .where('createdAt', '<', threeHoursAgo)
     .get();
 
