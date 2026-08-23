@@ -24,6 +24,14 @@ import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Early return guard - must be before all other hooks
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Player[]>([]);
   const [formation, setFormation] = useState('4-3-3');
@@ -67,12 +75,6 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
-    }
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (user) {
       loadUserTeams();
       loadUserRoster();
@@ -103,7 +105,10 @@ export default function Dashboard() {
   };
 
   const handleTourComplete = async () => {
-    setShowTour(false);
+    // Delay unmount to let Joyride finish its internal cleanup
+    setTimeout(() => {
+      setShowTour(false);
+    }, 100);
 
     if (!user) return;
     try {
@@ -446,16 +451,13 @@ export default function Dashboard() {
   const positionCounts = getPositionBreakdown();
   const formationConfig = FORMATIONS[formation];
 
-  if (loading) {
+  // Show loading state while auth initializes
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white text-2xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-fifa-dark">
+        <div className="text-fifa-mint font-retro text-sm">Loading...</div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (

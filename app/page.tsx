@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
 import { signOut } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/components/AuthProvider';
 import {
   validateAndConsumeInviteCode,
   isNewUser,
@@ -18,7 +18,7 @@ import AuthModal from '@/components/AuthModal';
 const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
 
 function HomeContent() {
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuth();
   const [soccerLabel, setSoccerLabel] = useState('Football');
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -54,14 +54,12 @@ function HomeContent() {
     }).catch(() => {});
   }, []);
 
+  // Redirect authenticated users to dashboard
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setLoading(false);
-      // Don't auto-redirect if handleInviteSignIn is in the middle of validating
-      if (user && !handlingInvite.current) router.push('/dashboard');
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!loading && user && !handlingInvite.current) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const handleWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();

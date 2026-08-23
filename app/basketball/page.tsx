@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '@/lib/firebase/config';
 import { signOut } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/components/AuthProvider';
 import {
   validateAndConsumeInviteCode,
   isNewUser,
@@ -18,7 +18,7 @@ import AuthModal from '@/components/AuthModal';
 const WAITLIST_ENABLED = process.env.NEXT_PUBLIC_WAITLIST_ENABLED === 'true';
 
 function BasketballHomeContent() {
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuth();
   const [soccerLabel, setSoccerLabel] = useState('Football');
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -45,13 +45,12 @@ function BasketballHomeContent() {
     }
   }, [inviteParam, isInvited]);
 
+  // Redirect authenticated users to basketball teams page
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setLoading(false);
-      if (user && !handlingInvite.current) router.push('/basketball/teams');
-    });
-    return () => unsub();
-  }, [router]);
+    if (!loading && user && !handlingInvite.current) {
+      router.push('/basketball/teams');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     fetch('/api/geo').then(res => res.json()).then(data => {
