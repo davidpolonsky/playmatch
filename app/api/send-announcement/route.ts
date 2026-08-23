@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
     const users = usersSnapshot.docs.map(doc => ({
       uid: doc.id,
       ...doc.data()
-    }));
+    })) as Array<{ uid: string; email?: string; displayName?: string }>;
 
     console.log(`Found ${users.length} users to email`);
 
     // Filter out users without email
-    const usersWithEmail = users.filter(u => u.email);
+    const usersWithEmail = users.filter((u): u is { uid: string; email: string; displayName?: string } => !!u.email);
 
     if (usersWithEmail.length === 0) {
       return NextResponse.json({ success: true, sent: 0, message: 'No users with email found' });
