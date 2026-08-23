@@ -23,8 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and message are required' }, { status: 400 });
     }
 
+    // Send feedback to admin email
+    const adminEmail = process.env.ADMIN_EMAIL || 'davidpolonsky@gmail.com';
+
     await sgMail.send({
-      to: process.env.SENDGRID_FROM_EMAIL!,
+      to: adminEmail,
       from: {
         email: process.env.SENDGRID_FROM_EMAIL!,
         name: 'PlayMatch Feedback',
