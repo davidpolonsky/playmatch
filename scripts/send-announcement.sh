@@ -18,8 +18,8 @@ if [ ! -f .env.local ]; then
     exit 1
 fi
 
-# Load environment variables
-export $(grep -v '^#' .env.local | xargs)
+# Extract ADMIN_API_TOKEN from .env.local (handles multi-line values safely)
+ADMIN_API_TOKEN=$(grep "^ADMIN_API_TOKEN=" .env.local | cut -d '=' -f2-)
 
 # Check if ADMIN_API_TOKEN is set
 if [ -z "$ADMIN_API_TOKEN" ]; then
