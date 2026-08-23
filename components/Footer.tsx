@@ -54,12 +54,21 @@ export default function Footer() {
           <p className="font-retro text-[8px] text-white/30 tracking-wider">
             PlayMatch Games™ 2026
           </p>
-          <button
-            onClick={() => setShowFeedback(true)}
-            className="font-headline text-[10px] text-fifa-mint hover:text-fifa-cream transition-colors"
-          >
-            💬 Send Feedback
-          </button>
+          <div className="flex items-center gap-4">
+            <a
+              href="/feedback"
+              className="font-headline text-[10px] text-fifa-mint hover:text-fifa-cream transition-colors"
+            >
+              💬 Feedback
+            </a>
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="font-headline text-[10px] text-white/40 hover:text-fifa-mint transition-colors"
+              title="Quick feedback"
+            >
+              ⚡ Quick
+            </button>
+          </div>
         </div>
       </div>
 

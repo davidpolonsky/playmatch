@@ -9,7 +9,7 @@ interface NavigationProps {
   user?: {
     displayName: string | null;
   } | null;
-  currentPage?: 'dashboard' | 'teams' | 'team-builder';
+  currentPage?: 'dashboard' | 'teams' | 'team-builder' | 'feedback';
 }
 
 export default function Navigation({ user, currentPage }: NavigationProps) {
