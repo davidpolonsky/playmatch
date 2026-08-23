@@ -35,3 +35,4 @@ next-env.d.ts
 
 # uploads (these should go to Firebase Storage)
 /public/uploads/*
+playmatch-service-account.json
