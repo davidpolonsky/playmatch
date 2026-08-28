@@ -53,9 +53,24 @@ function BasketballHomeContent() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    fetch('/api/geo').then(res => res.json()).then(data => {
-      if (data.country_code === 'US') setSoccerLabel('Soccer');
-    }).catch(() => {});
+    const controller = new AbortController();
+
+    fetch('/api/geo', { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch geo data');
+        return res.json();
+      })
+      .then(data => {
+        if (data?.country_code === 'US') setSoccerLabel('Soccer');
+      })
+      .catch((error) => {
+        // Silently fail - default to 'Football'
+        if (error.name !== 'AbortError') {
+          console.debug('Geo fetch failed:', error.message);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   const handleWaitlist = async (e: React.FormEvent) => {

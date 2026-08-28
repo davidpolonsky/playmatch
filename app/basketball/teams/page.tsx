@@ -228,9 +228,24 @@ export default function BasketballTeamsPage() {
   useEffect(() => { if (!loading && !user) router.push('/basketball'); }, [user, loading, router]);
 
   useEffect(() => {
-    fetch('/api/geo').then(r => r.json()).then(d => {
-      if (d.country_code === 'US') setSoccerLabel('Soccer');
-    }).catch(() => {});
+    const controller = new AbortController();
+
+    fetch('/api/geo', { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch geo data');
+        return res.json();
+      })
+      .then(data => {
+        if (data?.country_code === 'US') setSoccerLabel('Soccer');
+      })
+      .catch((error) => {
+        // Silently fail - default to 'Football'
+        if (error.name !== 'AbortError') {
+          console.debug('Geo fetch failed:', error.message);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
