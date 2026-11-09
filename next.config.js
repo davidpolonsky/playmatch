@@ -8,6 +8,8 @@ const nextConfig = {
     return [
       // Friendlier URL alias — /soccer mirrors /basketball naming
       { source: '/soccer', destination: '/teams', permanent: false },
+      // Facebook launch link — clean URL for posts, UTMs ride along for tracking
+      { source: '/fb', destination: '/?utm_source=facebook&utm_medium=organic&utm_campaign=launch_pinned', permanent: false },
     ];
   },
 };
